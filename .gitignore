@@ -1,0 +1,50 @@
+# macOS
+.DS_Store
+
+# IDE / editors
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# ----- iOS / Swift -----
+ios/**/build/
+ios/**/DerivedData/
+ios/**/.build/
+ios/**/Pods/
+ios/**/*.xcuserstate
+ios/**/xcuserdata/
+ios/**/*.xcworkspace/xcuserdata/
+ios/**/*.xcodeproj/xcuserdata/
+ios/**/*.xcodeproj/project.xcworkspace/xcuserdata/
+ios/**/Package.resolved
+# XcodeGen-generated project bundle (regenerate with `xcodegen generate`)
+ios/Paddleup.xcodeproj/
+# Firebase config (developer adds locally)
+ios/**/GoogleService-Info.plist
+
+# ----- Android / Kotlin -----
+android/.gradle/
+android/build/
+android/**/build/
+android/local.properties
+android/captures/
+android/.cxx/
+android/**/*.keystore
+android/**/release/
+# Firebase config (developer adds locally)
+android/**/google-services.json
+
+# ----- Firebase Cloud Functions -----
+firebase/functions/node_modules/
+firebase/functions/lib/
+firebase/.firebase/
+firebase/.runtimeconfig.json
+firebase/firebase-debug.log
+
+# ----- General -----
+node_modules/
+*.log
+.env
+.env.local

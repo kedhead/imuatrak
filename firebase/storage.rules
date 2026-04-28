@@ -1,0 +1,22 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    match /users/{uid}/tracks/{file} {
+      allow read, write: if isOwner(uid)
+        && (file.matches('.*\\.gpx$') || file.matches('.*\\.fit$'))
+        && request.resource.size < 25 * 1024 * 1024;
+    }
+
+    match /users/{uid}/cards/{file} {
+      // Cards are written by the renderSessionCard Cloud Function.
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+  }
+}

@@ -1,0 +1,67 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+
+jobs:
+  shared:
+    name: PaddleupShared (SPM)
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: ios/PaddleupShared
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+      - name: Build + test PaddleupShared
+        run: swift test
+
+  app:
+    name: Paddleup (XcodeGen build)
+    runs-on: macos-14
+    needs: shared
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Stub GoogleService-Info.plist
+        run: |
+          cat > Paddleup/GoogleService-Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>API_KEY</key><string>stub</string>
+            <key>GCM_SENDER_ID</key><string>0</string>
+            <key>BUNDLE_ID</key><string>app.paddleup</string>
+            <key>PROJECT_ID</key><string>paddleup-ci</string>
+            <key>STORAGE_BUCKET</key><string>paddleup-ci.appspot.com</string>
+            <key>GOOGLE_APP_ID</key><string>1:0:ios:0</string>
+          </dict>
+          </plist>
+          PLIST
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build
+        run: |
+          xcodebuild \
+            -project Paddleup.xcodeproj \
+            -scheme Paddleup \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcpretty
