@@ -55,6 +55,12 @@ const config: ExpoConfig = {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#0E5FA5",
     },
+    config: {
+      googleMaps: {
+        // Android-only — iOS uses Apple Maps and needs no key.
+        apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY,
+      },
+    },
     permissions: [
       "ACCESS_FINE_LOCATION",
       "ACCESS_COARSE_LOCATION",

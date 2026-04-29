@@ -1,21 +1,36 @@
 import * as Sharing from "expo-sharing";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import MapView, { Marker, Polyline, type LatLng } from "react-native-maps";
 import { Metric } from "@/ui/Metric";
 import { Button } from "@/ui/Button";
 import { formatDuration, formatKm, formatPace } from "@/ui/format";
-import { colors, spacing } from "@/ui/theme";
+import { colors, radii, spacing } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
 
 export default function SessionDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [stored, setStored] = useState<StoredSession | null>(null);
+  const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
     if (!id) return;
     void load(id).then(setStored);
   }, [id]);
+
+  // Fit the map to the recorded route once both the map and the track are
+  // ready. `fitToCoordinates` pans + zooms in a single call.
+  const coords: LatLng[] =
+    stored?.track.map((p) => ({ latitude: p.lat, longitude: p.lon })) ?? [];
+
+  useEffect(() => {
+    if (coords.length < 2 || !mapRef.current) return;
+    mapRef.current.fitToCoordinates(coords, {
+      edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
+      animated: false,
+    });
+  }, [stored, coords]);
 
   if (!stored) {
     return (
@@ -26,6 +41,7 @@ export default function SessionDetail() {
   }
 
   const s = stored.session;
+
   const onShare = async () => {
     if (!(await Sharing.isAvailableAsync())) {
       Alert.alert("Sharing not available on this device");
@@ -38,9 +54,43 @@ export default function SessionDetail() {
     });
   };
 
+  const start = coords[0];
+  const end = coords[coords.length - 1];
+  const initialRegion = start
+    ? { latitude: start.latitude, longitude: start.longitude, latitudeDelta: 0.02, longitudeDelta: 0.02 }
+    : undefined;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
       <Text style={styles.craft}>{s.craftType}</Text>
+
+      <View style={styles.mapBox}>
+        {coords.length >= 2 ? (
+          <MapView
+            ref={mapRef}
+            style={styles.map}
+            initialRegion={initialRegion}
+            scrollEnabled
+            zoomEnabled
+            pitchEnabled={false}
+            rotateEnabled={false}
+            toolbarEnabled={false}
+          >
+            <Polyline coordinates={coords} strokeColor={colors.blue} strokeWidth={4} />
+            {start && (
+              <Marker coordinate={start} title="Start" pinColor="green" />
+            )}
+            {end && start !== end && (
+              <Marker coordinate={end} title="End" pinColor="red" />
+            )}
+          </MapView>
+        ) : (
+          <View style={[styles.map, styles.mapPlaceholder]}>
+            <Text style={{ color: colors.muted }}>No GPS data captured</Text>
+          </View>
+        )}
+      </View>
+
       <View>
         <Metric label="Distance" value={`${formatKm(s.totals.distanceMeters)} km`} />
         <Metric label="Duration" value={formatDuration(s.totals.durationSec)} />
@@ -52,6 +102,7 @@ export default function SessionDetail() {
         <Metric label="Avg HR" value={s.hr.avg > 0 ? `${s.hr.avg} bpm` : "—"} />
         <Metric label="Elev. gain" value={`${Math.round(s.totals.elevationGainM)} m`} />
       </View>
+
       <Button title="Export GPX" onPress={onShare} />
     </ScrollView>
   );
@@ -61,4 +112,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xxl },
   craft: { fontSize: 28, fontWeight: "700", color: colors.ink },
+  mapBox: {
+    height: 280,
+    borderRadius: radii.lg,
+    overflow: "hidden",
+    backgroundColor: colors.card,
+  },
+  map: { flex: 1 },
+  mapPlaceholder: { alignItems: "center", justifyContent: "center" },
 });

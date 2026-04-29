@@ -42,6 +42,11 @@ npm install
 cp .env.example .env       # then fill in your Firebase web-app config
 ```
 
+For the route map on Android you'll also need a **Google Maps SDK for
+Android** API key (from Google Cloud Console → APIs → Credentials). Add it
+to `.env` as `EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY`. iOS uses Apple Maps and
+doesn't need any key.
+
 Most things you can run today on Android from Linux. Background location,
 HealthKit / Health Connect, and Sign in with Apple need a development
 build (not Expo Go):
