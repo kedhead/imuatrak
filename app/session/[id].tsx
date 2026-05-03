@@ -5,6 +5,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, Polyline, type LatLng } from "react-native-maps";
 import { Metric } from "@/ui/Metric";
 import { Button } from "@/ui/Button";
+import { SplitsChart } from "@/ui/SplitsChart";
 import { formatDuration, formatKm, formatPace } from "@/ui/format";
 import { colors, radii, spacing } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
@@ -103,6 +104,9 @@ export default function SessionDetail() {
         <Metric label="Elev. gain" value={`${Math.round(s.totals.elevationGainM)} m`} />
       </View>
 
+      <Text style={styles.sectionLabel}>Splits</Text>
+      <SplitsChart splits={s.splits} />
+
       <Button title="Export GPX" onPress={onShare} />
     </ScrollView>
   );
@@ -112,6 +116,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xxl },
   craft: { fontSize: 28, fontWeight: "700", color: colors.ink },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
+    color: colors.muted,
+    textTransform: "uppercase",
+    marginTop: spacing.sm,
+  },
   mapBox: {
     height: 280,
     borderRadius: radii.lg,
