@@ -104,7 +104,7 @@ export async function writePaddlingWorkout(w: PaddlingWorkout): Promise<void> {
         exerciseType: 60, // PADDLING
         startTime: w.startedAt.toISOString(),
         endTime: w.endedAt.toISOString(),
-        title: "Paddleup session",
+        title: "ImuaTrak session",
       },
     ]);
   }

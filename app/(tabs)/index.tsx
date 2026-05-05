@@ -19,7 +19,7 @@ export default function HomeTab() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Paddleup</Text>
+        <Text style={styles.title}>ImuaTrak</Text>
         <Pressable
           style={styles.recordButton}
           onPress={() => router.push("/record")}

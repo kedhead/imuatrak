@@ -30,7 +30,7 @@ service cloud.firestore {
       }
     }
 
-    // Public-shared sessions (powers paddleup.app/s/{id}). The phone app
+    // Public-shared sessions (powers imuatrak.app/s/{id}). The phone app
     // writes a denormalized copy here when the user toggles "Share
     // publicly" on, and deletes it when they toggle it off.
     //

@@ -1,4 +1,4 @@
-# Paddleup architecture
+# ImuaTrak architecture
 
 ## Goals
 
@@ -43,7 +43,7 @@ Implemented in `src/services/`:
 The watch sub-projects live outside the Expo source tree because they're
 native (Apple Watch is Swift-only, Wear OS works best in Kotlin):
 
-- **Apple Watch** (`apple-watch/PaddleupWatch.xcodeproj`): SwiftUI app using
+- **Apple Watch** (`apple-watch/ImuaTrakWatch.xcodeproj`): SwiftUI app using
   `HKWorkoutSession`. After Stop, sends a session JSON + GPX file to the
   phone via `WCSession.transferFile`. The Expo app installs a native
   WatchConnectivity bridge that surfaces those files to JS via an event
@@ -76,8 +76,7 @@ in a small Expo config plugin (`plugins/with-watch-bridge`).
 
 ## Marketing site & public session viewer (`web/`)
 
-A small Next.js 15 app deployed to Firebase Hosting via the framework
-integration:
+A small Next.js 15 app deployed to Vercel at <https://imuatrak.app>:
 
 - `/` — landing page (features, download CTA, contact).
 - `/s/{sessionId}` — public viewer for sessions the owner has flipped

@@ -26,7 +26,7 @@ export default function Onboarding() {
   return (
     <View style={styles.container}>
       <View style={styles.hero}>
-        <Text style={styles.title}>Paddleup</Text>
+        <Text style={styles.title}>ImuaTrak</Text>
         <Text style={styles.tag}>
           Track your outrigger sessions — distance, pace, stroke rate, and more.
         </Text>

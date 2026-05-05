@@ -1,4 +1,6 @@
-# Paddleup
+# ImuaTrak
+
+> *Imua* — Hawaiian for "charge forward".
 
 Outrigger canoe paddling fitness app for iPhone and Android (with watch
 support arriving in Phase 2). Records GPS, heart rate, stroke rate, splits,
@@ -24,6 +26,7 @@ app/         expo-router routes (screens)
 src/         models, services, hooks, UI components
 assets/      icons, splash, fonts
 firebase/    Firestore + Storage rules and Cloud Functions
+web/         Next.js marketing site + public session viewer (deployed on Vercel)
 docs/        Canonical data model and architecture notes
 ```
 

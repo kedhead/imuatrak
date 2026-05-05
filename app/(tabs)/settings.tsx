@@ -8,8 +8,8 @@ import { signOut, watchAuth, type AuthUser } from "@/services/auth";
 import { Button } from "@/ui/Button";
 import { colors, radii, spacing } from "@/ui/theme";
 
-const KEY_UNITS = "paddleup.units";
-const KEY_DEFAULT_CRAFT = "paddleup.defaultCraft";
+const KEY_UNITS = "imuatrak.units";
+const KEY_DEFAULT_CRAFT = "imuatrak.defaultCraft";
 
 export default function Settings() {
   const [user, setUser] = useState<AuthUser | null>(null);

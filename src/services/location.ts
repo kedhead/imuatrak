@@ -12,7 +12,7 @@ export interface GpsSample {
 
 export type GpsListener = (s: GpsSample) => void;
 
-const TASK_NAME = "paddleup-background-location";
+const TASK_NAME = "imuatrak-background-location";
 
 const listeners = new Set<GpsListener>();
 
@@ -47,7 +47,7 @@ export async function startBackgroundUpdates(): Promise<void> {
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
     foregroundService: {
-      notificationTitle: "Paddleup is recording",
+      notificationTitle: "ImuaTrak is recording",
       notificationBody: "Tracking your route in the background.",
       notificationColor: "#0E5FA5",
     },

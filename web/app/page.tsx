@@ -4,11 +4,16 @@ export default function Landing() {
   return (
     <main className="container">
       <header style={{ marginBottom: 64 }}>
-        <div style={{ fontWeight: 700, fontSize: 18 }}>Paddleup</div>
+        <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: -0.2 }}>
+          ImuaTrak
+        </div>
       </header>
 
       <section style={{ marginBottom: 80 }}>
-        <h1 style={{ fontSize: 56, lineHeight: 1.05, margin: 0, fontWeight: 800 }}>
+        <p style={{ color: "var(--blue-bright)", fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", fontSize: 12, margin: 0 }}>
+          Imua — charge forward
+        </p>
+        <h1 style={{ fontSize: 56, lineHeight: 1.05, margin: "12px 0 0", fontWeight: 800 }}>
           A paddling tracker that<br />actually knows what a stroke is.
         </h1>
         <p style={{ fontSize: 20, color: "var(--muted)", marginTop: 24, maxWidth: 640 }}>
@@ -37,7 +42,7 @@ export default function Landing() {
         </Feature>
         <Feature title="GPX + shareable links">
           Every session exports clean GPX. Flip a switch to publish a public link
-          (paddleup.app/s/…) you can drop in a club chat.
+          (imuatrak.app/s/…) you can drop in a club chat.
         </Feature>
         <Feature title="Crafts that exist">
           OC1 / OC2 / OC6 / V1 / SUP / Surfski — different defaults for different boats.
@@ -53,15 +58,15 @@ export default function Landing() {
         <h2 style={{ fontSize: 32, margin: 0 }}>Coming soon to iOS &amp; Android</h2>
         <p className="muted" style={{ marginTop: 12 }}>
           TestFlight + Play Internal Testing this season. Email{" "}
-          <a href="mailto:hello@paddleup.app" style={{ color: "var(--blue-bright)" }}>
-            hello@paddleup.app
+          <a href="mailto:hello@imuatrak.app" style={{ color: "var(--blue-bright)" }}>
+            hello@imuatrak.app
           </a>{" "}
           to get on the list.
         </p>
       </section>
 
       <footer style={{ marginTop: 96, paddingTop: 24, borderTop: "1px solid var(--line)", color: "var(--muted)", fontSize: 13, display: "flex", justifyContent: "space-between" }}>
-        <span>© Paddleup</span>
+        <span>© ImuaTrak</span>
         <span>
           <Link href="/privacy">Privacy</Link>
           {" · "}

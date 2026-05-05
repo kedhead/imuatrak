@@ -12,7 +12,7 @@ import { colors, radii, spacing } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
 import { setSessionPublic } from "@/services/sync";
 
-const PUBLIC_BASE_URL = "https://paddleup.app";
+const PUBLIC_BASE_URL = "https://imuatrak.app";
 
 export default function SessionDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -140,7 +140,7 @@ export default function SessionDetail() {
           <View style={{ flex: 1 }}>
             <Text style={styles.shareTitle}>Share publicly</Text>
             <Text style={styles.shareSub}>
-              Anyone with the link can view this session at paddleup.app/s/{s.id.slice(0, 8)}…
+              Anyone with the link can view this session at imuatrak.app/s/{s.id.slice(0, 8)}…
             </Text>
           </View>
           <Switch

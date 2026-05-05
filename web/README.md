@@ -1,7 +1,7 @@
-# Paddleup web
+# ImuaTrak web
 
-Marketing site + public session viewer for Paddleup, deployed to
-Firebase Hosting.
+Marketing site + public session viewer for ImuaTrak, deployed to Vercel
+at <https://imuatrak.app>.
 
 Routes:
 
@@ -24,14 +24,11 @@ phone app, e.g. `/s/<sessionId>`.
 
 ## Deploy
 
-This project deploys to Firebase Hosting via the Next.js framework
-integration (configured in `firebase/firebase.json`):
-
-```bash
-firebase deploy --only hosting
-```
-
-The first deploy provisions a Cloud Function for SSR automatically.
+Vercel auto-detects Next.js — connect the GitHub repo to a Vercel
+project, set the **Root Directory** to `web`, and add the
+`NEXT_PUBLIC_FIREBASE_*` env vars in Project Settings → Environment
+Variables. Pushes to `main` deploy to production; every PR gets a
+preview URL.
 
 ## Keep types in sync
 

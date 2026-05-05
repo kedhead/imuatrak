@@ -11,11 +11,11 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const s = await getPublicSession(id).catch(() => null);
-  if (!s) return { title: "Session not found — Paddleup" };
+  if (!s) return { title: "Session not found — ImuaTrak" };
   const title = `${s.craftType} · ${formatKm(s.totals.distanceMeters)} km · ${formatDuration(s.totals.durationSec)}`;
   return {
-    title: `${title} — Paddleup`,
-    description: `${formatDate(s.startedAt)} — paddling session shared via Paddleup.`,
+    title: `${title} — ImuaTrak`,
+    description: `${formatDate(s.startedAt)} — paddling session shared via ImuaTrak.`,
     openGraph: { title, description: formatDate(s.startedAt) },
   };
 }
@@ -30,7 +30,7 @@ export default async function PublicSessionPage({ params }: Props) {
   return (
     <main className="container">
       <header style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <a href="/" style={{ fontWeight: 700, textDecoration: "none" }}>Paddleup</a>
+        <a href="/" style={{ fontWeight: 700, textDecoration: "none" }}>ImuaTrak</a>
         <span className="muted" style={{ fontSize: 13 }}>{formatDate(s.startedAt)}</span>
       </header>
 
@@ -95,7 +95,7 @@ export default async function PublicSessionPage({ params }: Props) {
       )}
 
       <footer style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid var(--line)", color: "var(--muted)", fontSize: 13, textAlign: "center" }}>
-        Recorded with <a href="/" style={{ color: "var(--blue-bright)" }}>Paddleup</a>
+        Recorded with <a href="/" style={{ color: "var(--blue-bright)" }}>ImuaTrak</a>
       </footer>
     </main>
   );

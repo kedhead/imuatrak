@@ -1,22 +1,22 @@
 import type { Session, TrackPoint } from "@/models";
 
 const GPXTPX = "http://www.garmin.com/xmlschemas/TrackPointExtension/v2";
-const PU = "http://paddleup.app/xmlschemas/v1";
+const IT = "http://imuatrak.app/xmlschemas/v1";
 
 /**
  * Generate a GPX 1.1 document for a Session + its full-resolution track.
  * Outputs Garmin-compatible TrackPointExtension v2 elements for HR/cadence
- * and a Paddleup-namespaced extension for speed and cadence-confidence.
+ * and an ImuaTrak-namespaced extension for speed and cadence-confidence.
  */
 export function toGpx(session: Session, track: TrackPoint[]): string {
   const startedMs = Date.parse(session.startedAt);
   const lines: string[] = [];
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push(
-    `<gpx version="1.1" creator="Paddleup" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="${GPXTPX}" xmlns:pu="${PU}">`,
+    `<gpx version="1.1" creator="ImuaTrak" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="${GPXTPX}" xmlns:it="${IT}">`,
   );
   lines.push("  <metadata>");
-  lines.push(`    <name>${escape(`Paddleup ${session.craftType} session`)}</name>`);
+  lines.push(`    <name>${escape(`ImuaTrak ${session.craftType} session`)}</name>`);
   lines.push(`    <time>${session.startedAt}</time>`);
   lines.push("  </metadata>");
   lines.push("  <trk>");
@@ -36,9 +36,9 @@ export function toGpx(session: Session, track: TrackPoint[]): string {
         lines.push(`            <gpxtpx:cad>${Math.round(p.strokeRate)}</gpxtpx:cad>`);
       lines.push("          </gpxtpx:TrackPointExtension>");
     }
-    lines.push(`          <pu:speed>${p.speedMps}</pu:speed>`);
+    lines.push(`          <it:speed>${p.speedMps}</it:speed>`);
     if (p.cadenceConfidence != null) {
-      lines.push(`          <pu:cadConfidence>${p.cadenceConfidence}</pu:cadConfidence>`);
+      lines.push(`          <it:cadConfidence>${p.cadenceConfidence}</it:cadConfidence>`);
     }
     lines.push("        </extensions>");
     lines.push("      </trkpt>");

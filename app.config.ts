@@ -6,9 +6,9 @@ import type { ExpoConfig } from "expo/config";
  * separation between dev/prod projects).
  */
 const config: ExpoConfig = {
-  name: "Paddleup",
-  slug: "paddleup",
-  scheme: "paddleup",
+  name: "ImuaTrak",
+  slug: "imuatrak",
+  scheme: "imuatrak",
   version: "0.1.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
@@ -22,21 +22,21 @@ const config: ExpoConfig = {
   assetBundlePatterns: ["**/*"],
 
   ios: {
-    bundleIdentifier: "app.paddleup",
+    bundleIdentifier: "app.imuatrak",
     supportsTablet: false,
     infoPlist: {
       NSLocationAlwaysAndWhenInUseUsageDescription:
-        "Paddleup uses your location to record your route, distance, and pace while you paddle.",
+        "ImuaTrak uses your location to record your route, distance, and pace while you paddle.",
       NSLocationWhenInUseUsageDescription:
-        "Paddleup uses your location to record your route, distance, and pace while you paddle.",
+        "ImuaTrak uses your location to record your route, distance, and pace while you paddle.",
       NSMotionUsageDescription:
-        "Paddleup uses motion sensors to count strokes and measure stroke rate.",
+        "ImuaTrak uses motion sensors to count strokes and measure stroke rate.",
       NSHealthShareUsageDescription:
-        "Paddleup reads your heart rate to show effort during paddling sessions.",
+        "ImuaTrak reads your heart rate to show effort during paddling sessions.",
       NSHealthUpdateUsageDescription:
-        "Paddleup writes finished paddling workouts to Apple Health.",
+        "ImuaTrak writes finished paddling workouts to Apple Health.",
       NSMicrophoneUsageDescription:
-        "Paddleup listens for the steerer's “hut” call to detect side switches. Audio is processed on-device only and never recorded.",
+        "ImuaTrak listens for the steerer's “hut” call to detect side switches. Audio is processed on-device only and never recorded.",
       UIBackgroundModes: ["location", "fetch"],
     },
     entitlements: {
@@ -50,7 +50,7 @@ const config: ExpoConfig = {
   },
 
   android: {
-    package: "app.paddleup",
+    package: "app.imuatrak",
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#0E5FA5",
@@ -90,7 +90,7 @@ const config: ExpoConfig = {
       "expo-location",
       {
         locationAlwaysAndWhenInUsePermission:
-          "Paddleup uses your location to record your route, distance, and pace while you paddle.",
+          "ImuaTrak uses your location to record your route, distance, and pace while you paddle.",
         isIosBackgroundLocationEnabled: true,
         isAndroidBackgroundLocationEnabled: true,
       },
@@ -107,9 +107,9 @@ const config: ExpoConfig = {
       {
         isClinicalDataEnabled: false,
         healthSharePermission:
-          "Paddleup reads your heart rate to show effort during paddling sessions.",
+          "ImuaTrak reads your heart rate to show effort during paddling sessions.",
         healthUpdatePermission:
-          "Paddleup writes finished paddling workouts to Apple Health.",
+          "ImuaTrak writes finished paddling workouts to Apple Health.",
       },
     ],
   ],

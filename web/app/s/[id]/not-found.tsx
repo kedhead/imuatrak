@@ -6,7 +6,7 @@ export default function NotFound() {
         This link may have expired, or the owner un-shared it.
       </p>
       <p style={{ marginTop: 24 }}>
-        <a className="btn" href="/">Back to Paddleup</a>
+        <a className="btn" href="/">Back to ImuaTrak</a>
       </p>
     </main>
   );

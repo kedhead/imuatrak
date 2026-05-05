@@ -1,4 +1,4 @@
-# Paddleup data model
+# ImuaTrak data model
 
 This document is the canonical schema for `Session` documents in Firestore and
 the JSON exchanged between phone, watch, and Cloud Functions. Both the iOS and
@@ -14,7 +14,7 @@ Firestore:
   publicSessions/{sessionId}                  — Denormalized copy of sessions
                                                 where isPublic == true.
                                                 Anyone-readable; powers the
-                                                paddleup.app/s/{id} pages.
+                                                imuatrak.app/s/{id} pages.
 
 Cloud Storage:
   users/{uid}/tracks/{sessionId}.gpx          — Full GPX track (private)
@@ -142,13 +142,13 @@ Per-second samples encoded as GPX 1.1 trackpoints with extensions:
       <ns3:hr>148</ns3:hr>
       <ns3:cad>62</ns3:cad>
     </ns3:TrackPointExtension>
-    <pu:speed>2.6</pu:speed>
-    <pu:cadConfidence>0.92</pu:cadConfidence>
+    <it:speed>2.6</it:speed>
+    <it:cadConfidence>0.92</it:cadConfidence>
   </extensions>
 </trkpt>
 ```
 
-`pu:` is the Paddleup namespace `http://paddleup.app/xmlschemas/v1`.
+`it:` is the ImuaTrak namespace `http://imuatrak.app/xmlschemas/v1`.
 
 ## Validation rules
 
