@@ -74,6 +74,20 @@ in a small Expo config plugin (`plugins/with-watch-bridge`).
 | Microphone (opt-in)    | "Hut" detection                      | `expo-av` permission API               |
 | Background fetch       | Continue recording when screen off   | `expo-task-manager`                    |
 
+## Marketing site & public session viewer (`web/`)
+
+A small Next.js 15 app deployed to Firebase Hosting via the framework
+integration:
+
+- `/` — landing page (features, download CTA, contact).
+- `/s/{sessionId}` — public viewer for sessions the owner has flipped
+  "Share publicly" on. Reads `publicSessions/{sessionId}` server-side
+  via the Firebase web SDK (anonymous reads allowed by `firestore.rules`),
+  renders the route on Leaflet + OSM tiles plus stats and splits.
+
+The full GPX track stays in private storage even when sharing — the
+public viewer uses the polyline `trackSummary` baked into the doc.
+
 ## Out-of-scope for v1
 
 Live remote tracking, social feed, training plans, direct OAuth uploads to

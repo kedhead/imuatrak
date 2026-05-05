@@ -10,13 +10,21 @@ recorded on one platform renders correctly on the other.
 ```
 Firestore:
   users/{uid}                                 — UserProfile
-  users/{uid}/sessions/{sessionId}            — Session (summary)
+  users/{uid}/sessions/{sessionId}            — Session (summary, owner-only)
+  publicSessions/{sessionId}                  — Denormalized copy of sessions
+                                                where isPublic == true.
+                                                Anyone-readable; powers the
+                                                paddleup.app/s/{id} pages.
 
 Cloud Storage:
-  users/{uid}/tracks/{sessionId}.gpx          — Full GPX track
-  users/{uid}/tracks/{sessionId}.fit          — Optional FIT export
+  users/{uid}/tracks/{sessionId}.gpx          — Full GPX track (private)
+  users/{uid}/tracks/{sessionId}.fit          — Optional FIT export (private)
   users/{uid}/cards/{sessionId}.png           — Rendered share card (server-generated)
 ```
+
+The full GPX never leaves private storage even when a session is shared
+publicly — the public viewer renders the route from the `trackSummary`
+polyline (≤ 200 points) baked into the doc.
 
 The full per-second track is **not** stored in Firestore (cost + size). The
 Session document carries a downsampled `trackSummary` (≤ 200 points) used to
@@ -110,9 +118,16 @@ render the home/list map preview. The full track lives in Cloud Storage as GPX.
 
   "trackStoragePath": "users/{uid}/tracks/{sessionId}.gpx",
   "fitStoragePath":   "users/{uid}/tracks/{sessionId}.fit",
-  "cardStoragePath":  "users/{uid}/cards/{sessionId}.png"
+  "cardStoragePath":  "users/{uid}/cards/{sessionId}.png",
+
+  "isPublic": false
 }
 ```
+
+`isPublic` defaults to `false`. When the user toggles "Share publicly"
+on in the app, the client writes a denormalized copy of this document
+to `publicSessions/{sessionId}` (anyone-readable) and sets `isPublic:
+true` on the private doc. Toggling off removes the public copy.
 
 ## Track point (full resolution, in GPX file)
 

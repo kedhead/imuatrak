@@ -1,7 +1,8 @@
+import * as Clipboard from "expo-clipboard";
 import * as Sharing from "expo-sharing";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import MapView, { Marker, Polyline, type LatLng } from "react-native-maps";
 import { Metric } from "@/ui/Metric";
 import { Button } from "@/ui/Button";
@@ -9,15 +10,23 @@ import { SplitsChart } from "@/ui/SplitsChart";
 import { formatDuration, formatKm, formatPace } from "@/ui/format";
 import { colors, radii, spacing } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
+import { setSessionPublic } from "@/services/sync";
+
+const PUBLIC_BASE_URL = "https://paddleup.app";
 
 export default function SessionDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [stored, setStored] = useState<StoredSession | null>(null);
+  const [isPublic, setIsPublic] = useState(false);
+  const [togglingPublic, setTogglingPublic] = useState(false);
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
     if (!id) return;
-    void load(id).then(setStored);
+    void load(id).then((s) => {
+      setStored(s);
+      setIsPublic(s?.session.isPublic ?? false);
+    });
   }, [id]);
 
   // Fit the map to the recorded route once both the map and the track are
@@ -53,6 +62,25 @@ export default function SessionDetail() {
       UTI: "com.topografix.gpx",
       dialogTitle: "Share GPX",
     });
+  };
+
+  const onTogglePublic = async (next: boolean) => {
+    setTogglingPublic(true);
+    try {
+      await setSessionPublic(s, next);
+      setIsPublic(next);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert("Couldn't update sharing", msg);
+    } finally {
+      setTogglingPublic(false);
+    }
+  };
+
+  const onCopyLink = async () => {
+    const url = `${PUBLIC_BASE_URL}/s/${s.id}`;
+    await Clipboard.setStringAsync(url);
+    Alert.alert("Link copied", url);
   };
 
   const start = coords[0];
@@ -107,6 +135,23 @@ export default function SessionDetail() {
       <Text style={styles.sectionLabel}>Splits</Text>
       <SplitsChart splits={s.splits} />
 
+      <View style={styles.shareCard}>
+        <View style={styles.shareRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.shareTitle}>Share publicly</Text>
+            <Text style={styles.shareSub}>
+              Anyone with the link can view this session at paddleup.app/s/{s.id.slice(0, 8)}…
+            </Text>
+          </View>
+          <Switch
+            value={isPublic}
+            onValueChange={onTogglePublic}
+            disabled={togglingPublic}
+          />
+        </View>
+        {isPublic && <Button title="Copy link" variant="outline" onPress={onCopyLink} />}
+      </View>
+
       <Button title="Export GPX" onPress={onShare} />
     </ScrollView>
   );
@@ -132,4 +177,13 @@ const styles = StyleSheet.create({
   },
   map: { flex: 1 },
   mapPlaceholder: { alignItems: "center", justifyContent: "center" },
+  shareCard: {
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  shareRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  shareTitle: { fontWeight: "600", color: colors.ink, fontSize: 15 },
+  shareSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
 });

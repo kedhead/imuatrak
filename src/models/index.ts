@@ -114,6 +114,11 @@ export interface Session {
   trackStoragePath?: string;
   fitStoragePath?: string;
   cardStoragePath?: string;
+  /**
+   * When true, anyone with the session URL can view it on the web.
+   * Defaults to false; flipped via the in-app Share toggle.
+   */
+  isPublic?: boolean;
 }
 
 export const emptyTotals = (): Totals => ({
