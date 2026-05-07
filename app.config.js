@@ -1,11 +1,5 @@
-import type { ExpoConfig } from "expo/config";
-
-/**
- * Expo config. Uses an `app.config.ts` so we can read from env at build time
- * (Firebase web config is public, but we still keep it in env for clean
- * separation between dev/prod projects).
- */
-const config: ExpoConfig = {
+/** @type {import('expo/config').ExpoConfig} */
+const config = {
   name: "ImuaTrak",
   slug: "imuatrak",
   scheme: "imuatrak",
@@ -36,7 +30,7 @@ const config: ExpoConfig = {
       NSHealthUpdateUsageDescription:
         "ImuaTrak writes finished paddling workouts to Apple Health.",
       NSMicrophoneUsageDescription:
-        "ImuaTrak listens for the steerer's “hut” call to detect side switches. Audio is processed on-device only and never recorded.",
+        "ImuaTrak listens for the steerer’s “hut” call to detect side switches. Audio is processed on-device only and never recorded.",
       UIBackgroundModes: ["location", "fetch"],
     },
     entitlements: {
@@ -57,7 +51,6 @@ const config: ExpoConfig = {
     },
     config: {
       googleMaps: {
-        // Android-only — iOS uses Apple Maps and needs no key.
         apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY,
       },
     },
@@ -132,4 +125,4 @@ const config: ExpoConfig = {
   },
 };
 
-export default config;
+module.exports = config;
