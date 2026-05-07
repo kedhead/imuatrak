@@ -5,13 +5,15 @@ import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CRAFT_TYPES } from "@/models";
 import { useRecorder } from "@/services/recorder";
+import { useSettings } from "@/services/settings";
 import { Button } from "@/ui/Button";
 import { Metric } from "@/ui/Metric";
-import { formatDuration, formatKm, formatPace } from "@/ui/format";
+import { formatDuration, formatDistance, formatPaceStr } from "@/ui/format";
 import { colors, radii, spacing } from "@/ui/theme";
 
 export default function Record() {
   const recorder = useRecorder();
+  const units = useSettings((s) => s.units);
   const [busy, setBusy] = useState(false);
 
   const onStart = async () => {
@@ -72,12 +74,14 @@ export default function Record() {
         )}
 
         <View>
-          <Metric label="Distance" value={`${formatKm(recorder.distanceMeters)} km`} />
+          <Metric label="Distance" value={formatDistance(recorder.distanceMeters, units)} />
           <Metric label="Time" value={formatDuration(recorder.durationSec)} />
           <Metric
             label="Pace"
             value={
-              recorder.currentSpeedMps > 0 ? formatPace(1000 / recorder.currentSpeedMps) : "—"
+              recorder.currentSpeedMps > 0
+                ? formatPaceStr(1000 / recorder.currentSpeedMps, units)
+                : "—"
             }
           />
           <Metric

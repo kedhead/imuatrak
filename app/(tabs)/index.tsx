@@ -4,11 +4,13 @@ import { useCallback, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { list, type StoredSession } from "@/services/storage";
-import { formatDuration, formatKm } from "@/ui/format";
+import { useSettings } from "@/services/settings";
+import { formatDate, formatDistance, formatDuration } from "@/ui/format";
 import { colors, radii, spacing } from "@/ui/theme";
 
 export default function HomeTab() {
   const [sessions, setSessions] = useState<StoredSession[]>([]);
+  const units = useSettings((s) => s.units);
 
   useFocusEffect(
     useCallback(() => {
@@ -40,20 +42,21 @@ export default function HomeTab() {
           data={sessions}
           keyExtractor={(s) => s.session.id}
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
-          renderItem={({ item }) => <SessionRow stored={item} />}
+          renderItem={({ item }) => <SessionRow stored={item} units={units} />}
         />
       )}
     </SafeAreaView>
   );
 }
 
-function SessionRow({ stored }: { stored: StoredSession }) {
+function SessionRow({ stored, units }: { stored: StoredSession; units: "metric" | "imperial" }) {
   const s = stored.session;
   return (
     <Pressable style={styles.card} onPress={() => router.push(`/session/${s.id}`)}>
-      <View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.cardDate}>{formatDate(s.startedAt)}</Text>
         <Text style={styles.cardTitle}>
-          {s.craftType} · {formatKm(s.totals.distanceMeters)} km
+          {s.craftType} · {formatDistance(s.totals.distanceMeters, units)}
         </Text>
         <Text style={styles.cardSub}>
           {formatDuration(s.totals.durationSec)} · {s.totals.strokeCount} strokes
@@ -100,6 +103,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
+  cardDate: { fontSize: 11, color: colors.muted, marginBottom: 2 },
   cardTitle: { fontSize: 16, fontWeight: "600", color: colors.ink },
   cardSub: { fontSize: 12, color: colors.muted, marginTop: 2 },
 });

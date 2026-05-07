@@ -7,9 +7,10 @@ import MapView, { Marker, Polyline, type LatLng } from "react-native-maps";
 import { Metric } from "@/ui/Metric";
 import { Button } from "@/ui/Button";
 import { SplitsChart } from "@/ui/SplitsChart";
-import { formatDuration, formatKm, formatPace } from "@/ui/format";
+import { formatDate, formatTime, formatDistance, formatPaceStr, formatDuration } from "@/ui/format";
 import { colors, radii, spacing } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
+import { useSettings } from "@/services/settings";
 import { setSessionPublic } from "@/services/sync";
 
 const PUBLIC_BASE_URL = "https://imuatrak.app";
@@ -20,6 +21,7 @@ export default function SessionDetail() {
   const [isPublic, setIsPublic] = useState(false);
   const [togglingPublic, setTogglingPublic] = useState(false);
   const mapRef = useRef<MapView>(null);
+  const units = useSettings((s) => s.units);
 
   useEffect(() => {
     if (!id) return;
@@ -29,8 +31,6 @@ export default function SessionDetail() {
     });
   }, [id]);
 
-  // Fit the map to the recorded route once both the map and the track are
-  // ready. `fitToCoordinates` pans + zooms in a single call.
   const coords: LatLng[] =
     stored?.track.map((p) => ({ latitude: p.lat, longitude: p.lon })) ?? [];
 
@@ -91,7 +91,12 @@ export default function SessionDetail() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
-      <Text style={styles.craft}>{s.craftType}</Text>
+      <View>
+        <Text style={styles.craft}>{s.craftType}</Text>
+        <Text style={styles.sessionDate}>
+          {formatDate(s.startedAt)} · {formatTime(s.startedAt)}
+        </Text>
+      </View>
 
       <View style={styles.mapBox}>
         {coords.length >= 2 ? (
@@ -121,9 +126,9 @@ export default function SessionDetail() {
       </View>
 
       <View>
-        <Metric label="Distance" value={`${formatKm(s.totals.distanceMeters)} km`} />
+        <Metric label="Distance" value={formatDistance(s.totals.distanceMeters, units)} />
         <Metric label="Duration" value={formatDuration(s.totals.durationSec)} />
-        <Metric label="Avg pace" value={formatPace(s.totals.avgPaceSecPerKm)} />
+        <Metric label="Avg pace" value={formatPaceStr(s.totals.avgPaceSecPerKm, units)} />
         <Metric
           label="Strokes"
           value={`${s.totals.strokeCount} (avg ${Math.round(s.totals.avgStrokeRate)} spm)`}
@@ -161,6 +166,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xxl },
   craft: { fontSize: 28, fontWeight: "700", color: colors.ink },
+  sessionDate: { fontSize: 13, color: colors.muted, marginTop: 2 },
   sectionLabel: {
     fontSize: 12,
     fontWeight: "700",
