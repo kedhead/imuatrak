@@ -56,6 +56,34 @@ a { color: inherit; }
   border: 1px solid var(--line);
 }
 
+/* Charts */
+.chart-section {
+  margin-top: 28px;
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.chart-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+/* Responsive hero on landing */
+@media (max-width: 700px) {
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .share-section {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* Leaflet base — pulled in by the map component */
 .leaflet-container {
   width: 100%;

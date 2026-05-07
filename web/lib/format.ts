@@ -24,3 +24,14 @@ export function formatDate(iso: string): string {
     day: "numeric",
   });
 }
+
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function formatSpeed(mps: number): string {
+  return `${(mps * 3.6).toFixed(1)} km/h`;
+}

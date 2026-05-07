@@ -3,69 +3,166 @@ import Link from "next/link";
 export default function Landing() {
   return (
     <main className="container">
-      <header style={{ marginBottom: 64 }}>
-        <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: -0.2 }}>
-          ImuaTrak
-        </div>
+      <header style={{ marginBottom: 56, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: -0.2 }}>ImuaTrak</div>
+        <a href="mailto:hello@imuatrak.app" className="btn btn-outline" style={{ fontSize: 14, padding: "8px 16px" }}>
+          Get early access
+        </a>
       </header>
 
-      <section style={{ marginBottom: 80 }}>
-        <p style={{ color: "var(--blue-bright)", fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", fontSize: 12, margin: 0 }}>
-          Imua — charge forward
-        </p>
-        <h1 style={{ fontSize: 56, lineHeight: 1.05, margin: "12px 0 0", fontWeight: 800 }}>
-          A paddling tracker that<br />actually knows what a stroke is.
-        </h1>
-        <p style={{ fontSize: 20, color: "var(--muted)", marginTop: 24, maxWidth: 640 }}>
-          Phone-only GPS, real stroke detection from the IMU, splits, and heart rate
-          from your watch. Built for outrigger, surfski, V1 and SUP — not running with a
-          paddle name.
-        </p>
-        <div style={{ marginTop: 32, display: "flex", gap: 12 }}>
-          <a className="btn" href="#download">Get the app</a>
-          <a className="btn btn-outline" href="#features">See features</a>
+      {/* ── Hero ─────────────────────────────────────────────────── */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 48,
+          alignItems: "center",
+          marginBottom: 96,
+        }}
+        className="hero-grid"
+      >
+        <div>
+          <p
+            style={{
+              color: "var(--blue-bright)",
+              fontWeight: 600,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              fontSize: 12,
+              margin: "0 0 16px",
+            }}
+          >
+            Imua — charge forward
+          </p>
+          <h1 style={{ fontSize: 48, lineHeight: 1.05, margin: "0 0 20px", fontWeight: 800 }}>
+            A paddling tracker that actually knows what a stroke is.
+          </h1>
+          <p style={{ fontSize: 18, color: "var(--muted)", margin: "0 0 32px", lineHeight: 1.6 }}>
+            GPS, real stroke detection from the IMU, splits, and heart rate from your
+            watch. Built for outrigger, surfski, V1, and SUP — not "Kayak (Other)".
+          </p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <a className="btn" href="mailto:hello@imuatrak.app">Join the waitlist</a>
+            <a className="btn btn-outline" href="#features">See features</a>
+          </div>
+        </div>
+
+        {/* Mock session preview card */}
+        <MockSession />
+      </section>
+
+      {/* ── Share section ────────────────────────────────────────── */}
+      <section
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--line)",
+          borderRadius: 20,
+          padding: "40px 40px",
+          marginBottom: 80,
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          gap: 32,
+          alignItems: "center",
+        }}
+        className="share-section"
+      >
+        <div>
+          <p style={{ color: "var(--blue-bright)", fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", fontSize: 11, margin: "0 0 8px" }}>
+            Share any session
+          </p>
+          <h2 style={{ fontSize: 28, margin: "0 0 10px", fontWeight: 700 }}>
+            Post a link to your club chat.
+          </h2>
+          <p style={{ color: "var(--muted)", margin: 0, fontSize: 15, lineHeight: 1.6 }}>
+            Flip a switch in the app and your session gets a public URL —
+            speed chart, splits, route map — that anyone can open on any device.
+            No account required to view.
+          </p>
+        </div>
+        <div style={{ textAlign: "center", whiteSpace: "nowrap" }}>
+          <div
+            style={{
+              fontFamily: "monospace",
+              fontSize: 13,
+              color: "var(--blue-bright)",
+              background: "#0e1520",
+              borderRadius: 8,
+              padding: "8px 14px",
+              border: "1px solid var(--line)",
+            }}
+          >
+            imuatrak.app/s/…
+          </div>
         </div>
       </section>
 
-      <section id="features" style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-        <Feature title="Real stroke detection">
-          Counts strokes from phone IMU using cadence + dominant-axis oscillation. No magic
-          numbers — handles waves, cars, and bumps.
+      {/* ── Features ─────────────────────────────────────────────── */}
+      <section
+        id="features"
+        style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", marginBottom: 96 }}
+      >
+        <Feature icon="〽️" title="Real stroke detection">
+          Counts strokes from phone IMU using cadence + dominant-axis oscillation.
+          No magic numbers — handles waves, cars, and bumps.
         </Feature>
-        <Feature title="GPS that handles canyons">
-          Kalman-smoothed track with accuracy-aware speed. Splits every 1 km, moving-time
-          aware so a coffee break doesn't tank your pace.
+        <Feature icon="📍" title="GPS that handles canyons">
+          Kalman-smoothed track with accuracy-aware speed. Splits every 1 km,
+          moving-time aware so a coffee break doesn't tank your pace.
         </Feature>
-        <Feature title="Heart rate from your watch">
-          Apple Health on iOS, Health Connect on Android. We pull HR samples and zone-time
-          for the session window — no second app to babysit.
+        <Feature icon="❤️" title="Heart rate from your watch">
+          Apple Health on iOS, Health Connect on Android. Zone time for the
+          full session window — no second app to babysit.
         </Feature>
-        <Feature title="GPX + shareable links">
-          Every session exports clean GPX. Flip a switch to publish a public link
-          (imuatrak.app/s/…) you can drop in a club chat.
+        <Feature icon="🗺️" title="GPX + shareable links">
+          Every session exports clean GPX. Flip a switch to publish a public
+          link you can drop in a club chat.
         </Feature>
-        <Feature title="Crafts that exist">
-          OC1 / OC2 / OC6 / V1 / SUP / Surfski — different defaults for different boats.
-          Not "Kayak (Other)".
+        <Feature icon="🚣" title="Crafts that exist">
+          OC1 / OC2 / OC6 / V1 / SUP / Surfski — different defaults for
+          different boats. Not "Kayak (Other)".
         </Feature>
-        <Feature title="Built for the offline put-in">
-          Records fully offline. Uploads when you're back on signal. Your data sits in
-          your account, not behind a paywall.
+        <Feature icon="📡" title="Built for the offline put-in">
+          Records fully offline. Uploads when you're back on signal. Your data
+          sits in your account, not behind a paywall.
         </Feature>
       </section>
 
-      <section id="download" style={{ marginTop: 96, textAlign: "center" }}>
-        <h2 style={{ fontSize: 32, margin: 0 }}>Coming soon to iOS &amp; Android</h2>
-        <p className="muted" style={{ marginTop: 12 }}>
-          TestFlight + Play Internal Testing this season. Email{" "}
-          <a href="mailto:hello@imuatrak.app" style={{ color: "var(--blue-bright)" }}>
-            hello@imuatrak.app
-          </a>{" "}
-          to get on the list.
+      {/* ── Download CTA ─────────────────────────────────────────── */}
+      <section
+        id="download"
+        style={{
+          textAlign: "center",
+          padding: "64px 0",
+          borderTop: "1px solid var(--line)",
+          borderBottom: "1px solid var(--line)",
+          marginBottom: 80,
+        }}
+      >
+        <h2 style={{ fontSize: 32, margin: "0 0 12px", fontWeight: 700 }}>
+          Coming soon to iOS &amp; Android
+        </h2>
+        <p style={{ color: "var(--muted)", marginTop: 0, fontSize: 15 }}>
+          TestFlight + Play Internal Testing this season.
         </p>
+        <a
+          href="mailto:hello@imuatrak.app"
+          className="btn"
+          style={{ marginTop: 20, display: "inline-block" }}
+        >
+          Email hello@imuatrak.app to get on the list
+        </a>
       </section>
 
-      <footer style={{ marginTop: 96, paddingTop: 24, borderTop: "1px solid var(--line)", color: "var(--muted)", fontSize: 13, display: "flex", justifyContent: "space-between" }}>
+      <footer
+        style={{
+          color: "var(--muted)",
+          fontSize: 13,
+          display: "flex",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
         <span>© ImuaTrak</span>
         <span>
           <Link href="/privacy">Privacy</Link>
@@ -77,11 +174,140 @@ export default function Landing() {
   );
 }
 
-function Feature({ title, children }: { title: string; children: React.ReactNode }) {
+function Feature({
+  icon,
+  title,
+  children,
+}: {
+  icon: string;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="card">
-      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{title}</div>
-      <div style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.5 }}>{children}</div>
+      <div style={{ fontSize: 22, marginBottom: 10 }}>{icon}</div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{title}</div>
+      <div style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.55 }}>{children}</div>
+    </div>
+  );
+}
+
+/** Static mock of what a shared session page looks like */
+function MockSession() {
+  return (
+    <div
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--line)",
+        borderRadius: 20,
+        padding: 24,
+        fontSize: 13,
+        boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>ImuaTrak</span>
+        <span
+          style={{
+            fontSize: 12,
+            padding: "5px 12px",
+            border: "1px solid var(--line)",
+            borderRadius: 8,
+            color: "var(--muted)",
+          }}
+        >
+          Share
+        </span>
+      </div>
+
+      {/* Session title */}
+      <p style={{ fontSize: 11, color: "var(--muted)", margin: "0 0 4px", letterSpacing: 1, textTransform: "uppercase" }}>
+        Wed, Apr 30 · 6:42 AM
+      </p>
+      <h3 style={{ fontSize: 28, margin: "0 0 4px", fontWeight: 800 }}>OC1</h3>
+      <p style={{ color: "var(--muted)", margin: "0 0 16px", fontSize: 13 }}>
+        12.40 km &nbsp;·&nbsp; 1:48:32 &nbsp;·&nbsp; 8:44 /km
+      </p>
+
+      {/* Fake map */}
+      <div
+        style={{
+          height: 140,
+          borderRadius: 12,
+          overflow: "hidden",
+          background: "#0a1622",
+          marginBottom: 16,
+          position: "relative",
+          border: "1px solid var(--line)",
+        }}
+      >
+        <svg viewBox="0 0 280 140" style={{ width: "100%", height: "100%" }}>
+          <polyline
+            points="30,110 60,95 90,80 110,70 130,62 155,58 175,55 190,60 210,68 230,75 250,85"
+            fill="none"
+            stroke="#3b82f6"
+            strokeWidth="3"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          <circle cx="30" cy="110" r="5" fill="#22c55e" />
+          <circle cx="250" cy="85" r="5" fill="#ef4444" />
+        </svg>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+        {[
+          ["Distance", "12.40 km"],
+          ["Duration", "1:48:32"],
+          ["Avg pace", "8:44 /km"],
+          ["Strokes", "780"],
+          ["Avg HR", "148 bpm"],
+          ["Max speed", "14.2 km/h"],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            style={{
+              background: "var(--bg)",
+              borderRadius: 10,
+              padding: "10px 10px",
+              border: "1px solid var(--line)",
+            }}
+          >
+            <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8 }}>
+              {label}
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 14, marginTop: 3 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Speed chart preview */}
+      <div>
+        <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+          Speed
+        </div>
+        <svg viewBox="0 0 280 48" style={{ width: "100%", height: 48, display: "block" }}>
+          <defs>
+            <linearGradient id="mock-spd" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          <polygon
+            points="0,48 30,32 60,28 90,24 110,20 130,18 155,17 175,16 190,22 210,28 240,34 280,38 280,48"
+            fill="url(#mock-spd)"
+          />
+          <polyline
+            points="0,32 30,32 60,28 90,24 110,20 130,18 155,17 175,16 190,22 210,28 240,34 280,38"
+            fill="none"
+            stroke="#3b82f6"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
     </div>
   );
 }
