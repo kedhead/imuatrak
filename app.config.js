@@ -109,7 +109,7 @@ const config = {
 
   extra: {
     eas: {
-      projectId: "REPLACE_WITH_EAS_PROJECT_ID",
+      projectId: "e23de54c-0b38-4c19-b13f-066535bcdd14",
     },
     firebase: {
       apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
