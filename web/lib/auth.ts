@@ -13,16 +13,21 @@ import { firebaseApp } from "./firebase";
 
 export type { User };
 
-export const auth = getAuth(firebaseApp);
+// Never call getAuth() at module level — it accesses browser APIs and will
+// throw during Next.js server-side prerendering. Call it lazily inside
+// effects and async event handlers (browser-only contexts).
+function firebaseAuth() {
+  return getAuth(firebaseApp);
+}
 
 export async function signInWithGoogle(): Promise<User> {
   const provider = new GoogleAuthProvider();
-  const { user } = await signInWithPopup(auth, provider);
+  const { user } = await signInWithPopup(firebaseAuth(), provider);
   return user;
 }
 
 export async function signOut(): Promise<void> {
-  await fbSignOut(auth);
+  await fbSignOut(firebaseAuth());
 }
 
 export function useAuth(): { user: User | null; loading: boolean } {
@@ -30,7 +35,7 @@ export function useAuth(): { user: User | null; loading: boolean } {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
+    return onAuthStateChanged(firebaseAuth(), (u) => {
       setUser(u);
       setLoading(false);
     });

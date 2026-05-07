@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicSession } from "@/lib/firebase";
 import {
@@ -200,9 +201,9 @@ export default async function PublicSessionPage({ params }: Props) {
       >
         <span>
           Recorded with{" "}
-          <a href="/" style={{ color: "var(--blue-bright)" }}>
+          <Link href="/" style={{ color: "var(--blue-bright)" }}>
             ImuaTrak
-          </a>
+          </Link>
         </span>
         <ShareButton url={shareUrl} title={shareTitle} />
       </footer>

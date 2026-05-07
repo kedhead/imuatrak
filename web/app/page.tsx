@@ -32,7 +32,7 @@ export default function Landing() {
           </h1>
           <p style={{ fontSize: 18, color: "var(--muted)", margin: "0 0 32px", lineHeight: 1.6 }}>
             GPS, real stroke detection from the IMU, splits, and heart rate from your
-            watch. Built for outrigger, surfski, V1, and SUP — not "Kayak (Other)".
+            watch. Built for outrigger, surfski, V1, and SUP — not &ldquo;Kayak (Other)&rdquo;.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <a className="btn" href="mailto:hello@imuatrak.app">Join the waitlist</a>
@@ -100,7 +100,7 @@ export default function Landing() {
         </Feature>
         <Feature icon="📍" title="GPS that handles canyons">
           Kalman-smoothed track with accuracy-aware speed. Splits every 1 km,
-          moving-time aware so a coffee break doesn't tank your pace.
+          moving-time aware so a coffee break doesn&apos;t tank your pace.
         </Feature>
         <Feature icon="❤️" title="Heart rate from your watch">
           Apple Health on iOS, Health Connect on Android. Zone time for the
@@ -112,10 +112,10 @@ export default function Landing() {
         </Feature>
         <Feature icon="🚣" title="Crafts that exist">
           OC1 / OC2 / OC6 / V1 / SUP / Surfski — different defaults for
-          different boats. Not "Kayak (Other)".
+          different boats. Not &ldquo;Kayak (Other)&rdquo;.
         </Feature>
         <Feature icon="📡" title="Built for the offline put-in">
-          Records fully offline. Uploads when you're back on signal. Your data
+          Records fully offline. Uploads when you&apos;re back on signal. Your data
           sits in your account, not behind a paywall.
         </Feature>
       </section>

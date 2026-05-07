@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function NotFound() {
   return (
     <main className="container" style={{ textAlign: "center", paddingTop: 96 }}>
@@ -6,7 +8,7 @@ export default function NotFound() {
         This link may have expired, or the owner un-shared it.
       </p>
       <p style={{ marginTop: 24 }}>
-        <a className="btn" href="/">Back to ImuaTrak</a>
+        <Link className="btn" href="/">Back to ImuaTrak</Link>
       </p>
     </main>
   );
