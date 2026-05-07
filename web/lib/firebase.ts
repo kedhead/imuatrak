@@ -1,6 +1,18 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { doc, getDoc, getFirestore } from "firebase/firestore";
-import type { PublicSession } from "./types";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  limit,
+  orderBy,
+  query,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
+import type { DashboardSession, PublicSession } from "./types";
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -13,13 +25,50 @@ const config = {
 export const firebaseApp = getApps().length ? getApp() : initializeApp(config);
 export const db = getFirestore(firebaseApp);
 
-/**
- * Fetch a public session by id. Reads from `publicSessions/{id}`, which
- * is anyone-readable per `firestore.rules`. Returns null if the session
- * doesn't exist or the owner has un-shared it.
- */
+/** Read a public session (no auth required). */
 export async function getPublicSession(id: string): Promise<PublicSession | null> {
   const snap = await getDoc(doc(db, "publicSessions", id));
   if (!snap.exists()) return null;
   return snap.data() as PublicSession;
+}
+
+/** Read all sessions for an authenticated user, newest first. */
+export async function getUserSessions(uid: string): Promise<DashboardSession[]> {
+  const q = query(
+    collection(db, "users", uid, "sessions"),
+    orderBy("startedAt", "desc"),
+    limit(200),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ ...d.data(), id: d.id }) as DashboardSession);
+}
+
+/** Read a single session for an authenticated user. */
+export async function getUserSession(
+  uid: string,
+  id: string,
+): Promise<DashboardSession | null> {
+  const snap = await getDoc(doc(db, "users", uid, "sessions", id));
+  if (!snap.exists()) return null;
+  return { ...snap.data(), id: snap.id } as DashboardSession;
+}
+
+/**
+ * Toggle a session's public visibility. Mirrors the logic in the mobile
+ * sync.ts: writes/removes the denormalized publicSessions/{id} copy.
+ */
+export async function setSessionPublic(
+  uid: string,
+  session: DashboardSession,
+  isPublic: boolean,
+): Promise<void> {
+  const privateRef = doc(db, "users", uid, "sessions", session.id);
+  await updateDoc(privateRef, { isPublic });
+
+  const publicRef = doc(db, "publicSessions", session.id);
+  if (isPublic) {
+    await setDoc(publicRef, { ...session, userId: uid, isPublic: true });
+  } else {
+    await deleteDoc(publicRef).catch(() => undefined);
+  }
 }

@@ -84,6 +84,58 @@ a { color: inherit; }
   }
 }
 
+/* NavBar */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  height: 56px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.navbar-logo {
+  font-weight: 700;
+  font-size: 17px;
+  text-decoration: none;
+  letter-spacing: -0.2px;
+}
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.navbar-link {
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--muted);
+}
+
+.navbar-link:hover,
+.navbar-link-active {
+  color: var(--ink);
+}
+
+.navbar-signout {
+  font-size: 13px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.navbar-signout:hover {
+  color: var(--ink);
+}
+
 /* Leaflet base — pulled in by the map component */
 .leaflet-container {
   width: 100%;

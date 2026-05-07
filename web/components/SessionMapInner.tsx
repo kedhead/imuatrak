@@ -27,8 +27,16 @@ export default function SessionMapInner({ points }: { points: [number, number][]
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <Polyline positions={points} pathOptions={{ color: "#3b82f6", weight: 4 }} />
-      <CircleMarker center={start} radius={6} pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 1 }} />
-      <CircleMarker center={end} radius={6} pathOptions={{ color: "#ef4444", fillColor: "#ef4444", fillOpacity: 1 }} />
+      <CircleMarker
+        center={start}
+        radius={6}
+        pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 1 }}
+      />
+      <CircleMarker
+        center={end}
+        radius={6}
+        pathOptions={{ color: "#ef4444", fillColor: "#ef4444", fillOpacity: 1 }}
+      />
       <FitBounds bounds={bounds} />
     </MapContainer>
   );

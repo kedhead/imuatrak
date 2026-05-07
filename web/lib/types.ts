@@ -56,3 +56,8 @@ export interface PublicSession {
   trackSummary: TrackSummaryPoint[];
   isPublic: true;
 }
+
+/** A session owned by the signed-in user — isPublic may be false or absent. */
+export interface DashboardSession extends Omit<PublicSession, "isPublic"> {
+  isPublic?: boolean;
+}

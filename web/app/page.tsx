@@ -3,13 +3,6 @@ import Link from "next/link";
 export default function Landing() {
   return (
     <main className="container">
-      <header style={{ marginBottom: 56, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: -0.2 }}>ImuaTrak</div>
-        <a href="mailto:hello@imuatrak.app" className="btn btn-outline" style={{ fontSize: 14, padding: "8px 16px" }}>
-          Get early access
-        </a>
-      </header>
-
       {/* ── Hero ─────────────────────────────────────────────────── */}
       <section
         style={{

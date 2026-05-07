@@ -1,3 +1,5 @@
+"use client";
+
 import type { TrackSummaryPoint } from "@/lib/types";
 
 const W = 800;
@@ -17,7 +19,6 @@ export default function ElevChart({ points }: { points: TrackSummaryPoint[] }) {
   const maxAlt = Math.max(...alts);
   const range = maxAlt - minAlt;
 
-  // Skip if all GPS altitudes are zero or there's no meaningful variation
   if (maxAlt === 0 || range < 3) return null;
 
   const t0 = points[0]!.t;
@@ -46,14 +47,12 @@ export default function ElevChart({ points }: { points: TrackSummaryPoint[] }) {
           <stop offset="100%" stopColor="#1fb6a6" stopOpacity="0.02" />
         </linearGradient>
       </defs>
-
       <text x={PL - 4} y={PT + 8} textAnchor="end" fontSize="10" fill="#8b95a3">
         {maxAlt.toFixed(0)}m
       </text>
       <text x={PL - 4} y={PT + IH} textAnchor="end" fontSize="10" fill="#8b95a3">
         {minAlt.toFixed(0)}m
       </text>
-
       <polygon points={areaPts} fill="url(#elev-fill)" />
       <polyline
         points={linePts}

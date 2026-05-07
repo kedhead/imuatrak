@@ -9,11 +9,11 @@ import {
   formatPace,
   formatSpeed,
 } from "@/lib/format";
-import SessionMap from "./SessionMap";
-import SpeedChart from "./SpeedChart";
-import ElevChart from "./ElevChart";
-import HrZones from "./HrZones";
-import ShareButton from "./ShareButton";
+import SessionMap from "@/components/SessionMap";
+import SpeedChart from "@/components/SpeedChart";
+import ElevChart from "@/components/ElevChart";
+import HrZones from "@/components/HrZones";
+import ShareButton from "@/components/ShareButton";
 
 const BASE_URL = "https://imuatrak.app";
 
@@ -47,20 +47,10 @@ export default async function PublicSessionPage({ params }: Props) {
 
   return (
     <main className="container">
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 28,
-        }}
-      >
-        <a href="/" style={{ fontWeight: 700, fontSize: 17, textDecoration: "none" }}>
-          ImuaTrak
-        </a>
+      {/* ── Share button (top-right, complements NavBar) ──────── */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
         <ShareButton url={shareUrl} title={shareTitle} />
-      </header>
+      </div>
 
       {/* ── Title ──────────────────────────────────────────────── */}
       <div style={{ marginBottom: 20 }}>

@@ -11,7 +11,7 @@ export default function ShareButton({ url, title }: { url: string; title: string
         await navigator.share({ title, url });
         return;
       } catch {
-        // user cancelled or share not supported — fall through
+        // user cancelled — fall through to clipboard
       }
     }
     await navigator.clipboard.writeText(url);
