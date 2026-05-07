@@ -1,0 +1,27 @@
+name: Deploy Firebase rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firebase/firestore.rules"
+      - "firebase/storage.rules"
+      - "firebase/firestore.indexes.json"
+      - ".github/workflows/firebase-rules.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools
+
+      - name: Deploy Firestore rules + indexes and Storage rules
+        run: firebase deploy --only firestore,storage --project imuatrak-prod
+        working-directory: firebase
