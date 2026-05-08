@@ -34,8 +34,8 @@ export async function requestAuthorization(): Promise<void> {
       HK.initHealthKit(
         {
           permissions: {
-            read: [P.HeartRate, P.ActiveEnergyBurned, P.DistanceSwimming],
-            write: [P.Workout, P.ActiveEnergyBurned, P.DistanceSwimming],
+            read: [P.HeartRate!, P.ActiveEnergyBurned!, P.DistanceSwimming!],
+            write: [P.Workout!, P.ActiveEnergyBurned!, P.DistanceSwimming!],
           },
         },
         (err) => (err ? reject(new Error(err)) : resolve()),

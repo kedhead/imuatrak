@@ -1,9 +1,10 @@
-import { Accelerometer, type Subscription } from "expo-sensors";
+import { Accelerometer } from "expo-sensors";
+import type { EventSubscription } from "expo-modules-core";
 import { StrokeDetector, type Stroke } from "./stroke-detector";
 
 export type StrokeListener = (s: Stroke) => void;
 
-let sub: Subscription | null = null;
+let sub: EventSubscription | null = null;
 let detector: StrokeDetector | null = null;
 let t0: number | null = null;
 const listeners = new Set<StrokeListener>();

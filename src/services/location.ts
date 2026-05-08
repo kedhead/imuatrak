@@ -62,7 +62,7 @@ export async function stopBackgroundUpdates(): Promise<void> {
 // Defined at module top-level so the OS can resume the task after a kill.
 TaskManager.defineTask(
   TASK_NAME,
-  ({ data, error }: { data: { locations?: Location.LocationObject[] }; error: TaskManager.TaskManagerError | null }) => {
+  async ({ data, error }: { data: { locations?: Location.LocationObject[] }; error: TaskManager.TaskManagerError | null }) => {
     if (error) return;
     const locations = data?.locations ?? [];
     for (const loc of locations) {
