@@ -6,19 +6,21 @@
       "distribution": "internal",
       "channel": "development",
       "node": "20.19.0",
-      "ios": { "simulator": true },
+      "ios": { "simulator": true, "image": "latest" },
       "android": { "buildType": "apk" }
     },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
       "node": "20.19.0",
+      "ios": { "image": "latest" },
       "android": { "buildType": "apk" }
     },
     "production": {
       "channel": "production",
       "node": "20.19.0",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "ios": { "image": "latest" }
     }
   },
   "submit": {
