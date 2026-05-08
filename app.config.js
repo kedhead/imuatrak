@@ -79,6 +79,7 @@ const config = {
     "expo-router",
     "expo-apple-authentication",
     "expo-secure-store",
+    "./plugins/withFixGradle",
     [
       "expo-location",
       {
