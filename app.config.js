@@ -95,16 +95,21 @@ const config = {
         android: { compileSdkVersion: 35, targetSdkVersion: 35, minSdkVersion: 26 },
       },
     ],
-    [
-      "react-native-health",
-      {
-        isClinicalDataEnabled: false,
-        healthSharePermission:
-          "ImuaTrak reads your heart rate to show effort during paddling sessions.",
-        healthUpdatePermission:
-          "ImuaTrak writes finished paddling workouts to Apple Health.",
-      },
-    ],
+    // react-native-health is iOS-only (HealthKit); skip its plugin on Android
+    ...(process.env.EAS_BUILD_PLATFORM !== "android"
+      ? [
+          [
+            "react-native-health",
+            {
+              isClinicalDataEnabled: false,
+              healthSharePermission:
+                "ImuaTrak reads your heart rate to show effort during paddling sessions.",
+              healthUpdatePermission:
+                "ImuaTrak writes finished paddling workouts to Apple Health.",
+            },
+          ],
+        ]
+      : []),
   ],
 
   extra: {
