@@ -27,9 +27,15 @@ export default function NavBar() {
               <>
                 <Link
                   href="/dashboard"
-                  className={pathname.startsWith("/dashboard") ? "navbar-link navbar-link-active" : "navbar-link"}
+                  className={pathname.startsWith("/dashboard") && !pathname.startsWith("/dashboard/club") ? "navbar-link navbar-link-active" : "navbar-link"}
                 >
                   My Sessions
+                </Link>
+                <Link
+                  href="/dashboard/club"
+                  className={pathname.startsWith("/dashboard/club") ? "navbar-link navbar-link-active" : "navbar-link"}
+                >
+                  Club
                 </Link>
                 <button onClick={handleSignOut} className="navbar-signout">
                   Sign out

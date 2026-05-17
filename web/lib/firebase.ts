@@ -1,11 +1,14 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import {
+  addDoc,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
   getDoc,
   getDocs,
   getFirestore,
+  increment,
   limit,
   orderBy,
   query,
@@ -13,6 +16,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import type { DashboardSession, PublicSession } from "./types";
+import type { Club, ClubMember, ClubEvent, ClubPost, MemberRole, EventType, PostType } from "./clubTypes";
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -71,4 +75,99 @@ export async function setSessionPublic(
   } else {
     await deleteDoc(publicRef).catch(() => undefined);
   }
+}
+
+// ── Club helpers ─────────────────────────────────────────────────────────────
+
+export async function getUserClub(uid: string): Promise<{ club: Club; role: MemberRole } | null> {
+  const ucSnap = await getDoc(doc(db, "userClubs", uid));
+  if (!ucSnap.exists()) return null;
+  const { activeClubId } = ucSnap.data() as { activeClubId?: string };
+  if (!activeClubId) return null;
+
+  const [clubSnap, memberSnap] = await Promise.all([
+    getDoc(doc(db, "clubs", activeClubId)),
+    getDoc(doc(db, "clubs", activeClubId, "members", uid)),
+  ]);
+  if (!clubSnap.exists() || !memberSnap.exists()) return null;
+
+  return {
+    club: { ...(clubSnap.data() as Club), id: clubSnap.id },
+    role: (memberSnap.data() as { role: MemberRole }).role,
+  };
+}
+
+export async function getClubMembers(clubId: string): Promise<ClubMember[]> {
+  const snap = await getDocs(collection(db, "clubs", clubId, "members"));
+  return snap.docs.map((d) => d.data() as ClubMember);
+}
+
+export async function getClubEvents(clubId: string): Promise<ClubEvent[]> {
+  const snap = await getDocs(
+    query(collection(db, "clubs", clubId, "events"), orderBy("startAt"), limit(50)),
+  );
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<ClubEvent, "id">), id: d.id }));
+}
+
+export async function getClubPosts(clubId: string): Promise<ClubPost[]> {
+  const snap = await getDocs(
+    query(collection(db, "clubs", clubId, "posts"), orderBy("createdAt", "desc"), limit(50)),
+  );
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<ClubPost, "id">), id: d.id }));
+}
+
+export async function createClubPost(
+  clubId: string,
+  uid: string,
+  displayName: string,
+  opts: { type: PostType; content: string; pinnedUntil?: string },
+): Promise<void> {
+  const now = new Date().toISOString();
+  await addDoc(collection(db, "clubs", clubId, "posts"), {
+    clubId, type: opts.type, content: opts.content,
+    authorId: uid, authorName: displayName,
+    pinnedUntil: opts.pinnedUntil ?? null,
+    likeCount: 0, commentCount: 0,
+    createdAt: now, updatedAt: now,
+  });
+}
+
+export async function deleteClubPost(clubId: string, postId: string): Promise<void> {
+  await deleteDoc(doc(db, "clubs", clubId, "posts", postId));
+}
+
+export async function createClubEvent(
+  clubId: string,
+  uid: string,
+  opts: { title: string; type: EventType; description?: string; startAt: string; endAt: string; location?: string; meetTime?: string },
+): Promise<void> {
+  await addDoc(collection(db, "clubs", clubId, "events"), {
+    clubId, title: opts.title, type: opts.type,
+    description: opts.description ?? "",
+    startAt: opts.startAt, endAt: opts.endAt,
+    location: opts.location ? { name: opts.location } : null,
+    meetTime: opts.meetTime ?? "",
+    createdBy: uid, rsvps: [], linkedSessionIds: [],
+  });
+}
+
+export async function deleteClubEvent(clubId: string, eventId: string): Promise<void> {
+  await deleteDoc(doc(db, "clubs", clubId, "events", eventId));
+}
+
+export async function updateMemberRole(clubId: string, uid: string, role: MemberRole): Promise<void> {
+  await updateDoc(doc(db, "clubs", clubId, "members", uid), { role });
+}
+
+export async function removeClubMember(clubId: string, uid: string): Promise<void> {
+  await deleteDoc(doc(db, "clubs", clubId, "members", uid));
+  await updateDoc(doc(db, "clubs", clubId), { memberCount: increment(-1) });
+}
+
+export async function updateClub(
+  clubId: string,
+  updates: Partial<Pick<Club, "name" | "description" | "location">>,
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await updateDoc(doc(db, "clubs", clubId), updates as any);
 }

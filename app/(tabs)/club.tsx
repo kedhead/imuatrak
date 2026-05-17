@@ -96,7 +96,9 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await load();
+    const [p, e] = await Promise.all([getPosts(clubId), getUpcomingEvents(clubId, 3)]);
+    setPosts(p);
+    setEvents(e);
     setRefreshing(false);
   };
 

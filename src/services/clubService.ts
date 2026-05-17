@@ -10,13 +10,13 @@ import {
   query,
   orderBy,
   limit,
-  serverTimestamp,
   arrayUnion,
   increment,
   Timestamp,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import { nanoid } from "nanoid";
-import { db } from "./firebase";
+import { db, functions } from "./firebase";
 import type {
   Club,
   ClubMember,
@@ -180,10 +180,9 @@ export async function removeMember(clubId: string, uid: string): Promise<void> {
 // ── Invite links ─────────────────────────────────────────────────────────────
 
 export async function createInviteToken(clubId: string): Promise<string> {
-  const token = nanoid(12);
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  await setDoc(doc(db, "clubInvites", token), { clubId, expiresAt, createdAt: new Date().toISOString() });
-  return token;
+  const fn = httpsCallable<{ clubId: string }, { token: string }>(functions, "createClubInvite");
+  const result = await fn({ clubId });
+  return result.data.token;
 }
 
 export async function resolveInviteToken(token: string): Promise<string | null> {
