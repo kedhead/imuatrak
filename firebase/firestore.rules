@@ -11,7 +11,20 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // User profile + private sessions — owner only.
+    function isClubMember(clubId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid));
+    }
+
+    function getClubMember(clubId) {
+      return get(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid)).data;
+    }
+
+    function hasClubRole(clubId, roles) {
+      return isClubMember(clubId) && getClubMember(clubId).role in roles;
+    }
+
+    // ── User sessions (private) ──────────────────────────────────────────────
     match /users/{uid} {
       allow read, write: if isOwner(uid);
 
@@ -44,6 +57,66 @@ service cloud.firestore {
 
       allow delete: if isSignedIn()
         && resource.data.userId == request.auth.uid;
+    }
+
+    // ── User → club membership index ─────────────────────────────────────────
+    match /userClubs/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ── Invite tokens (created by Cloud Functions, read by any signed-in user)
+    match /clubInvites/{token} {
+      allow read: if isSignedIn();
+      allow write: if false; // Cloud Functions only
+    }
+
+    // ── Clubs ────────────────────────────────────────────────────────────────
+    match /clubs/{clubId} {
+      allow read: if isClubMember(clubId);
+      allow update: if hasClubRole(clubId, ["owner", "admin"]);
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if hasClubRole(clubId, ["owner"]);
+
+      // ── Members ────────────────────────────────────────────────────────────
+      match /members/{uid} {
+        allow read: if isClubMember(clubId);
+        allow write: if hasClubRole(clubId, ["owner", "admin"]);
+        // Users can create/delete their own membership (join via invite, leave).
+        allow create, delete: if isOwner(uid);
+      }
+
+      // ── Events ─────────────────────────────────────────────────────────────
+      match /events/{eventId} {
+        allow read: if isClubMember(clubId);
+        allow create, update: if hasClubRole(clubId, ["owner", "admin", "coach"]);
+        allow delete: if hasClubRole(clubId, ["owner", "admin"]);
+      }
+
+      // ── Posts ──────────────────────────────────────────────────────────────
+      match /posts/{postId} {
+        allow read: if isClubMember(clubId);
+        allow create: if isClubMember(clubId)
+          && request.resource.data.authorId == request.auth.uid;
+        allow update: if isClubMember(clubId)
+          && (resource.data.authorId == request.auth.uid
+              || hasClubRole(clubId, ["owner", "admin"]));
+        allow delete: if isClubMember(clubId)
+          && (resource.data.authorId == request.auth.uid
+              || hasClubRole(clubId, ["owner", "admin"]));
+
+        // ── Comments ─────────────────────────────────────────────────────────
+        match /comments/{commentId} {
+          allow read: if isClubMember(clubId);
+          allow create: if isClubMember(clubId)
+            && request.resource.data.authorId == request.auth.uid;
+          allow update: if isClubMember(clubId)
+            && resource.data.authorId == request.auth.uid;
+          allow delete: if isClubMember(clubId)
+            && (resource.data.authorId == request.auth.uid
+                || hasClubRole(clubId, ["owner", "admin"]));
+        }
+      }
     }
   }
 }
