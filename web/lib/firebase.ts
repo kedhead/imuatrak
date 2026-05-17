@@ -168,6 +168,8 @@ export async function updateClub(
   clubId: string,
   updates: Partial<Pick<Club, "name" | "description" | "location">>,
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await updateDoc(doc(db, "clubs", clubId), updates as any);
+  const ref = doc(db, "clubs", clubId);
+  if (updates.name !== undefined) await updateDoc(ref, { name: updates.name });
+  if (updates.description !== undefined) await updateDoc(ref, { description: updates.description });
+  if (updates.location !== undefined) await updateDoc(ref, { location: updates.location });
 }
