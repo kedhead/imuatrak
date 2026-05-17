@@ -48,7 +48,7 @@ export default function CreateClubScreen() {
       });
       await switchClub(club.id, user.uid);
       router.back();
-    } catch (e) {
+    } catch {
       Alert.alert("Error", "Failed to create club. Please try again.");
     } finally {
       setLoading(false);

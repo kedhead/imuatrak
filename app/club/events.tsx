@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   SectionList,
   StyleSheet,
@@ -30,12 +29,13 @@ export default function EventsScreen() {
   const [past, setPast] = useState<ClubEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const clubId = club?.id;
   useEffect(() => {
-    if (!club) return;
-    Promise.all([getUpcomingEvents(club.id, 20), getPastEvents(club.id, 20)])
+    if (!clubId) return;
+    Promise.all([getUpcomingEvents(clubId, 20), getPastEvents(clubId, 20)])
       .then(([u, p]) => { setUpcoming(u); setPast(p); })
       .finally(() => setLoading(false));
-  }, [club?.id]);
+  }, [clubId]);
 
   const isAdmin = role === "owner" || role === "admin" || role === "coach";
 
@@ -97,7 +97,7 @@ export default function EventsScreen() {
   );
 }
 
-function formatEventDate(startAt: string, endAt: string): string {
+function formatEventDate(startAt: string, _endAt: string): string {
   const start = new Date(startAt);
   const dateStr = start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
   const timeStr = start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });

@@ -260,7 +260,7 @@ function CreateEventForm({ clubId, onDone }: { clubId: string; onDone: () => voi
   );
 }
 
-function formatEventDate(startAt: string, endAt: string): string {
+function formatEventDate(startAt: string, _endAt: string): string {
   const start = new Date(startAt);
   return start.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" }) +
     " at " + start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });

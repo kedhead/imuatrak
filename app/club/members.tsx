@@ -1,7 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Pressable,
@@ -11,7 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
-import { removeMember, updateMemberRole, leaveClub } from "@/services/clubService";
+import { removeMember, updateMemberRole } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import type { ClubMember, MemberRole } from "@/models/club";
 import { colors, spacing, radii } from "@/ui/theme";
@@ -29,8 +26,6 @@ export default function MembersScreen() {
   const role = useClub((s) => s.role);
   const members = useClub((s) => s.members);
   const switchClub = useClub((s) => s.switchClub);
-  const [loading, setLoading] = useState(false);
-
   const sorted = [...members].sort(
     (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
   );

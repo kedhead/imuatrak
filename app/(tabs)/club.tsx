@@ -19,7 +19,6 @@ import type { ClubPost, ClubEvent } from "@/models/club";
 import { colors, spacing, radii } from "@/ui/theme";
 
 export default function ClubTab() {
-  const router = useRouter();
   const club = useClub((s) => s.club);
   const loaded = useClub((s) => s.loaded);
 
@@ -68,13 +67,12 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const [posting, setPosting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = async () => {
-    const [p, e] = await Promise.all([getPosts(clubId), getUpcomingEvents(clubId, 3)]);
-    setPosts(p);
-    setEvents(e);
-  };
-
   useEffect(() => {
+    const load = async () => {
+      const [p, e] = await Promise.all([getPosts(clubId), getUpcomingEvents(clubId, 3)]);
+      setPosts(p);
+      setEvents(e);
+    };
     void load();
   }, [clubId]);
 
