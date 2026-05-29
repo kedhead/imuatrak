@@ -41,3 +41,4 @@ firebase/firebase-debug.log
 .env.local
 .env.*.local
 coverage/
+AuthKey_*.p8
