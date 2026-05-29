@@ -11,29 +11,20 @@ export interface PaddlingWorkout {
 export async function requestAuthorization(): Promise<void> {
   if (Platform.OS === "ios") {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mod = require("react-native-health") as {
-        default: {
-          initHealthKit: (
-            opts: { permissions: { read: string[]; write: string[] } },
-            cb: (err: string | null) => void,
-          ) => void;
-          Constants: { Permissions: { [k: string]: string } };
-        };
-      };
-      const HK = mod.default;
-      const P = HK.Constants.Permissions;
-      await new Promise<void>((resolve, reject) => {
-        HK.initHealthKit(
-          {
-            permissions: {
-              read: [P["HeartRate"]!, P["ActiveEnergyBurned"]!, P["DistanceSwimming"]!],
-              write: [P["Workout"]!, P["ActiveEnergyBurned"]!, P["DistanceSwimming"]!],
-            },
-          },
-          (err) => (err ? reject(new Error(err)) : resolve()),
-        );
-      });
+      const { default: HealthKit, HKQuantityTypeIdentifier, HKWorkoutActivityType } =
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("@kingstinct/react-native-healthkit") as typeof import("@kingstinct/react-native-healthkit");
+      void HKWorkoutActivityType; // imported for saveWorkout usage below
+      await HealthKit.requestAuthorization(
+        [
+          HKQuantityTypeIdentifier.activeEnergyBurned,
+          HKQuantityTypeIdentifier.distanceCycling,
+        ],
+        [
+          HKQuantityTypeIdentifier.heartRate,
+          HKQuantityTypeIdentifier.activeEnergyBurned,
+        ],
+      );
     } catch {
       // Native module not linked (Expo Go) — skip
     }
@@ -62,35 +53,22 @@ export async function requestAuthorization(): Promise<void> {
 export async function writePaddlingWorkout(w: PaddlingWorkout): Promise<void> {
   if (Platform.OS === "ios") {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mod = require("react-native-health") as {
-        default: {
-          saveWorkout: (
-            opts: {
-              type: string;
-              startDate: string;
-              endDate: string;
-              energyBurned?: number;
-              distance?: number;
-            },
-            cb: (err: string | null) => void,
-          ) => void;
-        };
-      };
-      const HK = mod.default;
-      await new Promise<void>((resolve, reject) => {
-        HK.saveWorkout(
-          {
-            // HKWorkoutActivityType.paddleSports = 53
-            type: "PaddleSports",
-            startDate: w.startedAt.toISOString(),
-            endDate: w.endedAt.toISOString(),
-            energyBurned: w.calories || undefined,
-            distance: w.distanceMeters || undefined,
-          },
-          (err) => (err ? reject(new Error(err)) : resolve()),
-        );
-      });
+      const { default: HealthKit, HKWorkoutActivityType, HKQuantityTypeIdentifier, HKUnit } =
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("@kingstinct/react-native-healthkit") as typeof import("@kingstinct/react-native-healthkit");
+      await HealthKit.saveWorkoutSample(
+        HKWorkoutActivityType.paddleSports,
+        [
+          ...(w.distanceMeters
+            ? [{ quantity: w.distanceMeters, unit: HKUnit.Meter, quantityType: HKQuantityTypeIdentifier.distanceCycling }]
+            : []),
+          ...(w.calories
+            ? [{ quantity: w.calories, unit: HKUnit.Kilocalorie, quantityType: HKQuantityTypeIdentifier.activeEnergyBurned }]
+            : []),
+        ],
+        w.startedAt,
+        w.endedAt,
+      );
     } catch {
       // Native module not linked — skip
     }
