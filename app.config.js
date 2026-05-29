@@ -12,7 +12,7 @@ const config = {
     resizeMode: "contain",
     backgroundColor: "#0E5FA5",
   },
-  newArchEnabled: false,
+  newArchEnabled: true,
   assetBundlePatterns: ["**/*"],
 
   ios: {
@@ -98,7 +98,17 @@ const config = {
     ],
     // @kingstinct/react-native-healthkit is iOS-only; skip on Android
     ...(process.env.EAS_BUILD_PLATFORM !== "android"
-      ? ["@kingstinct/react-native-healthkit"]
+      ? [
+          [
+            "@kingstinct/react-native-healthkit",
+            {
+              healthSharePermission:
+                "ImuaTrak reads your heart rate to show effort during paddling sessions.",
+              healthUpdatePermission:
+                "ImuaTrak writes finished paddling workouts to Apple Health.",
+            },
+          ],
+        ]
       : []),
   ],
 
