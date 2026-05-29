@@ -11,20 +11,20 @@ export interface PaddlingWorkout {
 export async function requestAuthorization(): Promise<void> {
   if (Platform.OS === "ios") {
     try {
-      const { default: HealthKit, HKQuantityTypeIdentifier, HKWorkoutActivityType } =
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        require("@kingstinct/react-native-healthkit") as typeof import("@kingstinct/react-native-healthkit");
-      void HKWorkoutActivityType; // imported for saveWorkout usage below
-      await HealthKit.requestAuthorization(
-        [
-          HKQuantityTypeIdentifier.activeEnergyBurned,
-          HKQuantityTypeIdentifier.distanceCycling,
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const HealthKit = require("@kingstinct/react-native-healthkit").default;
+      await HealthKit.requestAuthorization({
+        toRead: [
+          "HKQuantityTypeIdentifierHeartRate",
+          "HKQuantityTypeIdentifierActiveEnergyBurned",
+          "HKQuantityTypeIdentifierDistanceCycling",
         ],
-        [
-          HKQuantityTypeIdentifier.heartRate,
-          HKQuantityTypeIdentifier.activeEnergyBurned,
+        toShare: [
+          "HKWorkoutTypeIdentifier",
+          "HKQuantityTypeIdentifierActiveEnergyBurned",
+          "HKQuantityTypeIdentifierDistanceCycling",
         ],
-      );
+      });
     } catch {
       // Native module not linked (Expo Go) — skip
     }
@@ -53,17 +53,17 @@ export async function requestAuthorization(): Promise<void> {
 export async function writePaddlingWorkout(w: PaddlingWorkout): Promise<void> {
   if (Platform.OS === "ios") {
     try {
-      const { default: HealthKit, HKWorkoutActivityType, HKQuantityTypeIdentifier, HKUnit } =
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        require("@kingstinct/react-native-healthkit") as typeof import("@kingstinct/react-native-healthkit");
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const HealthKit = require("@kingstinct/react-native-healthkit").default;
       await HealthKit.saveWorkoutSample(
-        HKWorkoutActivityType.paddleSports,
+        // HKWorkoutActivityType.paddleSports = 53
+        "paddleSports",
         [
           ...(w.distanceMeters
-            ? [{ quantity: w.distanceMeters, unit: HKUnit.Meter, quantityType: HKQuantityTypeIdentifier.distanceCycling }]
+            ? [{ quantity: w.distanceMeters, unit: "m", quantityType: "HKQuantityTypeIdentifierDistanceCycling" }]
             : []),
           ...(w.calories
-            ? [{ quantity: w.calories, unit: HKUnit.Kilocalorie, quantityType: HKQuantityTypeIdentifier.activeEnergyBurned }]
+            ? [{ quantity: w.calories, unit: "kcal", quantityType: "HKQuantityTypeIdentifierActiveEnergyBurned" }]
             : []),
         ],
         w.startedAt,
