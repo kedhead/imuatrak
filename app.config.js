@@ -92,7 +92,7 @@ const config = {
     [
       "expo-build-properties",
       {
-        ios: { deploymentTarget: "16.0" },
+        ios: { deploymentTarget: "16.4" },
         android: { compileSdkVersion: 35, targetSdkVersion: 35, minSdkVersion: 26 },
       },
     ],
