@@ -48,7 +48,7 @@
     "@kingstinct/react-native-healthkit": "^10.0.0",
     "react-native-nitro-modules": "^0.23.0",
     "react-native-health-connect": "^3.3.0",
-    "react-native-maps": "^2.1.0",
+    "react-native-maps": "^1.20.0",
     "react-native-reanimated": "~4.0.0",
     "react-native-safe-area-context": "^5.0.0",
     "react-native-screens": "~4.4.0",
