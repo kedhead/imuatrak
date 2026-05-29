@@ -12,7 +12,7 @@ const config = {
     resizeMode: "contain",
     backgroundColor: "#0E5FA5",
   },
-  newArchEnabled: false,
+  newArchEnabled: true,
   assetBundlePatterns: ["**/*"],
 
   ios: {
