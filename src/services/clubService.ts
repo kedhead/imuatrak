@@ -15,7 +15,6 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { nanoid } from "nanoid";
 import { db, functions } from "./firebase";
 import type {
   Club,
@@ -81,7 +80,7 @@ export async function createClub(
   displayName: string,
   opts: { name: string; description: string; city: string; country: string },
 ): Promise<Club> {
-  const id = nanoid(16);
+  const id = doc(collection(db, "clubs")).id;
   const now = new Date().toISOString();
   const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
