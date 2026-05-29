@@ -28,6 +28,16 @@
       "ios": {
         "ascAppId": "6774396124"
       }
+    },
+    "development": {
+      "ios": {
+        "ascAppId": "6774396124"
+      }
+    },
+    "preview": {
+      "ios": {
+        "ascAppId": "6774396124"
+      }
     }
   }
 }
