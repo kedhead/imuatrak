@@ -2,6 +2,7 @@
 const config = {
   name: "ImuaTrak",
   slug: "imuatrak",
+  owner: "Paintpile",
   scheme: "imuatrak",
   version: "0.1.0",
   orientation: "portrait",
