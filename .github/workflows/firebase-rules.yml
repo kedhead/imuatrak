@@ -23,5 +23,5 @@ jobs:
         run: npm install -g firebase-tools
 
       - name: Deploy Firestore rules + indexes and Storage rules
-        run: firebase deploy --only firestore,storage --project imuatrak-prod
+        run: firebase deploy --only firestore,storage --project imuatrak
         working-directory: firebase

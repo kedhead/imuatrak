@@ -49,5 +49,5 @@ jobs:
         run: npm install -g firebase-tools
 
       - name: Deploy functions
-        run: firebase deploy --only functions --project imuatrak-prod
+        run: firebase deploy --only functions --project imuatrak
         working-directory: firebase
