@@ -1,16 +1,13 @@
-import { useEffect } from "react";
-import { StyleSheet, type TextStyle } from "react-native";
-import Animated, {
+import { useCallback, useEffect, useRef, useState } from "react";
+import { StyleSheet, Text, type TextStyle } from "react-native";
+import {
   Easing,
-  useAnimatedProps,
+  runOnJS,
+  useAnimatedReaction,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { TextInput } from "react-native";
 import { colors, type } from "./theme";
-
-Animated.addWhitelistedNativeProps({ text: true });
-const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 interface Props {
   value: number;
@@ -21,9 +18,13 @@ interface Props {
   style?: TextStyle;
 }
 
+function safeNum(n: number): number {
+  return Number.isFinite(n) ? n : 0;
+}
+
 /**
- * Counts up to `value` whenever it changes. Renders into an uneditable
- * TextInput so the text can be driven from the UI thread via animatedProps.
+ * Counts up to `value` whenever it changes, applying `format` on the JS
+ * thread so regular (non-worklet) functions can be passed as `format`.
  */
 export function AnimatedNumber({
   value,
@@ -32,26 +33,41 @@ export function AnimatedNumber({
   duration = 800,
   style,
 }: Props) {
-  const progress = useSharedValue(value);
+  const initial = safeNum(value);
+  const progress = useSharedValue(initial);
 
-  useEffect(() => {
-    progress.value = withTiming(value, { duration, easing: Easing.out(Easing.cubic) });
-  }, [value, duration, progress]);
+  const formatRef = useRef(format);
+  const decimalsRef = useRef(decimals);
+  formatRef.current = format;
+  decimalsRef.current = decimals;
 
-  const animatedProps = useAnimatedProps(() => {
-    const n = progress.value;
-    const text = format ? format(n) : n.toFixed(decimals);
-    return { text, defaultValue: text } as any;
+  const [text, setText] = useState(() => {
+    const fn = formatRef.current;
+    return fn ? fn(initial) : initial.toFixed(decimalsRef.current);
   });
 
-  return (
-    <AnimatedTextInput
-      editable={false}
-      underlineColorAndroid="transparent"
-      style={[styles.text, style]}
-      animatedProps={animatedProps}
-    />
+  const update = useCallback((raw: number) => {
+    const n = safeNum(raw);
+    const fn = formatRef.current;
+    setText(fn ? fn(n) : n.toFixed(decimalsRef.current));
+  }, []);
+
+  useEffect(() => {
+    progress.value = withTiming(safeNum(value), {
+      duration,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [value, duration, progress]);
+
+  useAnimatedReaction(
+    () => progress.value,
+    (current) => {
+      runOnJS(update)(current);
+    },
+    [update],
   );
+
+  return <Text style={[styles.text, style]}>{text}</Text>;
 }
 
 const styles = StyleSheet.create({

@@ -1,14 +1,13 @@
 import * as Clipboard from "expo-clipboard";
 import * as Sharing from "expo-sharing";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import MapView, { Marker, Polyline, type LatLng } from "react-native-maps";
 import { AnimatedNumber } from "@/ui/AnimatedNumber";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
-import { Gradient } from "@/ui/Gradient";
 import { GradientCard } from "@/ui/GradientCard";
 import { Metric } from "@/ui/Metric";
 import { SplitsChart } from "@/ui/SplitsChart";
@@ -17,6 +16,7 @@ import { colors, craftColor, radii, shadow, spacing, type } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
 import { useSettings } from "@/services/settings";
 import { setSessionPublic } from "@/services/sync";
+import { emptyTotals, emptyHr } from "@/models";
 
 const PUBLIC_BASE_URL = "https://imuatrak.app";
 
@@ -30,14 +30,18 @@ export default function SessionDetail() {
 
   useEffect(() => {
     if (!id) return;
-    void load(id).then((s) => {
-      setStored(s);
-      setIsPublic(s?.session.isPublic ?? false);
-    });
+    load(id)
+      .then((s) => {
+        setStored(s);
+        setIsPublic(s?.session.isPublic ?? false);
+      })
+      .catch(() => setStored(null));
   }, [id]);
 
-  const coords: LatLng[] =
-    stored?.track.map((p) => ({ latitude: p.lat, longitude: p.lon })) ?? [];
+  const coords: LatLng[] = useMemo(
+    () => (stored?.track ?? []).map((p) => ({ latitude: p.lat, longitude: p.lon })),
+    [stored],
+  );
 
   useEffect(() => {
     if (coords.length < 2 || !mapRef.current) return;
@@ -56,7 +60,11 @@ export default function SessionDetail() {
   }
 
   const s = stored.session;
+  const totals = s.totals ?? emptyTotals();
+  const hr = s.hr ?? emptyHr();
+  const splits = s.splits ?? [];
   const accent = craftColor(s.craftType);
+  const safe = (n: number) => (Number.isFinite(n) ? n : 0);
 
   const onShare = async () => {
     if (!(await Sharing.isAvailableAsync())) {
@@ -102,23 +110,31 @@ export default function SessionDetail() {
         {/* Hero summary */}
         <Animated.View entering={FadeInDown.duration(450)}>
           <GradientCard gradient="ocean">
-            <Badge label={s.craftType} color="rgba(255,255,255,0.25)" />
+            <View style={{ flexDirection: "row", gap: spacing.xs }}>
+              <Badge label={s.craftType} color="rgba(255,255,255,0.25)" />
+              {(s.source === "ios-watch" || s.source === "android-wear") && (
+                <Badge
+                  label={s.source === "ios-watch" ? "Apple Watch" : "Wear OS"}
+                  color="rgba(255,255,255,0.18)"
+                />
+              )}
+            </View>
             <Text style={styles.heroDate}>
               {formatDate(s.startedAt)} · {formatTime(s.startedAt)}
             </Text>
             <View style={styles.heroStats}>
               <HeroStat
-                value={s.totals.distanceMeters}
+                value={safe(totals.distanceMeters)}
                 format={(n) => formatDistance(n, units)}
                 label="Distance"
               />
               <HeroStat
-                value={s.totals.durationSec}
+                value={safe(totals.durationSec)}
                 format={(n) => formatDuration(n)}
                 label="Time"
               />
               <HeroStat
-                value={s.totals.avgPaceSecPerKm}
+                value={safe(totals.avgPaceSecPerKm)}
                 format={(n) => formatPaceStr(n, units)}
                 label="Avg pace"
               />
@@ -155,35 +171,64 @@ export default function SessionDetail() {
           <GradientCard>
             <Metric
               label="Strokes"
-              value={`${s.totals.strokeCount} · ${Math.round(s.totals.avgStrokeRate)} spm`}
+              value={`${totals.strokeCount} · ${Math.round(safe(totals.avgStrokeRate))} spm`}
               icon="repeat"
               accent={accent}
             />
             <Metric
               label="Avg heart rate"
-              value={s.hr.avg > 0 ? `${s.hr.avg} bpm` : "—"}
+              value={hr.avg > 0 ? `${hr.avg} bpm` : "—"}
               icon="heart"
               accent={colors.coral}
             />
             <Metric
               label="Elevation gain"
-              value={`${Math.round(s.totals.elevationGainM)} m`}
+              value={`${Math.round(safe(totals.elevationGainM))} m`}
               icon="trending-up"
               accent={colors.aqua}
             />
           </GradientCard>
         </Animated.View>
 
+        {/* Weather */}
+        {s.weather && (
+          <Animated.View entering={FadeInDown.delay(200).duration(450)}>
+            <Text style={styles.sectionLabel}>Conditions</Text>
+            <GradientCard>
+              <Metric
+                label="Wind"
+                value={`${Math.round(s.weather.start.windMps * 1.944)} kts @ ${s.weather.start.windDeg}°`}
+                icon="navigate"
+                accent={colors.aqua}
+              />
+              <Metric
+                label="Temperature"
+                value={`${Math.round(s.weather.start.airTempC)}°C`}
+                icon="thermometer-outline"
+                accent={colors.gold}
+              />
+              {s.weather.start.conditions && (
+                <Metric
+                  label="Conditions"
+                  value={s.weather.start.conditions}
+                  icon="cloud-outline"
+                  accent={colors.muted}
+                />
+              )}
+            </GradientCard>
+          </Animated.View>
+        )}
+
         {/* Splits */}
-        <Animated.View entering={FadeInDown.delay(200).duration(450)}>
+        <Animated.View entering={FadeInDown.delay(260).duration(450)}>
           <Text style={styles.sectionLabel}>Splits</Text>
           <GradientCard>
-            <SplitsChart splits={s.splits} imperial={units === "imperial"} />
+            <SplitsChart splits={splits} imperial={units === "imperial"} />
           </GradientCard>
         </Animated.View>
 
         {/* Share */}
-        <Animated.View entering={FadeInDown.delay(260).duration(450)}>
+        <Animated.View entering={FadeInDown.delay(320).duration(450)}>
           <GradientCard>
             <View style={styles.shareRow}>
               <View style={{ flex: 1 }}>
