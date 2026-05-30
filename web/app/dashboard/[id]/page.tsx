@@ -237,6 +237,36 @@ export default function DashboardSessionPage() {
         </section>
       )}
 
+      {/* Weather */}
+      {session.weather && (
+        <section className="chart-section">
+          <h2 className="chart-label">Conditions</h2>
+          <div
+            className="card"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: 10,
+              padding: "16px 20px",
+            }}
+          >
+            <Stat
+              label="Wind"
+              value={`${Math.round(session.weather.start.windMps * 1.944)} kts`}
+              sub={`${session.weather.start.windDeg}°`}
+            />
+            <Stat label="Temperature" value={`${Math.round(session.weather.start.airTempC)}°C`} />
+            {session.weather.start.conditions && (
+              <Stat label="Conditions" value={session.weather.start.conditions} />
+            )}
+            <Stat
+              label="Gusts"
+              value={`${Math.round(session.weather.start.gustMps * 1.944)} kts`}
+            />
+          </div>
+        </section>
+      )}
+
       {/* HR zones */}
       <HrZones hr={session.hr} />
 

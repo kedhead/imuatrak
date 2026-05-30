@@ -4,6 +4,7 @@ import {
   signInWithCustomToken,
   signOut as fbSignOut,
   onAuthStateChanged,
+  updateProfile,
   type User,
 } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
@@ -72,6 +73,12 @@ export async function signInWithApple(): Promise<AuthUser> {
  */
 export async function signInWithGoogle(): Promise<AuthUser> {
   throw new Error("Google sign-in is not wired up yet (Phase 1.5)");
+}
+
+export async function updateDisplayName(name: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in");
+  await updateProfile(user, { displayName: name });
 }
 
 function randomNonce(length: number): string {

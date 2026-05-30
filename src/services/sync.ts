@@ -8,19 +8,28 @@ import { gpxUriFor } from "./storage";
 /**
  * Upload a finished session document and its GPX track. Idempotent — safe
  * to retry on the same id. Throws if the user is signed out.
+ *
+ * Firestore is written first so the session appears on the website immediately.
+ * The GPX upload to Storage is best-effort and won't block or prevent the
+ * Firestore write from succeeding.
  */
 export async function syncSession(session: Session): Promise<void> {
   const user = auth.currentUser;
   if (!user) throw new Error("not signed in");
 
-  const path = `users/${user.uid}/tracks/${session.id}.gpx`;
-  const gpxString = await FileSystem.readAsStringAsync(gpxUriFor(session.id));
-  const gpxBytes = new TextEncoder().encode(gpxString);
-  const r = ref(storage, path);
-  await uploadBytes(r, gpxBytes, { contentType: "application/gpx+xml" });
-
   const docRef = doc(db, "users", user.uid, "sessions", session.id);
-  await setDoc(docRef, { ...session, userId: user.uid, trackStoragePath: path });
+  await setDoc(docRef, { ...session, userId: user.uid });
+
+  try {
+    const path = `users/${user.uid}/tracks/${session.id}.gpx`;
+    const gpxString = await FileSystem.readAsStringAsync(gpxUriFor(session.id));
+    const gpxBytes = new TextEncoder().encode(gpxString);
+    const r = ref(storage, path);
+    await uploadBytes(r, gpxBytes, { contentType: "application/gpx+xml" });
+    await setDoc(docRef, { trackStoragePath: path }, { merge: true });
+  } catch {
+    // GPX upload is non-critical — session is already visible on the website.
+  }
 }
 
 /**

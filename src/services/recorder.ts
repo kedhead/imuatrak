@@ -10,10 +10,13 @@ import {
   type Session,
   type SessionSource,
   type TrackPoint,
+  type WeatherSample,
+  type WeatherSummary,
 } from "@/models";
 
 import * as aggregator from "./aggregator";
-import { auth } from "./firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, functions } from "./firebase";
 import { downsample } from "./geo";
 import * as health from "./health";
 import * as location from "./location";
@@ -133,6 +136,23 @@ export const useRecorder = create<RecorderState>((set, get) => ({
       speedMps: p.speedMps,
     }));
 
+    // Best-effort weather fetch using the first GPS fix (5 s timeout).
+    let weather: WeatherSummary | undefined;
+    if (track.length > 0 && auth.currentUser) {
+      try {
+        type WResp = { windMps: number; windDeg: number; gustMps: number; airTempC: number; pressureHpa: number; conditions: string };
+        const fn = httpsCallable<{ lat: number; lon: number }, WResp>(functions, "fetchWeather");
+        const call = fn({ lat: track[0]!.lat, lon: track[0]!.lon });
+        const timedOut = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000));
+        const result = await Promise.race([call, timedOut]);
+        const w = result.data;
+        const sample: WeatherSample = { tSec: 0, windMps: w.windMps, windDeg: w.windDeg, gustMps: w.gustMps, airTempC: w.airTempC, pressureHpa: w.pressureHpa, conditions: w.conditions };
+        weather = { start: sample, samples: [sample] };
+      } catch {
+        // Weather is non-critical — continue without it.
+      }
+    }
+
     const startedAt = new Date(state.startedAtMs).toISOString();
     const endedAt = new Date().toISOString();
     const session: Session = {
@@ -149,6 +169,7 @@ export const useRecorder = create<RecorderState>((set, get) => ({
       splits,
       sideSwitches: [],
       trackSummary: summary,
+      weather,
     };
 
     await storage.save(session, track);

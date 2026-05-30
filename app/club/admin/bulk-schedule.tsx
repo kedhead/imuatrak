@@ -1,5 +1,3 @@
-"use client";
-
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";

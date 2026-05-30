@@ -43,6 +43,21 @@ export interface TrackSummaryPoint {
   speedMps: number;
 }
 
+export interface WeatherSample {
+  tSec: number;
+  windMps: number;
+  windDeg: number;
+  gustMps: number;
+  airTempC: number;
+  pressureHpa: number;
+  conditions?: string;
+}
+
+export interface WeatherSummary {
+  start: WeatherSample;
+  samples: WeatherSample[];
+}
+
 export interface PublicSession {
   id: string;
   userId: string;
@@ -54,6 +69,7 @@ export interface PublicSession {
   hr: HrSummary;
   splits: Split[];
   trackSummary: TrackSummaryPoint[];
+  weather?: WeatherSummary;
   isPublic: true;
 }
 

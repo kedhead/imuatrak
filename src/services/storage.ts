@@ -54,8 +54,8 @@ export async function list(): Promise<StoredSession[]> {
 }
 
 export async function load(id: string): Promise<StoredSession | null> {
-  const dir = `${getRoot()}${id}/`;
   try {
+    const dir = `${getRoot()}${id}/`;
     const sj = await FileSystem.readAsStringAsync(`${dir}session.json`);
     const tj = await FileSystem.readAsStringAsync(`${dir}track.json`);
     return {

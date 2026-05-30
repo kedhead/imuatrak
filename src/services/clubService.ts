@@ -8,6 +8,7 @@ import {
   deleteDoc,
   addDoc,
   query,
+  where,
   orderBy,
   limit,
   arrayUnion,
@@ -128,6 +129,14 @@ export async function updateClub(
   await updateDoc(doc(db, "clubs", clubId), updates);
 }
 
+export async function updateMemberDisplayName(
+  clubId: string,
+  uid: string,
+  displayName: string,
+): Promise<void> {
+  await updateDoc(doc(db, "clubs", clubId, "members", uid), { displayName });
+}
+
 // ── Members ──────────────────────────────────────────────────────────────────
 
 export async function getClubMembers(clubId: string): Promise<ClubMember[]> {
@@ -201,13 +210,12 @@ export async function getUpcomingEvents(clubId: string, maxItems = 10): Promise<
   const snap = await getDocs(
     query(
       collection(db, "clubs", clubId, "events"),
+      where("startAt", ">=", now),
       orderBy("startAt"),
       limit(maxItems),
     ),
   );
-  return snap.docs
-    .map((d) => ({ ...(d.data() as Omit<ClubEvent, "id">), id: d.id }))
-    .filter((e) => e.endAt >= now);
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<ClubEvent, "id">), id: d.id }));
 }
 
 export async function getPastEvents(clubId: string, maxItems = 20): Promise<ClubEvent[]> {
@@ -215,13 +223,12 @@ export async function getPastEvents(clubId: string, maxItems = 20): Promise<Club
   const snap = await getDocs(
     query(
       collection(db, "clubs", clubId, "events"),
-      orderBy("startAt", "desc"),
+      where("endAt", "<", now),
+      orderBy("endAt", "desc"),
       limit(maxItems),
     ),
   );
-  return snap.docs
-    .map((d) => ({ ...(d.data() as Omit<ClubEvent, "id">), id: d.id }))
-    .filter((e) => e.endAt < now);
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<ClubEvent, "id">), id: d.id }));
 }
 
 export async function getEvent(clubId: string, eventId: string): Promise<ClubEvent | null> {

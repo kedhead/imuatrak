@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CRAFT_TYPES, type CraftType } from "@/models";
-import { signOut, watchAuth, type AuthUser } from "@/services/auth";
-import { leaveClub } from "@/services/clubService";
+import { signOut, watchAuth, updateDisplayName, type AuthUser } from "@/services/auth";
+import { leaveClub, updateMemberDisplayName } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
 import { Badge } from "@/ui/Badge";
@@ -17,6 +17,8 @@ import { colors, radii, spacing, type } from "@/ui/theme";
 
 export default function Settings() {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const units = useSettings((s) => s.units);
   const defaultCraft = useSettings((s) => s.defaultCraft);
   const setUnits = useSettings((s) => s.setUnits);
@@ -27,7 +29,25 @@ export default function Settings() {
   const clearClub = useClub((s) => s.clearClub);
   const routerHook = useRouter();
 
-  useEffect(() => watchAuth(setUser), []);
+  useEffect(() => watchAuth((u) => {
+    setUser(u);
+    setDisplayName(u?.displayName ?? "");
+  }), []);
+
+  const onSaveName = async () => {
+    const trimmed = displayName.trim();
+    if (!trimmed || !user) return;
+    setSavingName(true);
+    try {
+      await updateDisplayName(trimmed);
+      if (club) await updateMemberDisplayName(club.id, user.uid, trimmed);
+      Alert.alert("Name updated");
+    } catch {
+      Alert.alert("Error", "Failed to update name");
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   const onLeaveClub = () => {
     if (!club || !user) return;
@@ -68,8 +88,33 @@ export default function Settings() {
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 120 }}>
         <Section title="Account">
           <GradientCard>
+            <Text style={styles.label}>EMAIL</Text>
             <Text style={styles.body}>{user?.email ?? user?.uid ?? "Not signed in"}</Text>
-            {user && <Button title="Sign out" variant="danger" onPress={onSignOut} style={{ marginTop: spacing.md }} />}
+            {user && (
+              <>
+                <Text style={[styles.label, { marginTop: spacing.md }]}>DISPLAY NAME</Text>
+                <TextInput
+                  style={styles.nameInput}
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  placeholder="Your name"
+                  placeholderTextColor={colors.muted}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={onSaveName}
+                />
+                {displayName.trim() !== (user.displayName ?? "") && (
+                  <Button
+                    title={savingName ? "Saving…" : "Save name"}
+                    gradient="aqua"
+                    onPress={onSaveName}
+                    disabled={savingName}
+                    style={{ marginTop: spacing.sm }}
+                  />
+                )}
+                <Button title="Sign out" variant="danger" onPress={onSignOut} style={{ marginTop: spacing.md }} />
+              </>
+            )}
           </GradientCard>
         </Section>
 
@@ -152,6 +197,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const styles = StyleSheet.create({
   body: { color: colors.ink, fontSize: type.size.md },
+  label: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.muted, letterSpacing: type.spacing.label, textTransform: "uppercase", marginBottom: spacing.xs },
+  nameInput: { backgroundColor: colors.bgSoft, borderRadius: radii.md, padding: spacing.sm + 2, fontSize: type.size.md, color: colors.ink },
   sectionTitle: {
     fontSize: type.size.xs,
     fontWeight: type.weight.heavy,

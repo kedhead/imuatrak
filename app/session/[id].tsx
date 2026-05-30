@@ -1,7 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import * as Sharing from "expo-sharing";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import MapView, { Marker, Polyline, type LatLng } from "react-native-maps";
@@ -30,14 +30,18 @@ export default function SessionDetail() {
 
   useEffect(() => {
     if (!id) return;
-    void load(id).then((s) => {
-      setStored(s);
-      setIsPublic(s?.session.isPublic ?? false);
-    });
+    load(id)
+      .then((s) => {
+        setStored(s);
+        setIsPublic(s?.session.isPublic ?? false);
+      })
+      .catch(() => setStored(null));
   }, [id]);
 
-  const coords: LatLng[] =
-    stored?.track.map((p) => ({ latitude: p.lat, longitude: p.lon })) ?? [];
+  const coords: LatLng[] = useMemo(
+    () => stored?.track.map((p) => ({ latitude: p.lat, longitude: p.lon })) ?? [],
+    [stored],
+  );
 
   useEffect(() => {
     if (coords.length < 2 || !mapRef.current) return;
@@ -174,8 +178,37 @@ export default function SessionDetail() {
           </GradientCard>
         </Animated.View>
 
+        {/* Weather */}
+        {s.weather && (
+          <Animated.View entering={FadeInDown.delay(200).duration(450)}>
+            <Text style={styles.sectionLabel}>Conditions</Text>
+            <GradientCard>
+              <Metric
+                label="Wind"
+                value={`${Math.round(s.weather.start.windMps * 1.944)} kts @ ${s.weather.start.windDeg}°`}
+                icon="navigate"
+                accent={colors.aqua}
+              />
+              <Metric
+                label="Temperature"
+                value={`${Math.round(s.weather.start.airTempC)}°C`}
+                icon="thermometer-outline"
+                accent={colors.gold}
+              />
+              {s.weather.start.conditions && (
+                <Metric
+                  label="Conditions"
+                  value={s.weather.start.conditions}
+                  icon="cloud-outline"
+                  accent={colors.muted}
+                />
+              )}
+            </GradientCard>
+          </Animated.View>
+        )}
+
         {/* Splits */}
-        <Animated.View entering={FadeInDown.delay(200).duration(450)}>
+        <Animated.View entering={FadeInDown.delay(260).duration(450)}>
           <Text style={styles.sectionLabel}>Splits</Text>
           <GradientCard>
             <SplitsChart splits={s.splits} imperial={units === "imperial"} />
@@ -183,7 +216,7 @@ export default function SessionDetail() {
         </Animated.View>
 
         {/* Share */}
-        <Animated.View entering={FadeInDown.delay(260).duration(450)}>
+        <Animated.View entering={FadeInDown.delay(320).duration(450)}>
           <GradientCard>
             <View style={styles.shareRow}>
               <View style={{ flex: 1 }}>

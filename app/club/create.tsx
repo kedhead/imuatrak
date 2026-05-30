@@ -40,7 +40,11 @@ export default function CreateClubScreen() {
     }
     setLoading(true);
     try {
-      const club = await createClub(user.uid, user.displayName ?? "Club Owner", {
+      const displayName =
+        user.displayName?.trim() ||
+        user.email?.split("@")[0] ||
+        "Member";
+      const club = await createClub(user.uid, displayName, {
         name: name.trim(),
         description: description.trim(),
         city: city.trim(),
