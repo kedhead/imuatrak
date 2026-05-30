@@ -39,7 +39,8 @@ export default function Record() {
     try {
       const session = await recorder.stopAndSave();
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.dismiss();
+      if (router.canDismiss()) router.dismiss();
+      else router.back();
       if (session) router.push(`/session/${session.id}`);
     } catch (e) {
       Alert.alert("Save failed", e instanceof Error ? e.message : String(e));
@@ -56,7 +57,8 @@ export default function Record() {
         style: "destructive",
         onPress: () => {
           recorder.discard();
-          router.dismiss();
+          if (router.canDismiss()) router.dismiss();
+          else router.back();
         },
       },
     ]);
