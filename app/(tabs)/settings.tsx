@@ -1,14 +1,19 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { CRAFT_TYPES, type CraftType } from "@/models";
 import { signOut, watchAuth, type AuthUser } from "@/services/auth";
 import { leaveClub } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
+import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
-import { colors, radii, spacing } from "@/ui/theme";
+import { GradientCard } from "@/ui/GradientCard";
+import { GradientHeader } from "@/ui/GradientHeader";
+import { Pill } from "@/ui/Pill";
+import { ScreenBackground } from "@/ui/ScreenBackground";
+import { colors, radii, spacing, type } from "@/ui/theme";
 
 export default function Settings() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -58,68 +63,81 @@ export default function Settings() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
+    <ScreenBackground>
+      <GradientHeader title="Settings" subtitle="Make it yours" />
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 120 }}>
         <Section title="Account">
-          <Text style={styles.body}>{user?.email ?? user?.uid ?? "Not signed in"}</Text>
-          {user && <Button title="Sign out" variant="danger" onPress={onSignOut} />}
+          <GradientCard>
+            <Text style={styles.body}>{user?.email ?? user?.uid ?? "Not signed in"}</Text>
+            {user && <Button title="Sign out" variant="danger" onPress={onSignOut} style={{ marginTop: spacing.md }} />}
+          </GradientCard>
         </Section>
 
         <Section title="My Club">
-          {club !== null ? (
-            <>
-              <View style={styles.clubRow}>
-                <Text style={styles.body}>{club.name}</Text>
-                {role !== null && (
-                  <View style={styles.roleBadge}>
-                    <Text style={styles.roleBadgeText}>
-                      {role.charAt(0).toUpperCase() + role.slice(1)}
-                    </Text>
-                  </View>
+          <GradientCard>
+            {club !== null ? (
+              <>
+                <View style={styles.clubRow}>
+                  <Text style={styles.body}>{club.name}</Text>
+                  {role !== null && (
+                    <Badge label={role} color={colors.ocean} variant="soft" />
+                  )}
+                </View>
+                {(role === "owner" || role === "admin") && (
+                  <Pressable
+                    style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+                    onPress={() => routerHook.push("/club/admin/index")}
+                  >
+                    <Text style={styles.settingsRowText}>Club Settings</Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                  </Pressable>
                 )}
-              </View>
-              {(role === "owner" || role === "admin") && (
-                <Pressable
-                  style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
-                  onPress={() => routerHook.push("/club/admin/index")}
-                >
-                  <Text style={styles.settingsRowText}>Club Settings</Text>
-                  <Text style={styles.chevron}>›</Text>
-                </Pressable>
-              )}
-              <Button title="Leave Club" variant="danger" onPress={onLeaveClub} />
-            </>
-          ) : loaded ? (
-            <Pressable
-              style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
-              onPress={() => routerHook.push("/club/create")}
-            >
-              <Text style={styles.settingsRowText}>Join or create a club</Text>
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
-          ) : null}
+                <Button title="Leave Club" variant="danger" onPress={onLeaveClub} style={{ marginTop: spacing.md }} />
+              </>
+            ) : loaded ? (
+              <Pressable
+                style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+                onPress={() => routerHook.push("/club/create")}
+              >
+                <Text style={styles.settingsRowText}>Join or create a club</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+              </Pressable>
+            ) : null}
+          </GradientCard>
         </Section>
 
         <Section title="Units">
-          <Choice
-            options={[
-              { label: "Metric (km)", value: "metric" },
-              { label: "Imperial (mi)", value: "imperial" },
-            ]}
-            value={units}
-            onChange={(u) => void setUnits(u)}
-          />
+          <View style={styles.choices}>
+            {(
+              [
+                { label: "Metric (km)", value: "metric" as Units },
+                { label: "Imperial (mi)", value: "imperial" as Units },
+              ]
+            ).map((o) => (
+              <Pill
+                key={o.value}
+                label={o.label}
+                selected={units === o.value}
+                onPress={() => void setUnits(o.value)}
+              />
+            ))}
+          </View>
         </Section>
 
         <Section title="Default craft">
-          <Choice
-            options={CRAFT_TYPES.map((c) => ({ label: c, value: c }))}
-            value={defaultCraft}
-            onChange={(c) => void setDefaultCraft(c)}
-          />
+          <View style={styles.choices}>
+            {CRAFT_TYPES.map((c) => (
+              <Pill
+                key={c}
+                label={c}
+                selected={defaultCraft === c}
+                onPress={() => void setDefaultCraft(c as CraftType)}
+              />
+            ))}
+          </View>
         </Section>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenBackground>
   );
 }
 
@@ -127,74 +145,34 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <View style={{ gap: spacing.sm }}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={{ gap: spacing.sm }}>{children}</View>
-    </View>
-  );
-}
-
-function Choice<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { label: string; value: T }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <View style={styles.choices}>
-      {options.map((o) => (
-        <Text
-          key={o.value}
-          onPress={() => onChange(o.value)}
-          style={[styles.choice, o.value === value && styles.choiceOn]}
-        >
-          {o.label}
-        </Text>
-      ))}
+      {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  body: { color: colors.ink },
+  body: { color: colors.ink, fontSize: type.size.md },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1,
+    fontSize: type.size.xs,
+    fontWeight: type.weight.heavy,
+    letterSpacing: type.spacing.label,
     color: colors.muted,
     textTransform: "uppercase",
+    marginLeft: spacing.xs,
   },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  choice: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.card,
-    borderRadius: radii.md,
-    color: colors.ink,
-    overflow: "hidden",
-  },
-  choiceOn: { backgroundColor: colors.blue, color: "#fff" },
-  clubRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  roleBadge: {
-    backgroundColor: colors.blue,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  roleBadgeText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  clubRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   settingsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: colors.card,
+    backgroundColor: colors.bgSoft,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
     minHeight: 44,
+    marginTop: spacing.md,
   },
   rowPressed: { opacity: 0.7 },
-  settingsRowText: { color: colors.ink, fontSize: 16 },
-  chevron: { color: colors.muted, fontSize: 20, fontWeight: "300" },
+  settingsRowText: { color: colors.ink, fontSize: type.size.md },
 });

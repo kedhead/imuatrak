@@ -1,25 +1,33 @@
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
-import { watchAuth, type AuthUser } from "@/services/auth";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { watchAuth } from "@/services/auth";
+import { Logo } from "@/ui/Logo";
+import { ScreenBackground } from "@/ui/ScreenBackground";
+import { colors, spacing } from "@/ui/theme";
 
-/**
- * Auth gate. Routes signed-in users to the tab navigator and unsigned users
- * to onboarding. Briefly shows a spinner while Firebase reports its
- * persisted session.
- */
 export default function Index() {
-  const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
+  const [state, setState] = useState<"loading" | "in" | "out">("loading");
 
-  useEffect(() => watchAuth((u) => setUser(u)), []);
+  useEffect(() => {
+    return watchAuth((user) => setState(user ? "in" : "out"));
+  }, []);
 
-  if (user === undefined) {
+  if (state === "loading") {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator />
-      </View>
+      <ScreenBackground gradient="night">
+        <View style={styles.center}>
+          <Logo size={120} />
+          <ActivityIndicator color={colors.white} style={{ marginTop: spacing.xl }} />
+        </View>
+      </ScreenBackground>
     );
   }
 
-  return <Redirect href={user ? "/(tabs)" : "/onboarding"} />;
+  if (state === "in") return <Redirect href="/(tabs)" />;
+  return <Redirect href="/onboarding" />;
 }
+
+const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+});

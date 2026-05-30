@@ -1,14 +1,19 @@
 import * as Clipboard from "expo-clipboard";
 import * as Sharing from "expo-sharing";
-import { useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import MapView, { Marker, Polyline, type LatLng } from "react-native-maps";
-import { Metric } from "@/ui/Metric";
+import { AnimatedNumber } from "@/ui/AnimatedNumber";
+import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
+import { Gradient } from "@/ui/Gradient";
+import { GradientCard } from "@/ui/GradientCard";
+import { Metric } from "@/ui/Metric";
 import { SplitsChart } from "@/ui/SplitsChart";
 import { formatDate, formatTime, formatDistance, formatPaceStr, formatDuration } from "@/ui/format";
-import { colors, radii, spacing } from "@/ui/theme";
+import { colors, craftColor, radii, shadow, spacing, type } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
 import { useSettings } from "@/services/settings";
 import { setSessionPublic } from "@/services/sync";
@@ -51,6 +56,7 @@ export default function SessionDetail() {
   }
 
   const s = stored.session;
+  const accent = craftColor(s.craftType);
 
   const onShare = async () => {
     if (!(await Sharing.isAvailableAsync())) {
@@ -90,106 +96,164 @@ export default function SessionDetail() {
     : undefined;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
-      <View>
-        <Text style={styles.craft}>{s.craftType}</Text>
-        <Text style={styles.sessionDate}>
-          {formatDate(s.startedAt)} · {formatTime(s.startedAt)}
-        </Text>
-      </View>
-
-      <View style={styles.mapBox}>
-        {coords.length >= 2 ? (
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            initialRegion={initialRegion}
-            scrollEnabled
-            zoomEnabled
-            pitchEnabled={false}
-            rotateEnabled={false}
-            toolbarEnabled={false}
-          >
-            <Polyline coordinates={coords} strokeColor={colors.blue} strokeWidth={4} />
-            {start && (
-              <Marker coordinate={start} title="Start" pinColor="green" />
-            )}
-            {end && start !== end && (
-              <Marker coordinate={end} title="End" pinColor="red" />
-            )}
-          </MapView>
-        ) : (
-          <View style={[styles.map, styles.mapPlaceholder]}>
-            <Text style={{ color: colors.muted }}>No GPS data captured</Text>
-          </View>
-        )}
-      </View>
-
-      <View>
-        <Metric label="Distance" value={formatDistance(s.totals.distanceMeters, units)} />
-        <Metric label="Duration" value={formatDuration(s.totals.durationSec)} />
-        <Metric label="Avg pace" value={formatPaceStr(s.totals.avgPaceSecPerKm, units)} />
-        <Metric
-          label="Strokes"
-          value={`${s.totals.strokeCount} (avg ${Math.round(s.totals.avgStrokeRate)} spm)`}
-        />
-        <Metric label="Avg HR" value={s.hr.avg > 0 ? `${s.hr.avg} bpm` : "—"} />
-        <Metric label="Elev. gain" value={`${Math.round(s.totals.elevationGainM)} m`} />
-      </View>
-
-      <Text style={styles.sectionLabel}>Splits</Text>
-      <SplitsChart splits={s.splits} />
-
-      <View style={styles.shareCard}>
-        <View style={styles.shareRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.shareTitle}>Share publicly</Text>
-            <Text style={styles.shareSub}>
-              Anyone with the link can view this session at imuatrak.app/s/{s.id.slice(0, 8)}…
+    <>
+      <Stack.Screen options={{ title: s.craftType }} />
+      <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
+        {/* Hero summary */}
+        <Animated.View entering={FadeInDown.duration(450)}>
+          <GradientCard gradient="ocean">
+            <Badge label={s.craftType} color="rgba(255,255,255,0.25)" />
+            <Text style={styles.heroDate}>
+              {formatDate(s.startedAt)} · {formatTime(s.startedAt)}
             </Text>
-          </View>
-          <Switch
-            value={isPublic}
-            onValueChange={onTogglePublic}
-            disabled={togglingPublic}
-          />
-        </View>
-        {isPublic && <Button title="Copy link" variant="outline" onPress={onCopyLink} />}
-      </View>
+            <View style={styles.heroStats}>
+              <HeroStat
+                value={s.totals.distanceMeters}
+                format={(n) => formatDistance(n, units)}
+                label="Distance"
+              />
+              <HeroStat
+                value={s.totals.durationSec}
+                format={(n) => formatDuration(n)}
+                label="Time"
+              />
+              <HeroStat
+                value={s.totals.avgPaceSecPerKm}
+                format={(n) => formatPaceStr(n, units)}
+                label="Avg pace"
+              />
+            </View>
+          </GradientCard>
+        </Animated.View>
 
-      <Button title="Export GPX" onPress={onShare} />
-    </ScrollView>
+        {/* Map */}
+        <Animated.View entering={FadeInDown.delay(80).duration(450)} style={styles.mapBox}>
+          {coords.length >= 2 ? (
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              initialRegion={initialRegion}
+              scrollEnabled
+              zoomEnabled
+              pitchEnabled={false}
+              rotateEnabled={false}
+              toolbarEnabled={false}
+            >
+              <Polyline coordinates={coords} strokeColor={colors.aqua} strokeWidth={5} />
+              {start && <Marker coordinate={start} title="Start" pinColor={colors.seafoam} />}
+              {end && start !== end && <Marker coordinate={end} title="End" pinColor={colors.coral} />}
+            </MapView>
+          ) : (
+            <View style={[styles.map, styles.mapPlaceholder]}>
+              <Text style={{ color: colors.muted }}>No GPS data captured</Text>
+            </View>
+          )}
+        </Animated.View>
+
+        {/* Detailed metrics */}
+        <Animated.View entering={FadeInDown.delay(140).duration(450)}>
+          <GradientCard>
+            <Metric
+              label="Strokes"
+              value={`${s.totals.strokeCount} · ${Math.round(s.totals.avgStrokeRate)} spm`}
+              icon="repeat"
+              accent={accent}
+            />
+            <Metric
+              label="Avg heart rate"
+              value={s.hr.avg > 0 ? `${s.hr.avg} bpm` : "—"}
+              icon="heart"
+              accent={colors.coral}
+            />
+            <Metric
+              label="Elevation gain"
+              value={`${Math.round(s.totals.elevationGainM)} m`}
+              icon="trending-up"
+              accent={colors.aqua}
+            />
+          </GradientCard>
+        </Animated.View>
+
+        {/* Splits */}
+        <Animated.View entering={FadeInDown.delay(200).duration(450)}>
+          <Text style={styles.sectionLabel}>Splits</Text>
+          <GradientCard>
+            <SplitsChart splits={s.splits} imperial={units === "imperial"} />
+          </GradientCard>
+        </Animated.View>
+
+        {/* Share */}
+        <Animated.View entering={FadeInDown.delay(260).duration(450)}>
+          <GradientCard>
+            <View style={styles.shareRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shareTitle}>Share publicly</Text>
+                <Text style={styles.shareSub}>
+                  Anyone with the link can view this session at imuatrak.app/s/{s.id.slice(0, 8)}…
+                </Text>
+              </View>
+              <Switch
+                value={isPublic}
+                onValueChange={onTogglePublic}
+                disabled={togglingPublic}
+                trackColor={{ true: colors.aqua }}
+              />
+            </View>
+            {isPublic && (
+              <Button title="Copy link" variant="outline" onPress={onCopyLink} style={{ marginTop: spacing.md }} />
+            )}
+          </GradientCard>
+        </Animated.View>
+
+        <Button title="Export GPX" gradient="aqua" onPress={onShare} />
+      </ScrollView>
+    </>
+  );
+}
+
+function HeroStat({
+  value,
+  format,
+  label,
+}: {
+  value: number;
+  format: (n: number) => string;
+  label: string;
+}) {
+  return (
+    <View style={styles.heroStat}>
+      <AnimatedNumber value={value} format={format} style={styles.heroStatValue} />
+      <Text style={styles.heroStatLabel}>{label}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: colors.bgSoft },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xxl },
-  craft: { fontSize: 28, fontWeight: "700", color: colors.ink },
-  sessionDate: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  heroDate: { color: "rgba(255,255,255,0.85)", fontSize: type.size.sm, marginTop: spacing.sm },
+  heroStats: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.lg },
+  heroStat: { flex: 1 },
+  heroStatValue: {
+    color: colors.white,
+    fontSize: type.size.xl,
+    fontWeight: type.weight.heavy,
+    ...type.mono,
+  },
+  heroStatLabel: { color: "rgba(255,255,255,0.75)", fontSize: type.size.xs, marginTop: 2 },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1,
+    fontSize: type.size.xs,
+    fontWeight: type.weight.heavy,
+    letterSpacing: type.spacing.label,
     color: colors.muted,
     textTransform: "uppercase",
-    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
   },
-  mapBox: {
-    height: 280,
-    borderRadius: radii.lg,
-    overflow: "hidden",
-    backgroundColor: colors.card,
-  },
+  mapBox: { height: 280, borderRadius: radii.xl, overflow: "hidden", backgroundColor: colors.card, ...shadow.md },
   map: { flex: 1 },
   mapPlaceholder: { alignItems: "center", justifyContent: "center" },
-  shareCard: {
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
   shareRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  shareTitle: { fontWeight: "600", color: colors.ink, fontSize: 15 },
-  shareSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  shareTitle: { fontWeight: type.weight.bold, color: colors.ink, fontSize: type.size.md },
+  shareSub: { color: colors.muted, fontSize: type.size.xs, marginTop: 2 },
 });
