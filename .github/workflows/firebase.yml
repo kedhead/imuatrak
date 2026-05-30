@@ -52,5 +52,5 @@ jobs:
       - name: Deploy functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
-        run: firebase deploy --only functions --project imuatrak
+        run: firebase deploy --only functions --project imuatrak --force
         working-directory: firebase
