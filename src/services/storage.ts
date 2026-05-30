@@ -1,10 +1,9 @@
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import type { Session, TrackPoint } from "@/models";
 import { toGpx } from "./gpx";
 
 function getRoot(): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const dir = (FileSystem as any).documentDirectory as string | null | undefined;
+  const dir = FileSystem.documentDirectory;
   if (!dir) throw new Error("FileSystem.documentDirectory is unavailable");
   return `${dir}sessions/`;
 }

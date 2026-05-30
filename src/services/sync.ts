@@ -1,4 +1,4 @@
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { deleteDoc, doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import type { Session } from "@/models";
