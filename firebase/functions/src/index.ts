@@ -5,11 +5,8 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { defineSecret } from "firebase-functions/params";
 
 initializeApp();
-
-const OPENWEATHER_API_KEY = defineSecret("OPENWEATHER_API_KEY");
 
 // ---------------------------------------------------------------------------
 // renderSessionCard — produces a PNG share card (map snapshot + stats overlay)
@@ -44,9 +41,7 @@ export const renderSessionCard = onCall(async (request) => {
 // fetchWeather — server-side proxy to OpenWeather so the API key never ships
 // in the Android app. iOS uses WeatherKit directly.
 // ---------------------------------------------------------------------------
-export const fetchWeather = onCall(
-  { secrets: [OPENWEATHER_API_KEY] },
-  async (request) => {
+export const fetchWeather = onCall(async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Sign-in required");
     }
@@ -59,7 +54,7 @@ export const fetchWeather = onCall(
     const url =
       `https://api.openweathermap.org/data/2.5/weather` +
       `?lat=${lat}&lon=${lon}&units=metric` +
-      `&appid=${OPENWEATHER_API_KEY.value()}`;
+      `&appid=${process.env.OPENWEATHER_API_KEY ?? ""}`;
 
     const res = await fetch(url);
     if (!res.ok) {
