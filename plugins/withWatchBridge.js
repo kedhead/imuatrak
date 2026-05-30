@@ -26,17 +26,21 @@ const withWatchBridge = (config) => {
     const files = ["WatchBridgeModule.swift", "WatchBridgeModule.m"];
 
     // Copy source files into ios/<appName>/
+    const copiedFiles = [];
     for (const file of files) {
       const src = path.join(srcDir, file);
       const dest = path.join(destDir, file);
-      if (fs.existsSync(src) && !fs.existsSync(dest)) {
-        fs.copyFileSync(src, dest);
+      if (fs.existsSync(src)) {
+        if (!fs.existsSync(dest)) {
+          fs.copyFileSync(src, dest);
+        }
+        copiedFiles.push(file);
       }
     }
 
-    // Add files to Xcode project
+    // Add files to Xcode project (only those that were actually copied)
     const target = proj.getFirstTarget().uuid;
-    for (const file of files) {
+    for (const file of copiedFiles) {
       const filePath = path.join(appName, file);
       if (!proj.hasFile(filePath)) {
         proj.addSourceFile(filePath, { target });

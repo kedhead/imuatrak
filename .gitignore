@@ -20,6 +20,10 @@ web-build/
 ios/
 android/
 
+# Keep native module source files even though ios/ is ignored above
+!modules/*/ios/
+!modules/*/ios/**
+
 # EAS local secrets
 .easignore
 credentials.json
