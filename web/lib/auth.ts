@@ -3,6 +3,7 @@
 import {
   getAuth,
   GoogleAuthProvider,
+  OAuthProvider,
   onAuthStateChanged,
   signInWithPopup,
   signOut as fbSignOut,
@@ -22,6 +23,14 @@ function firebaseAuth() {
 
 export async function signInWithGoogle(): Promise<User> {
   const provider = new GoogleAuthProvider();
+  const { user } = await signInWithPopup(firebaseAuth(), provider);
+  return user;
+}
+
+export async function signInWithApple(): Promise<User> {
+  const provider = new OAuthProvider("apple.com");
+  provider.addScope("email");
+  provider.addScope("name");
   const { user } = await signInWithPopup(firebaseAuth(), provider);
   return user;
 }
