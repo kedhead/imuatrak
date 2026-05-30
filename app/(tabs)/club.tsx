@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -79,6 +81,7 @@ function NoClubScreen() {
 // ── Club home (feed + events) ─────────────────────────────────────────────────
 
 function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string }) {
+  const club = useClub((s) => s.club);
   const router = useRouter();
   const role = useClub((s) => s.role);
   const [posts, setPosts] = useState<ClubPost[]>([]);
@@ -154,6 +157,26 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
         contentContainerStyle={{ paddingBottom: 120 }}
         ListHeaderComponent={
           <>
+            {/* Club identity card */}
+            {(club?.logoUrl || club?.websiteUrl) && (
+              <View style={styles.identityRow}>
+                {club.logoUrl && (
+                  <Image source={{ uri: club.logoUrl }} style={styles.clubLogo} />
+                )}
+                {club.websiteUrl && (
+                  <Pressable
+                    style={styles.websiteChip}
+                    onPress={() => Linking.openURL(club.websiteUrl!)}
+                  >
+                    <Ionicons name="globe-outline" size={14} color={colors.ocean} />
+                    <Text style={styles.websiteText} numberOfLines={1}>
+                      {club.websiteUrl.replace(/^https?:\/\//, "")}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
             {events.length > 0 && (
               <View style={styles.eventsStrip}>
                 <View style={styles.sectionHeader}>
@@ -269,6 +292,10 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontSize: type.size.md, color: "rgba(255,255,255,0.82)", textAlign: "center" },
   emptyActions: { alignSelf: "stretch", gap: spacing.md, marginTop: spacing.lg },
   joinBtn: { backgroundColor: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.5)" },
+  identityRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  clubLogo: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.card },
+  websiteChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.card, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, flex: 1 },
+  websiteText: { fontSize: 13, color: colors.ocean, fontWeight: "600", flex: 1 },
   eventsStrip: { paddingTop: spacing.md },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, marginBottom: spacing.sm, marginTop: spacing.sm },
   sectionLabel: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.muted, letterSpacing: type.spacing.label },

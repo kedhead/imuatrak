@@ -12,6 +12,7 @@ export interface Club {
   slug: string;
   description: string;
   logoUrl?: string;
+  websiteUrl?: string;
   location: { city: string; country: string };
   ownerId: string;
   subscriptionStatus: SubscriptionStatus;

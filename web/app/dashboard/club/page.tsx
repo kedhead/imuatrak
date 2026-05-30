@@ -28,12 +28,33 @@ export default function ClubDashboard() {
 
   return (
     <main className="container">
-      <div style={{ marginBottom: 24 }}>
-        <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--muted)" }}>
-          Club Dashboard · <span style={{ textTransform: "capitalize" }}>{role}</span>
-        </p>
-        <h1 style={{ margin: "0 0 8px", fontSize: 32, fontWeight: 800 }}>{club.name}</h1>
-        <p style={{ margin: 0, color: "var(--muted)" }}>{club.location.city}{club.location.country ? `, ${club.location.country}` : ""}</p>
+      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", gap: 20 }}>
+        {club.logoUrl && (
+          <img
+            src={club.logoUrl}
+            alt={`${club.name} logo`}
+            style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: "2px solid var(--line)", flexShrink: 0, marginTop: 4 }}
+          />
+        )}
+        <div>
+          <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--muted)" }}>
+            Club Dashboard · <span style={{ textTransform: "capitalize" }}>{role}</span>
+          </p>
+          <h1 style={{ margin: "0 0 4px", fontSize: 32, fontWeight: 800 }}>{club.name}</h1>
+          <p style={{ margin: 0, color: "var(--muted)" }}>
+            {club.location.city}{club.location.country ? `, ${club.location.country}` : ""}
+          </p>
+          {club.websiteUrl && (
+            <a
+              href={club.websiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, fontSize: 13, color: "var(--blue-bright)", textDecoration: "none", fontWeight: 600 }}
+            >
+              🌐 {club.websiteUrl.replace(/^https?:\/\//, "")}
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Subscription banner */}

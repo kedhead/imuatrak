@@ -17,6 +17,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { DashboardSession, PublicSession } from "./types";
 import type { Club, ClubMember, ClubEvent, ClubPost, MemberRole, EventType, PostType } from "./clubTypes";
 
@@ -30,6 +31,7 @@ const config = {
 
 export const firebaseApp = getApps().length ? getApp() : initializeApp(config);
 export const db = getFirestore(firebaseApp);
+export const storage = getStorage(firebaseApp);
 
 /** Read a public session (no auth required). */
 export async function getPublicSession(id: string): Promise<PublicSession | null> {
@@ -214,10 +216,21 @@ export async function removeClubMember(clubId: string, uid: string): Promise<voi
 
 export async function updateClub(
   clubId: string,
-  updates: Partial<Pick<Club, "name" | "description" | "location">>,
+  updates: Partial<Pick<Club, "name" | "description" | "location" | "logoUrl" | "websiteUrl">>,
 ): Promise<void> {
-  const ref = doc(db, "clubs", clubId);
-  if (updates.name !== undefined) await updateDoc(ref, { name: updates.name });
-  if (updates.description !== undefined) await updateDoc(ref, { description: updates.description });
-  if (updates.location !== undefined) await updateDoc(ref, { location: updates.location });
+  const docRef = doc(db, "clubs", clubId);
+  const payload: Record<string, unknown> = {};
+  if (updates.name !== undefined) payload.name = updates.name;
+  if (updates.description !== undefined) payload.description = updates.description;
+  if (updates.location !== undefined) payload.location = updates.location;
+  if (updates.logoUrl !== undefined) payload.logoUrl = updates.logoUrl;
+  if (updates.websiteUrl !== undefined) payload.websiteUrl = updates.websiteUrl;
+  if (Object.keys(payload).length > 0) await updateDoc(docRef, payload);
+}
+
+export async function uploadClubLogo(clubId: string, file: File): Promise<string> {
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const logoRef = ref(storage, `clubs/${clubId}/logo.${ext}`);
+  await uploadBytes(logoRef, file, { contentType: file.type });
+  return getDownloadURL(logoRef);
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { getUserClub, updateClub } from "@/lib/firebase";
+import { getUserClub, updateClub, uploadClubLogo } from "@/lib/firebase";
 import type { Club, MemberRole } from "@/lib/clubTypes";
 
 export default function ClubSettingsPage() {
@@ -14,8 +14,13 @@ export default function ClubSettingsPage() {
   const [description, setDescription] = useState("");
   const [city, setCity] = useState("");
   const [country, setCountry] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -27,23 +32,43 @@ export default function ClubSettingsPage() {
       setDescription(ctx.club.description ?? "");
       setCity(ctx.club.location?.city ?? "");
       setCountry(ctx.club.location?.country ?? "");
+      setWebsiteUrl(ctx.club.websiteUrl ?? "");
+      setLogoUrl(ctx.club.logoUrl ?? "");
     });
   }, [user]);
 
   const isAdmin = myRole === "owner" || myRole === "admin";
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!club || !isAdmin) return;
     setSaving(true);
-    await updateClub(club.id, {
-      name: name.trim(),
-      description: description.trim(),
-      location: { city: city.trim(), country: country.trim() },
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-    setSaving(false);
+    try {
+      let finalLogoUrl = logoUrl;
+      if (logoFile) {
+        finalLogoUrl = await uploadClubLogo(club.id, logoFile);
+        setLogoUrl(finalLogoUrl);
+        setLogoFile(null);
+      }
+      await updateClub(club.id, {
+        name: name.trim(),
+        description: description.trim(),
+        location: { city: city.trim(), country: country.trim() },
+        websiteUrl: websiteUrl.trim() || undefined,
+        logoUrl: finalLogoUrl || undefined,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <div className="container"><p style={{ color: "var(--muted)" }}>Loading…</p></div>;
@@ -51,6 +76,7 @@ export default function ClubSettingsPage() {
   if (!isAdmin) return <div className="container"><p style={{ color: "var(--muted)" }}>Admin access required.</p></div>;
 
   const subColor = club.subscriptionStatus === "active" ? "var(--teal)" : club.subscriptionStatus === "trial" ? "var(--blue-bright)" : "#ef4444";
+  const displayLogo = logoPreview ?? (logoUrl || null);
 
   return (
     <main className="container">
@@ -86,16 +112,66 @@ export default function ClubSettingsPage() {
 
       {/* Club profile */}
       <div className="card">
-        <h2 style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 700 }}>Club Profile</h2>
-        <form onSubmit={handleSave} style={{ display: "grid", gap: 14 }}>
+        <h2 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 700 }}>Club Profile</h2>
+        <form onSubmit={handleSave} style={{ display: "grid", gap: 18 }}>
+
+          {/* Logo */}
+          <div>
+            <label style={labelStyle}>Club Logo</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div
+                style={{
+                  width: 80, height: 80, borderRadius: "50%", overflow: "hidden",
+                  border: "2px solid var(--line)", background: "var(--bg-soft)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                {displayLogo ? (
+                  <img src={displayLogo} alt="Club logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: 32 }}>🏝️</span>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={handleLogoChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ ...outlineBtn, fontSize: 13 }}
+                >
+                  {displayLogo ? "Change logo" : "Upload logo"}
+                </button>
+                {logoPreview && (
+                  <button
+                    type="button"
+                    onClick={() => { setLogoPreview(null); setLogoFile(null); }}
+                    style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 12, cursor: "pointer", textAlign: "left" }}
+                  >
+                    ✕ Remove new photo
+                  </button>
+                )}
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>Square image, JPG or PNG recommended</span>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label style={labelStyle}>Club Name *</label>
             <input required value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="e.g. Waikiki Beach Boys" />
           </div>
+
           <div>
             <label style={labelStyle}>Description</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} placeholder="About your club…" />
           </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label style={labelStyle}>City</label>
@@ -106,6 +182,18 @@ export default function ClubSettingsPage() {
               <input value={country} onChange={(e) => setCountry(e.target.value)} style={inputStyle} placeholder="Country" />
             </div>
           </div>
+
+          <div>
+            <label style={labelStyle}>Website</label>
+            <input
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              style={inputStyle}
+              placeholder="https://yourclub.com"
+              type="url"
+            />
+          </div>
+
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button type="submit" disabled={saving}
               style={{ background: "var(--blue-bright)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontWeight: 700, cursor: "pointer", fontSize: 15 }}>
@@ -129,3 +217,4 @@ export default function ClubSettingsPage() {
 
 const labelStyle: React.CSSProperties = { display: "block", fontSize: 12, fontWeight: 700, color: "var(--muted)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 15, background: "var(--bg)", color: "var(--ink)", boxSizing: "border-box" };
+const outlineBtn: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontWeight: 600 };

@@ -14,6 +14,7 @@ export interface Club {
   slug: string;
   description: string;
   logoUrl?: string;
+  websiteUrl?: string;
   sport: "outrigger";
   location: { city: string; country: string };
   ownerId: string;
