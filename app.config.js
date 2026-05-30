@@ -38,6 +38,7 @@ const config = {
       "com.apple.developer.healthkit": true,
       "com.apple.developer.healthkit.access": [],
       "com.apple.developer.applesignin": ["Default"],
+      "com.apple.security.application-groups": ["group.app.imuatrak"],
     },
     config: {
       usesNonExemptEncryption: false,
@@ -68,6 +69,7 @@ const config = {
       "ACTIVITY_RECOGNITION",
       "RECORD_AUDIO",
       "POST_NOTIFICATIONS",
+      "com.google.android.wearable.permission.RECEIVE_COMPLICATION_DATA",
     ],
   },
 
@@ -81,6 +83,7 @@ const config = {
     "expo-apple-authentication",
     "expo-secure-store",
     "./plugins/withFixGradle",
+    "./plugins/withWatchBridge",
     [
       "expo-location",
       {

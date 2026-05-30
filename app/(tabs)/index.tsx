@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, Platform, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
   FadeInDown,
@@ -12,7 +12,10 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { list, type StoredSession } from "@/services/storage";
+import { syncSession } from "@/services/sync";
 import { useSettings } from "@/services/settings";
+import { WatchBridge } from "@imuatrak/watch-bridge";
+import { WearBridge } from "@imuatrak/wear-bridge";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
 import { Gradient } from "@/ui/Gradient";
@@ -27,11 +30,25 @@ export default function HomeTab() {
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const units = useSettings((s) => s.units);
 
-  useFocusEffect(
-    useCallback(() => {
-      void list().then(setSessions);
-    }, []),
-  );
+  const reload = useCallback(() => { void list().then(setSessions); }, []);
+
+  useFocusEffect(reload);
+
+  // Receive sessions transferred from Apple Watch (iOS) or Wear OS (Android)
+  useEffect(() => {
+    const handleReceived = async ({ id }: { id: string }) => {
+      const { load } = await import("@/services/storage");
+      const stored = await load(id);
+      if (stored) {
+        try { await syncSession(stored.session); } catch { /* non-critical */ }
+      }
+      reload();
+    };
+    const sub = Platform.OS === "ios"
+      ? WatchBridge.addListener("sessionReceived", handleReceived)
+      : WearBridge.addListener("sessionReceived", handleReceived);
+    return sub.remove;
+  }, [reload]);
 
   return (
     <ScreenBackground>

@@ -110,7 +110,15 @@ export default function SessionDetail() {
         {/* Hero summary */}
         <Animated.View entering={FadeInDown.duration(450)}>
           <GradientCard gradient="ocean">
-            <Badge label={s.craftType} color="rgba(255,255,255,0.25)" />
+            <View style={{ flexDirection: "row", gap: spacing.xs }}>
+              <Badge label={s.craftType} color="rgba(255,255,255,0.25)" />
+              {(s.source === "ios-watch" || s.source === "android-wear") && (
+                <Badge
+                  label={s.source === "ios-watch" ? "Apple Watch" : "Wear OS"}
+                  color="rgba(255,255,255,0.18)"
+                />
+              )}
+            </View>
             <Text style={styles.heroDate}>
               {formatDate(s.startedAt)} · {formatTime(s.startedAt)}
             </Text>

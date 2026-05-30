@@ -1,0 +1,11 @@
+{
+  "name": "@imuatrak/watch-bridge",
+  "version": "0.1.0",
+  "description": "Expo native module — receives session files from Apple Watch via WatchConnectivity",
+  "main": "src/index",
+  "types": "src/index.d.ts",
+  "files": ["ios", "src"],
+  "peerDependencies": {
+    "expo": "*"
+  }
+}
