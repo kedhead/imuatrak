@@ -1,5 +1,6 @@
 import * as crypto from "crypto";
 import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
@@ -160,6 +161,89 @@ export const linkSessionsToEvent = onDocumentCreated(
 // Request:  { clubId: string }
 // Response: { token: string }
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// mobileAppleSignIn — verifies a native iOS Apple ID token (audience = bundle
+// ID) and returns a Firebase custom token. This sidesteps the audience mismatch
+// that occurs when a web Services ID is also configured in Firebase Console:
+// Firebase's signInWithCredential would reject native tokens because it now
+// expects Services-ID audience, not bundle-ID audience.
+// ---------------------------------------------------------------------------
+export const mobileAppleSignIn = onCall(async (request) => {
+  const { idToken } = (request.data ?? {}) as { idToken?: unknown };
+  if (typeof idToken !== "string" || !idToken) {
+    throw new HttpsError("invalid-argument", "idToken is required");
+  }
+
+  const parts = idToken.split(".");
+  if (parts.length !== 3) throw new HttpsError("invalid-argument", "Malformed JWT");
+  const [headerB64, payloadB64, sigB64] = parts as [string, string, string];
+
+  let header: { kid: string; alg: string };
+  let payload: { iss: string; aud: string | string[]; exp: number; sub: string; email?: string };
+  try {
+    header = JSON.parse(Buffer.from(headerB64, "base64url").toString());
+    payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString());
+  } catch {
+    throw new HttpsError("invalid-argument", "Failed to decode Apple token");
+  }
+
+  // Validate claims
+  if (payload.iss !== "https://appleid.apple.com") {
+    throw new HttpsError("invalid-argument", "Invalid Apple token issuer");
+  }
+  const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+  if (!audiences.includes("app.imuatrak")) {
+    throw new HttpsError("invalid-argument", "Token audience does not match app bundle ID");
+  }
+  if (payload.exp < Date.now() / 1000) {
+    throw new HttpsError("invalid-argument", "Apple token has expired");
+  }
+
+  // Verify signature against Apple's public keys
+  try {
+    const jwksRes = await fetch("https://appleid.apple.com/auth/keys");
+    const jwks = (await jwksRes.json()) as {
+      keys: Array<{ kid: string; kty: string; n: string; e: string; alg: string }>;
+    };
+    const keyData = jwks.keys.find((k) => k.kid === header.kid);
+    if (!keyData) throw new Error("Apple public key not found");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pubKey = crypto.createPublicKey({ key: keyData as any, format: "jwk" });
+    const signedData = Buffer.from(`${headerB64}.${payloadB64}`);
+    const signature = Buffer.from(sigB64, "base64url");
+    const valid = crypto.verify(
+      "sha256",
+      signedData,
+      { key: pubKey, padding: crypto.constants.RSA_PKCS1_PADDING },
+      signature,
+    );
+    if (!valid) throw new Error("Signature invalid");
+  } catch (e) {
+    throw new HttpsError("invalid-argument", `Apple token verification failed: ${e instanceof Error ? e.message : e}`);
+  }
+
+  const appleSub = payload.sub;
+  const auth = getAuth();
+
+  // Reuse the existing Firebase UID if this Apple account has signed in before.
+  let uid: string;
+  try {
+    const existing = await auth.getUserByProviderUid("apple.com", appleSub);
+    uid = existing.uid;
+  } catch {
+    // New user — derive a stable UID from the Apple subject so repeated
+    // sign-ins without a pre-existing Firebase account still converge.
+    uid = `apple_${appleSub.replace(/[^a-zA-Z0-9]/g, "_")}`;
+  }
+
+  const customToken = await auth.createCustomToken(uid, {
+    provider: "apple.com",
+    email: payload.email ?? null,
+  });
+  return { customToken };
+});
+
 export const createClubInvite = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");

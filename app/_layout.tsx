@@ -76,6 +76,7 @@ export default function RootLayout() {
           <Stack.Screen name="club/events" options={{ headerShown: true, title: "Events" }} />
           <Stack.Screen name="club/admin/index" options={{ headerShown: true, title: "Club Settings" }} />
           <Stack.Screen name="club/admin/invite" options={{ headerShown: true, title: "Invite Members" }} />
+          <Stack.Screen name="club/admin/bulk-schedule" options={{ headerShown: true, title: "Bulk Schedule" }} />
         </Stack>
         {!splashHidden && <AnimatedSplash hidden={loaded} />}
       </SafeAreaProvider>

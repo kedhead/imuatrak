@@ -51,9 +51,14 @@ export default function EventsScreen() {
         subtitle={club.name}
         right={
           isAdmin ? (
-            <AnimatedPressable onPress={() => router.push("/club/event/new" as never)} hitSlop={8}>
-              <Ionicons name="add-circle" size={28} color={colors.white} />
-            </AnimatedPressable>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <AnimatedPressable onPress={() => router.push("/club/admin/bulk-schedule" as never)} hitSlop={8}>
+                <Ionicons name="calendar" size={26} color={colors.white} />
+              </AnimatedPressable>
+              <AnimatedPressable onPress={() => router.push("/club/event/new" as never)} hitSlop={8}>
+                <Ionicons name="add-circle" size={28} color={colors.white} />
+              </AnimatedPressable>
+            </View>
           ) : undefined
         }
       />

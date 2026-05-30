@@ -12,6 +12,7 @@ import {
   limit,
   arrayUnion,
   increment,
+  writeBatch,
   Timestamp,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -283,6 +284,61 @@ export async function updateBoatAssignments(
   boatAssignments: BoatAssignment[],
 ): Promise<void> {
   await updateDoc(doc(db, "clubs", clubId, "events", eventId), { boatAssignments });
+}
+
+export async function bulkCreateEvents(
+  clubId: string,
+  uid: string,
+  opts: {
+    title: string;
+    type: EventType;
+    schedule: { dayOfWeek: number; startHour: number; startMinute: number }[];
+    durationMinutes: number;
+    rangeStart: Date;
+    rangeEnd: Date;
+    description?: string;
+    location?: string;
+  },
+): Promise<number> {
+  const scheduleMap = new Map(opts.schedule.map((s) => [s.dayOfWeek, s]));
+
+  const events: Omit<ClubEvent, "id">[] = [];
+  const cur = new Date(opts.rangeStart);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(opts.rangeEnd);
+  end.setHours(23, 59, 59, 999);
+
+  while (cur <= end) {
+    const sched = scheduleMap.get(cur.getDay());
+    if (sched) {
+      const startAt = new Date(cur);
+      startAt.setHours(sched.startHour, sched.startMinute, 0, 0);
+      const endAt = new Date(startAt.getTime() + opts.durationMinutes * 60 * 1000);
+      events.push({
+        clubId,
+        title: opts.title,
+        description: opts.description,
+        type: opts.type,
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString(),
+        location: opts.location ? { name: opts.location } : undefined,
+        createdBy: uid,
+        rsvps: [],
+        linkedSessionIds: [],
+      });
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  for (let i = 0; i < events.length; i += 499) {
+    const batch = writeBatch(db);
+    for (const event of events.slice(i, i + 499)) {
+      batch.set(doc(collection(db, "clubs", clubId, "events")), event);
+    }
+    await batch.commit();
+  }
+
+  return events.length;
 }
 
 export async function setRsvp(
