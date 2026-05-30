@@ -11,7 +11,7 @@ const config = {
   splash: {
     image: "./assets/splash.png",
     resizeMode: "contain",
-    backgroundColor: "#0E5FA5",
+    backgroundColor: "#07314F",
   },
   newArchEnabled: true,
   assetBundlePatterns: ["**/*"],
@@ -48,7 +48,7 @@ const config = {
     package: "app.imuatrak",
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
-      backgroundColor: "#0E5FA5",
+      backgroundColor: "#07314F",
     },
     config: {
       googleMaps: {
