@@ -17,6 +17,7 @@ import { colors, craftColor, radii, shadow, spacing, type } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
 import { useSettings } from "@/services/settings";
 import { setSessionPublic } from "@/services/sync";
+import { emptyTotals, emptyHr } from "@/models";
 
 const PUBLIC_BASE_URL = "https://imuatrak.app";
 
@@ -39,7 +40,7 @@ export default function SessionDetail() {
   }, [id]);
 
   const coords: LatLng[] = useMemo(
-    () => stored?.track.map((p) => ({ latitude: p.lat, longitude: p.lon })) ?? [],
+    () => (stored?.track ?? []).map((p) => ({ latitude: p.lat, longitude: p.lon })),
     [stored],
   );
 
@@ -60,6 +61,9 @@ export default function SessionDetail() {
   }
 
   const s = stored.session;
+  const totals = s.totals ?? emptyTotals();
+  const hr = s.hr ?? emptyHr();
+  const splits = s.splits ?? [];
   const accent = craftColor(s.craftType);
 
   const onShare = async () => {
@@ -112,17 +116,17 @@ export default function SessionDetail() {
             </Text>
             <View style={styles.heroStats}>
               <HeroStat
-                value={s.totals.distanceMeters}
+                value={totals.distanceMeters}
                 format={(n) => formatDistance(n, units)}
                 label="Distance"
               />
               <HeroStat
-                value={s.totals.durationSec}
+                value={totals.durationSec}
                 format={(n) => formatDuration(n)}
                 label="Time"
               />
               <HeroStat
-                value={s.totals.avgPaceSecPerKm}
+                value={totals.avgPaceSecPerKm}
                 format={(n) => formatPaceStr(n, units)}
                 label="Avg pace"
               />
@@ -159,19 +163,19 @@ export default function SessionDetail() {
           <GradientCard>
             <Metric
               label="Strokes"
-              value={`${s.totals.strokeCount} · ${Math.round(s.totals.avgStrokeRate)} spm`}
+              value={`${totals.strokeCount} · ${Math.round(totals.avgStrokeRate)} spm`}
               icon="repeat"
               accent={accent}
             />
             <Metric
               label="Avg heart rate"
-              value={s.hr.avg > 0 ? `${s.hr.avg} bpm` : "—"}
+              value={hr.avg > 0 ? `${hr.avg} bpm` : "—"}
               icon="heart"
               accent={colors.coral}
             />
             <Metric
               label="Elevation gain"
-              value={`${Math.round(s.totals.elevationGainM)} m`}
+              value={`${Math.round(totals.elevationGainM)} m`}
               icon="trending-up"
               accent={colors.aqua}
             />
@@ -211,7 +215,7 @@ export default function SessionDetail() {
         <Animated.View entering={FadeInDown.delay(260).duration(450)}>
           <Text style={styles.sectionLabel}>Splits</Text>
           <GradientCard>
-            <SplitsChart splits={s.splits ?? []} imperial={units === "imperial"} />
+            <SplitsChart splits={splits} imperial={units === "imperial"} />
           </GradientCard>
         </Animated.View>
 
