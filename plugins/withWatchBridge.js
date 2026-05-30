@@ -1,69 +1,38 @@
-const { withXcodeProject, withInfoPlist, IOSConfig } = require("@expo/config-plugins");
+const { withDangerousMod } = require("@expo/config-plugins");
 const path = require("path");
 const fs = require("fs");
 
 /**
  * withWatchBridge — Expo config plugin
  *
- * Adds the WatchConnectivity framework and WatchBridgeModule Swift files to the
- * iOS Xcode project so WatchConnectivity works at runtime.
- *
- * What it does:
- *  1. Copies WatchBridgeModule.swift + .m into ios/<appName>/
- *  2. Adds both files to the main app target in the .pbxproj
- *  3. Links WatchConnectivity.framework (system, no copy needed)
- *  4. Adds NSWatchConnectivity key to Info.plist (not strictly required but good practice)
+ * Adds the WatchBridge local pod to the iOS Podfile so WatchConnectivity
+ * works at runtime. The pod declares its own source files and frameworks
+ * via WatchBridge.podspec, avoiding direct pbxproj manipulation.
  */
 const withWatchBridge = (config) => {
-  config = withXcodeProject(config, async (cfg) => {
-    const proj = cfg.modResults;
-    const appName = cfg.modRequest.projectName;
-    const iosDir = cfg.modRequest.platformProjectRoot;
+  return withDangerousMod(config, [
+    "ios",
+    (cfg) => {
+      const podfilePath = path.join(cfg.modRequest.platformProjectRoot, "Podfile");
 
-    const srcDir = path.join(__dirname, "../modules/watch-bridge/ios");
-    const destDir = path.join(iosDir, appName);
+      if (!fs.existsSync(podfilePath)) return cfg;
 
-    const files = ["WatchBridgeModule.swift", "WatchBridgeModule.m"];
+      let podfile = fs.readFileSync(podfilePath, "utf8");
 
-    // Copy source files into ios/<appName>/
-    const copiedFiles = [];
-    for (const file of files) {
-      const src = path.join(srcDir, file);
-      const dest = path.join(destDir, file);
-      if (fs.existsSync(src)) {
-        if (!fs.existsSync(dest)) {
-          fs.copyFileSync(src, dest);
-        }
-        copiedFiles.push(file);
+      const podLine = "  pod 'WatchBridge', :path => '../modules/watch-bridge'";
+
+      if (!podfile.includes(podLine)) {
+        // Insert after the `use_expo_modules!` line which is always present
+        podfile = podfile.replace(
+          /([ \t]*use_expo_modules!)/,
+          `$1\n${podLine}`
+        );
+        fs.writeFileSync(podfilePath, podfile);
       }
-    }
 
-    // Add files to Xcode project (only those that were actually copied)
-    const target = proj.getFirstTarget().uuid;
-    for (const file of copiedFiles) {
-      const filePath = path.join(appName, file);
-      if (!proj.hasFile(filePath)) {
-        proj.addSourceFile(filePath, { target });
-      }
-    }
-
-    // Link WatchConnectivity.framework
-    const frameworkName = "WatchConnectivity.framework";
-    const existingFrameworks = proj.pbxFrameworksBuildPhaseObj(target).files || [];
-    const alreadyLinked = existingFrameworks.some((f) =>
-      proj.pbxBuildFileSection()[f.value]?.settings?.ATTRIBUTES !== undefined ||
-      proj.pbxFileReferenceSection()[
-        proj.pbxBuildFileSection()[f.value]?.fileRef
-      ]?.name === frameworkName
-    );
-    if (!alreadyLinked) {
-      proj.addFramework(frameworkName, { weak: false, target });
-    }
-
-    return cfg;
-  });
-
-  return config;
+      return cfg;
+    },
+  ]);
 };
 
 module.exports = withWatchBridge;
