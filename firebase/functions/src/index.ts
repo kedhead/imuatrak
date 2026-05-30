@@ -219,24 +219,26 @@ export const mobileAppleSignIn = onCall(async (request) => {
   }
 
   const appleSub = payload.sub;
-  const auth = getAuth();
+  const adminAuth = getAuth();
 
   // Reuse the existing Firebase UID if this Apple account has signed in before.
   let uid: string;
   try {
-    const existing = await auth.getUserByProviderUid("apple.com", appleSub);
+    const existing = await adminAuth.getUserByProviderUid("apple.com", appleSub);
     uid = existing.uid;
+    console.log("mobileAppleSignIn: found existing user", uid);
   } catch {
-    // New user — derive a stable UID from the Apple subject so repeated
-    // sign-ins without a pre-existing Firebase account still converge.
     uid = `apple_${appleSub.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    console.log("mobileAppleSignIn: new user, derived uid", uid);
   }
 
-  const customToken = await auth.createCustomToken(uid, {
-    provider: "apple.com",
-    email: payload.email ?? null,
-  });
-  return { customToken };
+  try {
+    const customToken = await adminAuth.createCustomToken(uid);
+    return { customToken };
+  } catch (e) {
+    console.error("mobileAppleSignIn: createCustomToken failed", e);
+    throw new HttpsError("internal", `Failed to create token: ${e instanceof Error ? e.message : e}`);
+  }
 });
 
 export const createClubInvite = onCall(async (request) => {
