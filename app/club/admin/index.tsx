@@ -6,7 +6,6 @@ import {
   Alert,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -14,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useClub } from "@/services/clubStore";
-import { updateClub, leaveClub, createInviteToken } from "@/services/clubService";
+import { updateClub, leaveClub } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
 import { colors, spacing, radii } from "@/ui/theme";
 
@@ -27,7 +26,6 @@ export default function ClubAdminScreen() {
   const [name, setName] = useState(club?.name ?? "");
   const [description, setDescription] = useState(club?.description ?? "");
   const [saving, setSaving] = useState(false);
-  const [inviting, setInviting] = useState(false);
 
   if (!club || (role !== "owner" && role !== "admin")) {
     return (
@@ -46,20 +44,6 @@ export default function ClubAdminScreen() {
       Alert.alert("Error saving changes");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleInvite = async () => {
-    setInviting(true);
-    try {
-      const token = await createInviteToken(club.id);
-      await Share.share({
-        message: `Join ${club.name} on ImuaTrak! Use invite code: ${token}`,
-      });
-    } catch {
-      Alert.alert("Error generating invite");
-    } finally {
-      setInviting(false);
     }
   };
 
@@ -108,9 +92,10 @@ export default function ClubAdminScreen() {
 
         {/* Invite */}
         <Text style={styles.sectionLabel}>INVITE MEMBERS</Text>
-        <Pressable style={[styles.inviteBtn, inviting && { opacity: 0.6 }]} onPress={handleInvite} disabled={inviting}>
-          {inviting ? <ActivityIndicator color={colors.blue} /> : <Ionicons name="link-outline" size={18} color={colors.blue} />}
+        <Pressable style={styles.inviteBtn} onPress={() => router.push("/club/admin/invite")}>
+          <Ionicons name="link-outline" size={18} color={colors.blue} />
           <Text style={styles.inviteBtnText}>Generate Invite Link</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: "auto" }} />
         </Pressable>
 
         {/* Club settings */}

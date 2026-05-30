@@ -2,7 +2,12 @@ import * as FileSystem from "expo-file-system";
 import type { Session, TrackPoint } from "@/models";
 import { toGpx } from "./gpx";
 
-const ROOT = `${FileSystem.documentDirectory}sessions/`;
+function getRoot(): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dir = (FileSystem as any).documentDirectory as string | null | undefined;
+  if (!dir) throw new Error("FileSystem.documentDirectory is unavailable");
+  return `${dir}sessions/`;
+}
 
 export interface StoredSession {
   session: Session;
@@ -10,14 +15,16 @@ export interface StoredSession {
   synced: boolean;
 }
 
-async function ensureRoot(): Promise<void> {
-  const info = await FileSystem.getInfoAsync(ROOT);
-  if (!info.exists) await FileSystem.makeDirectoryAsync(ROOT, { intermediates: true });
+async function ensureRoot(): Promise<string> {
+  const root = getRoot();
+  const info = await FileSystem.getInfoAsync(root);
+  if (!info.exists) await FileSystem.makeDirectoryAsync(root, { intermediates: true });
+  return root;
 }
 
 export async function save(session: Session, track: TrackPoint[]): Promise<void> {
-  await ensureRoot();
-  const dir = `${ROOT}${session.id}/`;
+  const root = await ensureRoot();
+  const dir = `${root}${session.id}/`;
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
   await FileSystem.writeAsStringAsync(`${dir}session.json`, JSON.stringify(session));
   await FileSystem.writeAsStringAsync(`${dir}track.json`, JSON.stringify(track));
@@ -25,11 +32,11 @@ export async function save(session: Session, track: TrackPoint[]): Promise<void>
 }
 
 export async function list(): Promise<StoredSession[]> {
-  await ensureRoot();
-  const ids = await FileSystem.readDirectoryAsync(ROOT).catch(() => [] as string[]);
+  const root = await ensureRoot();
+  const ids = await FileSystem.readDirectoryAsync(root).catch(() => [] as string[]);
   const out: StoredSession[] = [];
   for (const id of ids) {
-    const dir = `${ROOT}${id}/`;
+    const dir = `${root}${id}/`;
     try {
       const sj = await FileSystem.readAsStringAsync(`${dir}session.json`);
       const tj = await FileSystem.readAsStringAsync(`${dir}track.json`);
@@ -48,7 +55,7 @@ export async function list(): Promise<StoredSession[]> {
 }
 
 export async function load(id: string): Promise<StoredSession | null> {
-  const dir = `${ROOT}${id}/`;
+  const dir = `${getRoot()}${id}/`;
   try {
     const sj = await FileSystem.readAsStringAsync(`${dir}session.json`);
     const tj = await FileSystem.readAsStringAsync(`${dir}track.json`);
@@ -63,9 +70,9 @@ export async function load(id: string): Promise<StoredSession | null> {
 }
 
 export function gpxUriFor(id: string): string {
-  return `${ROOT}${id}/track.gpx`;
+  return `${getRoot()}${id}/track.gpx`;
 }
 
 export async function remove(id: string): Promise<void> {
-  await FileSystem.deleteAsync(`${ROOT}${id}/`, { idempotent: true });
+  await FileSystem.deleteAsync(`${getRoot()}${id}/`, { idempotent: true });
 }
