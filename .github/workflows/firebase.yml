@@ -24,3 +24,29 @@ jobs:
           node-version: "20.19"
       - run: npm ci || npm install
       - run: npm run build
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20.19"
+
+      - name: Install functions deps
+        run: npm ci || npm install
+        working-directory: firebase/functions
+
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools
+
+      - name: Deploy functions
+        run: firebase deploy --only functions --project imuatrak-prod
+        working-directory: firebase
