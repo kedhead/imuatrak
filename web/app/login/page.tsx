@@ -2,12 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { signInWithGoogle, useAuth } from "@/lib/auth";
+import { signInWithApple, signInWithGoogle, useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -15,14 +15,26 @@ export default function LoginPage() {
   }, [user, loading, router]);
 
   const handleGoogle = async () => {
-    setBusy(true);
+    setBusy("google");
     setError(null);
     try {
       await signInWithGoogle();
       router.replace("/dashboard");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-in failed");
-      setBusy(false);
+      setBusy(null);
+    }
+  };
+
+  const handleApple = async () => {
+    setBusy("apple");
+    setError(null);
+    try {
+      await signInWithApple();
+      router.replace("/dashboard");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sign-in failed");
+      setBusy(null);
     }
   };
 
@@ -47,35 +59,71 @@ export default function LoginPage() {
           View and manage all your ImuaTrak sessions on the web.
         </p>
 
-        <button
-          onClick={handleGoogle}
-          disabled={busy}
-          style={{
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 12,
-            padding: "14px 20px",
-            borderRadius: 12,
-            border: "1px solid var(--line)",
-            background: "var(--bg)",
-            color: "var(--ink)",
-            fontSize: 15,
-            fontWeight: 600,
-            cursor: busy ? "default" : "pointer",
-            opacity: busy ? 0.6 : 1,
-          }}
-        >
-          <GoogleIcon />
-          {busy ? "Signing in…" : "Continue with Google"}
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Apple */}
+          <button
+            onClick={handleApple}
+            disabled={busy !== null}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              padding: "14px 20px",
+              borderRadius: 12,
+              border: "none",
+              background: "#000",
+              color: "#fff",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: busy !== null ? "default" : "pointer",
+              opacity: busy !== null ? 0.6 : 1,
+            }}
+          >
+            <AppleIcon />
+            {busy === "apple" ? "Signing in…" : "Continue with Apple"}
+          </button>
+
+          {/* Google */}
+          <button
+            onClick={handleGoogle}
+            disabled={busy !== null}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              padding: "14px 20px",
+              borderRadius: 12,
+              border: "1px solid var(--line)",
+              background: "var(--bg)",
+              color: "var(--ink)",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: busy !== null ? "default" : "pointer",
+              opacity: busy !== null ? 0.6 : 1,
+            }}
+          >
+            <GoogleIcon />
+            {busy === "google" ? "Signing in…" : "Continue with Google"}
+          </button>
+        </div>
 
         {error && (
           <p style={{ color: "#f87171", fontSize: 13, marginTop: 16 }}>{error}</p>
         )}
       </div>
     </main>
+  );
+}
+
+function AppleIcon() {
+  return (
+    <svg width="17" height="20" viewBox="0 0 814 1000" fill="currentColor">
+      <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46 376.7 0 248.4 0 126.4c0-70.1 25.5-135.5 71.9-183.6C117.9-5.3 180.6-32 248 -32s109.5 38.1 165 38.1c53.3 0 86-38.1 165-38.1s137.5 26.3 183.5 74.6zm-19.3-111.8C726.4 171.4 695 145.1 695 93.7c0-59.3 35.7-104.4 57.3-133.2 25-33.3 60.8-54.7 97.5-54.7 2.6 0 5.1.3 7.6.6-1.3 62.8-25.6 108.5-49.2 139.4-22.2 29.3-58.8 55.4-41.4 55.4z" />
+    </svg>
   );
 }
 
