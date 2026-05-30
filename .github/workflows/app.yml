@@ -15,12 +15,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "20.19"
-          cache: "yarn"
+          cache: "npm"
       - name: Install
-        run: yarn install --frozen-lockfile
+        run: npm ci
       - name: Typecheck
-        run: yarn typecheck
+        run: npm run typecheck
       - name: Lint
-        run: yarn lint
+        run: npm run lint
       - name: Test
-        run: yarn test --ci
+        run: npm run test -- --ci
