@@ -17,6 +17,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "./firebase";
 import type {
+  BoatAssignment,
   Club,
   ClubMember,
   ClubEvent,
@@ -240,6 +241,8 @@ export async function createEvent(
     location?: { name: string; lat?: number; lon?: number };
     meetTime?: string;
     meetLocation?: string;
+    maxParticipants?: number;
+    boatAssignments?: BoatAssignment[];
   },
 ): Promise<ClubEvent> {
   const event: Omit<ClubEvent, "id"> = {
@@ -252,6 +255,8 @@ export async function createEvent(
     location: opts.location,
     meetTime: opts.meetTime,
     meetLocation: opts.meetLocation,
+    maxParticipants: opts.maxParticipants,
+    boatAssignments: opts.boatAssignments,
     createdBy: uid,
     rsvps: [],
     linkedSessionIds: [],
@@ -270,6 +275,14 @@ export async function updateEvent(
 
 export async function deleteEvent(clubId: string, eventId: string): Promise<void> {
   await deleteDoc(doc(db, "clubs", clubId, "events", eventId));
+}
+
+export async function updateBoatAssignments(
+  clubId: string,
+  eventId: string,
+  boatAssignments: BoatAssignment[],
+): Promise<void> {
+  await updateDoc(doc(db, "clubs", clubId, "events", eventId), { boatAssignments });
 }
 
 export async function setRsvp(

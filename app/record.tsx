@@ -41,6 +41,8 @@ export default function Record() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.dismiss();
       if (session) router.push(`/session/${session.id}`);
+    } catch (e) {
+      Alert.alert("Save failed", e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }

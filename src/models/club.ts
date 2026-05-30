@@ -40,6 +40,16 @@ export interface EventRsvp {
   updatedAt: string;
 }
 
+export interface SeatAssignment {
+  seatNumber: number;
+  uid: string | null;
+}
+
+export interface BoatAssignment {
+  boatName: string;
+  seats: SeatAssignment[];
+}
+
 export interface ClubEvent {
   id: string;
   clubId: ClubId;
@@ -51,6 +61,8 @@ export interface ClubEvent {
   location?: { name: string; lat?: number; lon?: number };
   meetTime?: string;
   meetLocation?: string;
+  maxParticipants?: number;
+  boatAssignments?: BoatAssignment[];
   createdBy: string;
   rsvps: EventRsvp[];
   linkedSessionIds: string[];
