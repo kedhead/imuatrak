@@ -1,14 +1,14 @@
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import {
-  OAuthProvider,
-  signInWithCredential,
+  signInWithCustomToken,
   signOut as fbSignOut,
   onAuthStateChanged,
   type User,
 } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 import { Platform } from "react-native";
-import { auth } from "./firebase";
+import { auth, functions } from "./firebase";
 
 export type AuthUser = User;
 
@@ -51,12 +51,17 @@ export async function signInWithApple(): Promise<AuthUser> {
   });
   if (!credential.identityToken) throw new Error("Apple sign-in returned no identity token");
 
-  const provider = new OAuthProvider("apple.com");
-  const fbCred = provider.credential({
-    idToken: credential.identityToken,
-    rawNonce,
-  });
-  const { user } = await signInWithCredential(auth, fbCred);
+  // Native Apple tokens have audience = bundle ID ("app.imuatrak"), but
+  // Firebase's signInWithCredential now expects Services ID audience
+  // ("app.imuatrak.web") because web Apple Sign-In is also configured.
+  // We proxy through a Cloud Function that validates the native token against
+  // the bundle ID and returns a Firebase custom token instead.
+  const fn = httpsCallable<{ idToken: string }, { customToken: string }>(
+    functions,
+    "mobileAppleSignIn",
+  );
+  const { data } = await fn({ idToken: credential.identityToken });
+  const { user } = await signInWithCustomToken(auth, data.customToken);
   return user;
 }
 
