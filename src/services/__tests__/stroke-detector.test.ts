@@ -9,7 +9,10 @@ describe("StrokeDetector", () => {
 
     const strokes: { tSec: number; rateSpm: number }[] = [];
     for (let t = 0; t <= durationSec; t += dt) {
-      const v = 2 * Math.sin(2 * Math.PI * freqHz * t);
+      // Half-rectified: each positive burst = one stroke at 60 spm.
+      // Using sqrt(ax²+ay²+az²) magnitude means a full sinusoid would
+      // appear at 2 Hz (120 spm). Half-rectified gives realistic 1 Hz bursts.
+      const v = Math.max(0, 2 * Math.sin(2 * Math.PI * freqHz * t));
       const s = det.onSample(t, v, 0, 0);
       if (s) strokes.push(s);
     }
