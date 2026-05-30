@@ -211,7 +211,7 @@ export default function SessionDetail() {
         <Animated.View entering={FadeInDown.delay(260).duration(450)}>
           <Text style={styles.sectionLabel}>Splits</Text>
           <GradientCard>
-            <SplitsChart splits={s.splits} imperial={units === "imperial"} />
+            <SplitsChart splits={s.splits ?? []} imperial={units === "imperial"} />
           </GradientCard>
         </Animated.View>
 
