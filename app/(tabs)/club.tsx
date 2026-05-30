@@ -135,7 +135,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
               <Ionicons name="people" size={24} color={colors.white} />
             </Pressable>
             {isAdmin && (
-              <Pressable onPress={() => router.push("/club/admin/index")} hitSlop={8}>
+              <Pressable onPress={() => router.push("/club/admin")} hitSlop={8}>
                 <Ionicons name="settings-sharp" size={22} color={colors.white} />
               </Pressable>
             )}

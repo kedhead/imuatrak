@@ -86,7 +86,7 @@ export default function Settings() {
                 {(role === "owner" || role === "admin") && (
                   <Pressable
                     style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
-                    onPress={() => routerHook.push("/club/admin/index")}
+                    onPress={() => routerHook.push("/club/admin")}
                   >
                     <Text style={styles.settingsRowText}>Club Settings</Text>
                     <Ionicons name="chevron-forward" size={18} color={colors.muted} />
