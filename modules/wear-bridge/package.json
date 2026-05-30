@@ -1,0 +1,11 @@
+{
+  "name": "@imuatrak/wear-bridge",
+  "version": "0.1.0",
+  "description": "React Native native module — receives session files from Wear OS via WearableDataLayer",
+  "main": "src/index",
+  "types": "src/index.d.ts",
+  "files": ["android", "src"],
+  "peerDependencies": {
+    "expo": "*"
+  }
+}
