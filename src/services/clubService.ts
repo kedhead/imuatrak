@@ -124,7 +124,7 @@ export async function getClub(clubId: string): Promise<Club | null> {
 
 export async function updateClub(
   clubId: string,
-  updates: Partial<Pick<Club, "name" | "description" | "location" | "logoUrl" | "websiteUrl">>,
+  updates: Record<string, unknown>,
 ): Promise<void> {
   await updateDoc(doc(db, "clubs", clubId), updates);
 }

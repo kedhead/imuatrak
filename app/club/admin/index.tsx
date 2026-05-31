@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { deleteField } from "firebase/firestore";
 import { useClub } from "@/services/clubStore";
 import { updateClub, leaveClub } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
@@ -106,14 +107,17 @@ export default function ClubAdminScreen() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const trimmedWebsite = websiteUrl.trim();
       const updates = {
         name: name.trim(),
         description: description.trim(),
-        websiteUrl: websiteUrl.trim() || undefined,
-        logoUrl: logoUrl || undefined,
+        // Firestore rejects `undefined` — use deleteField() to remove optional
+        // fields when the user clears them, and a plain value when they're set.
+        websiteUrl: trimmedWebsite ? trimmedWebsite : deleteField(),
+        logoUrl: logoUrl ? logoUrl : deleteField(),
       };
       await updateClub(club.id, updates);
-      setClub({ ...club, ...updates }, role!);
+      setClub({ ...club, websiteUrl: trimmedWebsite || undefined, logoUrl: logoUrl || undefined }, role!);
       Alert.alert("Saved");
     } catch {
       Alert.alert("Error saving changes");
