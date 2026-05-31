@@ -15,17 +15,31 @@ if (!cfg.apiKey || !cfg.projectId) {
   );
 }
 
+/**
+ * Resolve the Storage bucket explicitly. Projects created in the last year+
+ * use the `<project>.firebasestorage.app` bucket domain, but the Firebase JS
+ * SDK still guesses `<project>.appspot.com` when no bucket is configured —
+ * which points at a bucket that doesn't exist and makes every upload fail.
+ * So: use the configured bucket if present, otherwise derive the modern one.
+ */
+const projectId = cfg.projectId ?? "stub";
+const storageBucket =
+  cfg.storageBucket && cfg.storageBucket.length > 0
+    ? cfg.storageBucket
+    : `${projectId}.firebasestorage.app`;
+
 export const firebaseApp = getApps().length
   ? getApp()
   : initializeApp({
       apiKey: cfg.apiKey ?? "stub",
       authDomain: cfg.authDomain,
-      projectId: cfg.projectId ?? "stub",
-      storageBucket: cfg.storageBucket,
+      projectId,
+      storageBucket,
       appId: cfg.appId,
     });
 
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
-export const storage = getStorage(firebaseApp);
+// Pass the bucket explicitly so we never fall back to the SDK's wrong guess.
+export const storage = getStorage(firebaseApp, `gs://${storageBucket}`);
 export const functions = getFunctions(firebaseApp);
