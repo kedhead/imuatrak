@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.homepage       = "https://github.com/kedhead/imuatrak"
   s.platform       = :ios, "15.1"
   s.source         = { :path => "." }
-  s.source_files   = "ios/**/*.{swift,m,h}"
+  s.source_files   = "ios/**/*.{m,h}"
   s.frameworks     = "WatchConnectivity"
   s.dependency     "React-Core"
 end
