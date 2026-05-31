@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -15,11 +16,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { useClub } from "@/services/clubStore";
 import { updateClub, leaveClub } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
-import { storage } from "@/services/firebase";
 import { colors, spacing, radii } from "@/ui/theme";
 
 export default function ClubAdminScreen() {
@@ -55,22 +54,46 @@ export default function ClubAdminScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.7,
-      base64: true,
     });
     if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    if (!asset.base64) {
-      Alert.alert("Upload failed", "Could not read the selected image.");
-      return;
-    }
+    const uri = result.assets[0].uri;
     setUploadingLogo(true);
     try {
-      // Upload via base64 string rather than a fetched Blob — the Firebase JS
-      // SDK's Blob upload path is unreliable on React Native and can hang or
-      // throw. uploadString with "base64" is the supported native path.
-      const logoRef = ref(storage, `clubs/${club.id}/logo.jpg`);
-      await uploadString(logoRef, asset.base64, "base64", { contentType: "image/jpeg" });
-      const url = await getDownloadURL(logoRef);
+      const user = currentUser();
+      if (!user) throw new Error("Not signed in");
+      const token = await user.getIdToken();
+
+      // The Firebase JS SDK cannot create Blobs from ArrayBuffer in
+      // React Native/Hermes, so we bypass it entirely and POST the file
+      // binary directly to the Firebase Storage REST API via expo-file-system,
+      // which does true native binary I/O without touching JS Blobs.
+      const bucket = "imuatrak.firebasestorage.app";
+      const path = `clubs/${club.id}/logo.jpg`;
+      const uploadUrl =
+        `https://firebasestorage.googleapis.com/v0/b/` +
+        `${encodeURIComponent(bucket)}/o` +
+        `?uploadType=media&name=${encodeURIComponent(path)}`;
+
+      const upload = await FileSystem.uploadAsync(uploadUrl, uri, {
+        httpMethod: "POST",
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "image/jpeg",
+        },
+      });
+
+      if (upload.status < 200 || upload.status >= 300) {
+        throw new Error(`HTTP ${upload.status}: ${upload.body}`);
+      }
+
+      const meta = JSON.parse(upload.body) as { downloadTokens?: string };
+      const token0 = meta.downloadTokens?.split(",")[0];
+      if (!token0) throw new Error("No download token in response");
+      const url =
+        `https://firebasestorage.googleapis.com/v0/b/` +
+        `${encodeURIComponent(bucket)}/o/${encodeURIComponent(path)}` +
+        `?alt=media&token=${token0}`;
       setLogoUrl(url);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
