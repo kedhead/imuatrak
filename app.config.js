@@ -38,7 +38,6 @@ const config = {
       "com.apple.developer.healthkit": true,
       "com.apple.developer.healthkit.access": [],
       "com.apple.developer.applesignin": ["Default"],
-      "com.apple.security.application-groups": ["group.app.imuatrak"],
     },
     config: {
       usesNonExemptEncryption: false,
