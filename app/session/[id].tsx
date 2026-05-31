@@ -111,7 +111,7 @@ export default function SessionDetail() {
         <Animated.View entering={FadeInDown.duration(450)}>
           <GradientCard gradient="ocean">
             <View style={{ flexDirection: "row", gap: spacing.xs }}>
-              <Badge label={s.craftType} color="rgba(255,255,255,0.25)" />
+              {s.craftType && <Badge label={s.craftType} color="rgba(255,255,255,0.25)" />}
               {(s.source === "ios-watch" || s.source === "android-wear") && (
                 <Badge
                   label={s.source === "ios-watch" ? "Apple Watch" : "Wear OS"}

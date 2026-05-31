@@ -20,7 +20,7 @@ export function Badge({ label, color = colors.ocean, variant = "solid", style }:
         style,
       ]}
     >
-      <Text style={[styles.text, { color: soft ? color : colors.white }]}>{label.toUpperCase()}</Text>
+      <Text style={[styles.text, { color: soft ? color : colors.white }]}>{(label ?? "").toUpperCase()}</Text>
     </View>
   );
 }
