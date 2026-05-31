@@ -256,17 +256,17 @@ export async function createEvent(
   const event: Omit<ClubEvent, "id"> = {
     clubId,
     title: opts.title,
-    description: opts.description,
     type: opts.type,
     startAt: opts.startAt,
     endAt: opts.endAt,
-    location: opts.location,
-    meetTime: opts.meetTime,
-    meetLocation: opts.meetLocation,
-    maxParticipants: opts.maxParticipants,
-    boatAssignments: opts.boatAssignments,
     createdBy: uid,
     rsvps: [],
+    ...(opts.description !== undefined ? { description: opts.description } : {}),
+    ...(opts.location !== undefined ? { location: opts.location } : {}),
+    ...(opts.meetTime !== undefined ? { meetTime: opts.meetTime } : {}),
+    ...(opts.meetLocation !== undefined ? { meetLocation: opts.meetLocation } : {}),
+    ...(opts.maxParticipants !== undefined ? { maxParticipants: opts.maxParticipants } : {}),
+    ...(opts.boatAssignments !== undefined ? { boatAssignments: opts.boatAssignments } : {}),
     linkedSessionIds: [],
   };
   const ref = await addDoc(collection(db, "clubs", clubId, "events"), event);
@@ -324,14 +324,16 @@ export async function bulkCreateEvents(
       events.push({
         clubId,
         title: opts.title,
-        description: opts.description,
         type: opts.type,
         startAt: startAt.toISOString(),
         endAt: endAt.toISOString(),
-        location: opts.location ? { name: opts.location } : undefined,
         createdBy: uid,
         rsvps: [],
         linkedSessionIds: [],
+        // Only include optional fields when they have a value — Firestore
+        // rejects undefined in WriteBatch.set() with an unsupported-field error.
+        ...(opts.description ? { description: opts.description } : {}),
+        ...(opts.location ? { location: { name: opts.location } } : {}),
       });
     }
     cur.setDate(cur.getDate() + 1);

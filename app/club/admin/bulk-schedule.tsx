@@ -200,15 +200,18 @@ export default function BulkScheduleScreen() {
         ))}
 
         {activeDayPicker !== null && (
-          <DateTimePicker
-            value={dayTimes.get(activeDayPicker) ?? defaultTime()}
-            mode="time"
-            display={Platform.OS === "ios" ? "spinner" : "default"}
-            onChange={(_, d) => {
-              if (Platform.OS !== "ios") setActiveDayPicker(null);
-              if (d) setDayTimes((m) => new Map(m).set(activeDayPicker!, d));
-            }}
-          />
+          <View style={styles.pickerWrap}>
+            <DateTimePicker
+              value={dayTimes.get(activeDayPicker) ?? defaultTime()}
+              mode="time"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              themeVariant="light"
+              onChange={(_, d) => {
+                if (Platform.OS !== "ios") setActiveDayPicker(null);
+                if (d) setDayTimes((m) => new Map(m).set(activeDayPicker!, d));
+              }}
+            />
+          </View>
         )}
 
         {/* Duration */}
@@ -242,27 +245,33 @@ export default function BulkScheduleScreen() {
         </View>
 
         {showStartDate && (
-          <DateTimePicker
-            value={rangeStart}
-            mode="date"
-            display={Platform.OS === "ios" ? "inline" : "default"}
-            onChange={(_, d) => {
-              setShowStartDate(Platform.OS === "ios");
-              if (d) { const v = new Date(d); v.setHours(0, 0, 0, 0); setRangeStart(v); }
-            }}
-          />
+          <View style={styles.pickerWrap}>
+            <DateTimePicker
+              value={rangeStart}
+              mode="date"
+              display={Platform.OS === "ios" ? "inline" : "default"}
+              themeVariant="light"
+              onChange={(_, d) => {
+                setShowStartDate(Platform.OS === "ios");
+                if (d) { const v = new Date(d); v.setHours(0, 0, 0, 0); setRangeStart(v); }
+              }}
+            />
+          </View>
         )}
         {showEndDate && (
-          <DateTimePicker
-            value={rangeEnd}
-            mode="date"
-            display={Platform.OS === "ios" ? "inline" : "default"}
-            minimumDate={rangeStart}
-            onChange={(_, d) => {
-              setShowEndDate(Platform.OS === "ios");
-              if (d) { const v = new Date(d); v.setHours(0, 0, 0, 0); setRangeEnd(v); }
-            }}
-          />
+          <View style={styles.pickerWrap}>
+            <DateTimePicker
+              value={rangeEnd}
+              mode="date"
+              display={Platform.OS === "ios" ? "inline" : "default"}
+              themeVariant="light"
+              minimumDate={rangeStart}
+              onChange={(_, d) => {
+                setShowEndDate(Platform.OS === "ios");
+                if (d) { const v = new Date(d); v.setHours(0, 0, 0, 0); setRangeEnd(v); }
+              }}
+            />
+          </View>
         )}
 
         {/* Preview & Create */}
@@ -347,6 +356,12 @@ const styles = StyleSheet.create({
   dateBtnLabel: { fontSize: type.size.xs, color: colors.muted, fontWeight: type.weight.bold, letterSpacing: 0.5 },
   dateBtnValue: { fontSize: type.size.sm, color: colors.ink, fontWeight: type.weight.heavy },
   dateSep: { fontSize: 18, color: colors.muted },
+  pickerWrap: {
+    backgroundColor: "#ffffff",
+    borderRadius: radii.lg,
+    overflow: "hidden",
+    marginTop: spacing.xs,
+  },
   preview: { alignItems: "center", paddingVertical: spacing.xl },
   previewCount: { fontSize: 56, fontWeight: type.weight.heavy, color: colors.ocean },
   previewLabel: { fontSize: type.size.sm, color: colors.muted, fontWeight: type.weight.bold },
