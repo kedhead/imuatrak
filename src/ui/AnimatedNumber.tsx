@@ -1,16 +1,6 @@
-import { useEffect } from "react";
-import { StyleSheet, type TextStyle } from "react-native";
-import Animated, {
-  Easing,
-  useAnimatedProps,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
-import { TextInput } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { StyleSheet, Text, type TextStyle } from "react-native";
 import { colors, type } from "./theme";
-
-Animated.addWhitelistedNativeProps({ text: true });
-const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 interface Props {
   value: number;
@@ -22,8 +12,10 @@ interface Props {
 }
 
 /**
- * Counts up to `value` whenever it changes. Renders into an uneditable
- * TextInput so the text can be driven from the UI thread via animatedProps.
+ * Counts up to `value` whenever it changes. Runs entirely on the JS thread
+ * via requestAnimationFrame so the `format` callback can be any plain
+ * function. (Calling a non-worklet function inside a Reanimated UI worklet
+ * throws and hard-crashes the app, so we deliberately avoid worklets here.)
  */
 export function AnimatedNumber({
   value,
@@ -32,25 +24,51 @@ export function AnimatedNumber({
   duration = 800,
   style,
 }: Props) {
-  const progress = useSharedValue(value);
+  const [display, setDisplay] = useState(value);
+  const fromRef = useRef(value);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    progress.value = withTiming(value, { duration, easing: Easing.out(Easing.cubic) });
-  }, [value, duration, progress]);
+    const from = fromRef.current;
+    const to = value;
+    if (from === to) {
+      setDisplay(to);
+      return;
+    }
+    const start = Date.now();
 
-  const animatedProps = useAnimatedProps(() => {
-    const n = progress.value;
-    const text = format ? format(n) : n.toFixed(decimals);
-    return { text, defaultValue: text } as any;
-  });
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const t = Math.min(1, elapsed / duration);
+      // easeOutCubic — matches the previous feel
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(from + (to - from) * eased);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        fromRef.current = to;
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      fromRef.current = to;
+    };
+  }, [value, duration]);
+
+  const safeFormat = (n: number): string => {
+    try {
+      return format ? format(n) : n.toFixed(decimals);
+    } catch {
+      return "—";
+    }
+  };
 
   return (
-    <AnimatedTextInput
-      editable={false}
-      underlineColorAndroid="transparent"
-      style={[styles.text, style]}
-      animatedProps={animatedProps}
-    />
+    <Text style={[styles.text, style]} numberOfLines={1}>
+      {safeFormat(display)}
+    </Text>
   );
 }
 

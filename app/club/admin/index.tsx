@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { useClub } from "@/services/clubStore";
 import { updateClub, leaveClub } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
@@ -54,20 +54,27 @@ export default function ClubAdminScreen() {
       mediaTypes: "images",
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.7,
+      base64: true,
     });
     if (result.canceled || !result.assets[0]) return;
-    const uri = result.assets[0].uri;
+    const asset = result.assets[0];
+    if (!asset.base64) {
+      Alert.alert("Upload failed", "Could not read the selected image.");
+      return;
+    }
     setUploadingLogo(true);
     try {
-      const resp = await fetch(uri);
-      const blob = await resp.blob();
+      // Upload via base64 string rather than a fetched Blob — the Firebase JS
+      // SDK's Blob upload path is unreliable on React Native and can hang or
+      // throw. uploadString with "base64" is the supported native path.
       const logoRef = ref(storage, `clubs/${club.id}/logo.jpg`);
-      await uploadBytes(logoRef, blob, { contentType: "image/jpeg" });
+      await uploadString(logoRef, asset.base64, "base64", { contentType: "image/jpeg" });
       const url = await getDownloadURL(logoRef);
       setLogoUrl(url);
-    } catch {
-      Alert.alert("Upload failed", "Could not upload logo. Try again.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert("Upload failed", msg);
     } finally {
       setUploadingLogo(false);
     }
