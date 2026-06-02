@@ -13,6 +13,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { list, type StoredSession } from "@/services/storage";
 import { syncSession } from "@/services/sync";
+import { watchAuth } from "@/services/auth";
 import { useSettings } from "@/services/settings";
 import { WatchBridge } from "@imuatrak/watch-bridge";
 import { WearBridge } from "@imuatrak/wear-bridge";
@@ -33,6 +34,20 @@ export default function HomeTab() {
   const reload = useCallback(() => { void list().then(setSessions); }, []);
 
   useFocusEffect(reload);
+
+  // When the user signs in, push any locally-stored sessions that never made
+  // it to Firestore (recorded offline, before sign-in, or before sync existed).
+  // syncSession is idempotent so re-syncing already-uploaded sessions is safe.
+  useEffect(() => {
+    return watchAuth((user) => {
+      if (!user) return;
+      list().then((stored) => {
+        for (const { session } of stored) {
+          void syncSession(session).catch(() => undefined);
+        }
+      }).catch(() => undefined);
+    });
+  }, []);
 
   // Receive sessions transferred from Apple Watch (iOS) or Wear OS (Android)
   useEffect(() => {
