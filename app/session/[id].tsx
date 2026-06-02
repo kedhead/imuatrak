@@ -204,10 +204,10 @@ export default function SessionDetail() {
               accent={colors.coral}
             />
             <Metric
-              label="Elevation gain"
-              value={`${Math.round(totals.elevationGainM)} m`}
-              icon="trending-up"
-              accent={colors.aqua}
+              label="Calories"
+              value={totals.calories > 0 ? `${Math.round(totals.calories)} kcal` : "—"}
+              icon="flame-outline"
+              accent={colors.gold}
             />
           </GradientCard>
         </Animated.View>

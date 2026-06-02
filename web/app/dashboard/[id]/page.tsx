@@ -235,14 +235,15 @@ export default function DashboardSessionPage() {
           sub={session.hr.max > 0 ? `max ${session.hr.max}` : undefined}
         />
         <Stat label="Max speed" value={formatSpeed(session.totals.maxSpeedMps)} />
-        <Stat label="Elev. gain" value={`${Math.round(session.totals.elevationGainM)} m`} />
         <Stat
           label="Moving time"
           value={formatDuration(session.totals.movingDurationSec || session.totals.durationSec)}
         />
-        {session.totals.calories > 0 && (
-          <Stat label="Calories" value={`${Math.round(session.totals.calories)} kcal`} />
-        )}
+        <Stat
+          label="Calories"
+          value={session.totals.calories > 0 ? `${Math.round(session.totals.calories)} kcal` : "—"}
+          sub={session.totals.calories === 0 ? "Set weight in Settings" : undefined}
+        />
       </section>
 
       {/* Speed chart */}

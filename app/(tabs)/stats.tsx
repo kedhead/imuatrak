@@ -133,9 +133,10 @@ export default function StatsTab() {
                 <StatCard label="Sessions" value={String(stats.totalSessions)} />
                 <StatCard label="Distance" value={formatDistance(stats.totalDistanceM, units)} />
                 <StatCard label="Time" value={formatDuration(stats.totalDurationSec)} />
-                {stats.totalCalories > 0 && (
-                  <StatCard label="Calories" value={`${Math.round(stats.totalCalories).toLocaleString()} kcal`} />
-                )}
+                <StatCard
+                  label="Calories"
+                  value={stats.totalCalories > 0 ? `${Math.round(stats.totalCalories).toLocaleString()} kcal` : "—"}
+                />
               </View>
             </Animated.View>
 
