@@ -1,9 +1,9 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { deleteDoc, doc, setDoc } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { deleteObject, ref, uploadBytes } from "firebase/storage";
 import type { Session } from "@/models";
 import { auth, db, storage } from "./firebase";
-import { gpxUriFor } from "./storage";
+import { gpxUriFor, remove as removeLocal } from "./storage";
 
 /**
  * Upload a finished session document and its GPX track. Idempotent — safe
@@ -29,6 +29,31 @@ export async function syncSession(session: Session): Promise<void> {
     await setDoc(docRef, { trackStoragePath: path }, { merge: true });
   } catch {
     // GPX upload is non-critical — session is already visible on the website.
+  }
+}
+
+/**
+ * Delete a session from local storage and Firestore. Best-effort: removes
+ * the Firestore doc, public copy, and Storage files; never throws on partial
+ * failure so the local copy is always cleaned up first.
+ */
+export async function deleteSession(session: Session): Promise<void> {
+  await removeLocal(session.id);
+
+  const user = auth.currentUser;
+  if (!user) return;
+
+  // Remove private Firestore doc
+  await deleteDoc(doc(db, "users", user.uid, "sessions", session.id)).catch(() => undefined);
+
+  // Remove public copy if it exists
+  if (session.isPublic) {
+    await deleteDoc(doc(db, "publicSessions", session.id)).catch(() => undefined);
+  }
+
+  // Remove Storage files (best-effort)
+  if (session.trackStoragePath) {
+    await deleteObject(ref(storage, session.trackStoragePath)).catch(() => undefined);
   }
 }
 

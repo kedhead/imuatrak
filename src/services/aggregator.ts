@@ -10,7 +10,7 @@ import { haversineMeters } from "./geo";
 
 const DEFAULT_ZONE_BOUNDS = [0, 120, 140, 160, 175, 1000];
 
-export function totals(points: TrackPoint[], strokeCount: number): Totals {
+export function totals(points: TrackPoint[], strokeCount: number, weightKg = 75): Totals {
   if (points.length < 2) return { ...emptyTotals(), strokeCount };
 
   let dist = 0;
@@ -36,6 +36,8 @@ export function totals(points: TrackPoint[], strokeCount: number): Totals {
   }
 
   const avgSpeed = durationSec > 0 ? dist / durationSec : 0;
+  // MET 5.0 = moderate paddling intensity
+  const calories = Math.round(5.0 * weightKg * (durationSec / 3600));
   return {
     distanceMeters: dist,
     durationSec,
@@ -45,7 +47,7 @@ export function totals(points: TrackPoint[], strokeCount: number): Totals {
     maxSpeedMps: maxSpeed,
     strokeCount,
     avgStrokeRate: durationSec > 0 ? (strokeCount * 60) / durationSec : 0,
-    calories: 0,
+    calories,
     elevationGainM: elevGain,
   };
 }

@@ -61,6 +61,14 @@ export async function getUserSession(
   return { ...snap.data(), id: snap.id } as DashboardSession;
 }
 
+/** Delete a session and its public copy from Firestore. */
+export async function deleteUserSession(uid: string, session: DashboardSession): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "sessions", session.id));
+  if (session.isPublic) {
+    await deleteDoc(doc(db, "publicSessions", session.id)).catch(() => undefined);
+  }
+}
+
 /**
  * Toggle a session's public visibility. Mirrors the logic in the mobile
  * sync.ts: writes/removes the denormalized publicSessions/{id} copy.

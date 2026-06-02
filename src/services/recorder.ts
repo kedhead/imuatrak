@@ -17,6 +17,7 @@ import {
 import * as aggregator from "./aggregator";
 import { httpsCallable } from "firebase/functions";
 import { auth, functions } from "./firebase";
+import { useSettings } from "./settings";
 import { downsample } from "./geo";
 import * as health from "./health";
 import * as location from "./location";
@@ -125,7 +126,8 @@ export const useRecorder = create<RecorderState>((set, get) => ({
     cleanup();
     set({ isRecording: false });
 
-    const totals = aggregator.totals(track, strokeCount);
+    const weightKg = useSettings.getState().weightKg;
+    const totals = aggregator.totals(track, strokeCount, weightKg);
     const splits = aggregator.splits(track);
     const hr = aggregator.hrSummary(track);
     const summary = downsample(track, 200).map((p) => ({

@@ -1,6 +1,6 @@
 import * as Clipboard from "expo-clipboard";
 import * as Sharing from "expo-sharing";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -16,7 +16,7 @@ import { formatDate, formatTime, formatDistance, formatPaceStr, formatDuration }
 import { colors, craftColor, radii, shadow, spacing, type } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
 import { useSettings } from "@/services/settings";
-import { setSessionPublic } from "@/services/sync";
+import { deleteSession, setSessionPublic } from "@/services/sync";
 import { emptyTotals, emptyHr } from "@/models";
 
 const PUBLIC_BASE_URL = "https://imuatrak.app";
@@ -95,6 +95,28 @@ export default function SessionDetail() {
     const url = `${PUBLIC_BASE_URL}/s/${s.id}`;
     await Clipboard.setStringAsync(url);
     Alert.alert("Link copied", url);
+  };
+
+  const onDelete = () => {
+    Alert.alert(
+      "Delete session?",
+      "This will permanently remove the session from your device and the cloud. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteSession(s);
+              router.back();
+            } catch (e) {
+              Alert.alert("Error", e instanceof Error ? e.message : "Could not delete session.");
+            }
+          },
+        },
+      ],
+    );
   };
 
   const start = coords[0];
@@ -251,6 +273,7 @@ export default function SessionDetail() {
         </Animated.View>
 
         <Button title="Export GPX" gradient="aqua" onPress={onShare} />
+        <Button title="Delete session" variant="danger" onPress={onDelete} />
       </ScrollView>
     </>
   );

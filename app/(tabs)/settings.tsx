@@ -21,8 +21,11 @@ export default function Settings() {
   const [savingName, setSavingName] = useState(false);
   const units = useSettings((s) => s.units);
   const defaultCraft = useSettings((s) => s.defaultCraft);
+  const weightKg = useSettings((s) => s.weightKg);
   const setUnits = useSettings((s) => s.setUnits);
   const setDefaultCraft = useSettings((s) => s.setDefaultCraft);
+  const setWeightKg = useSettings((s) => s.setWeightKg);
+  const [weightInput, setWeightInput] = useState(String(weightKg));
   const club = useClub((s) => s.club);
   const role = useClub((s) => s.role);
   const loaded = useClub((s) => s.loaded);
@@ -180,6 +183,35 @@ export default function Settings() {
               />
             ))}
           </View>
+        </Section>
+
+        <Section title="Physical">
+          <GradientCard>
+            <Text style={styles.label}>BODY WEIGHT</Text>
+            <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs, marginBottom: spacing.sm }]}>
+              Used to estimate calorie burn (kg)
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              <TextInput
+                style={[styles.nameInput, { flex: 1 }]}
+                value={weightInput}
+                onChangeText={setWeightInput}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  const n = parseFloat(weightInput);
+                  if (!isNaN(n) && n > 0 && n < 300) void setWeightKg(n);
+                  else setWeightInput(String(weightKg));
+                }}
+                onBlur={() => {
+                  const n = parseFloat(weightInput);
+                  if (!isNaN(n) && n > 0 && n < 300) void setWeightKg(n);
+                  else setWeightInput(String(weightKg));
+                }}
+              />
+              <Text style={[styles.body, { color: colors.muted }]}>kg</Text>
+            </View>
+          </GradientCard>
         </Section>
       </ScrollView>
     </ScreenBackground>

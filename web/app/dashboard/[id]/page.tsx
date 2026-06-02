@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { getUserSession, setSessionPublic } from "@/lib/firebase";
+import { deleteUserSession, getUserSession, setSessionPublic } from "@/lib/firebase";
 import {
   formatDate,
   formatTime,
@@ -29,6 +29,7 @@ export default function DashboardSessionPage() {
   const [fetching, setFetching] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -62,6 +63,19 @@ export default function DashboardSessionPage() {
     setTimeout(() => setCopied(false), 2200);
   };
 
+  const handleDelete = async () => {
+    if (!user || !session || deleting) return;
+    if (!confirm("Delete this session permanently? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      await deleteUserSession(user.uid, session);
+      router.replace("/dashboard");
+    } catch {
+      setDeleting(false);
+      alert("Failed to delete session. Please try again.");
+    }
+  };
+
   if (loading || !user) return null;
 
   if (fetching) {
@@ -89,13 +103,23 @@ export default function DashboardSessionPage() {
 
   return (
     <main className="container">
-      {/* Back link */}
-      <Link
-        href="/dashboard"
-        style={{ color: "var(--muted)", fontSize: 14, textDecoration: "none", display: "inline-block", marginBottom: 20 }}
-      >
-        ← My Sessions
-      </Link>
+      {/* Back link + delete */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <Link href="/dashboard" style={{ color: "var(--muted)", fontSize: 14, textDecoration: "none" }}>
+          ← My Sessions
+        </Link>
+        <button
+          onClick={() => void handleDelete()}
+          disabled={deleting}
+          style={{
+            fontSize: 13, padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(239,68,68,0.4)",
+            background: "rgba(239,68,68,0.08)", color: "#ef4444", cursor: deleting ? "default" : "pointer",
+            opacity: deleting ? 0.6 : 1, fontWeight: 600,
+          }}
+        >
+          {deleting ? "Deleting…" : "Delete session"}
+        </button>
+      </div>
 
       {/* Title row */}
       <div

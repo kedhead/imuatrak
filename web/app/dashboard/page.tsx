@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { getUserSessions, setSessionPublic } from "@/lib/firebase";
 import { formatDate, formatTime, formatDuration, formatKm, formatPace } from "@/lib/format";
 import type { DashboardSession } from "@/lib/types";
 
 const BASE_URL = "https://imuatrak.app";
+const CRAFT_TYPES = ["OC1", "OC2", "OC6", "V1", "SUP", "SURFSKI", "OTHER"] as const;
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -17,6 +18,7 @@ export default function DashboardPage() {
   const [fetching, setFetching] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [craftFilter, setCraftFilter] = useState<string>("All");
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -57,16 +59,42 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const filtered = useMemo(
+    () => craftFilter === "All" ? sessions : sessions.filter((s) => s.craftType === craftFilter),
+    [sessions, craftFilter],
+  );
+
   if (loading || !user) return null;
 
   return (
     <main className="container">
-      <div style={{ marginBottom: 32 }}>
+      <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 4px" }}>My Sessions</h1>
         <p style={{ color: "var(--muted)", margin: 0 }}>
           {user.displayName ?? user.email}
         </p>
       </div>
+
+      {/* Craft type filter */}
+      {sessions.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+          {["All", ...CRAFT_TYPES].map((c) => (
+            <button
+              key={c}
+              onClick={() => setCraftFilter(c)}
+              style={{
+                fontSize: 13, padding: "5px 14px", borderRadius: 20,
+                border: "1px solid var(--line)",
+                background: craftFilter === c ? "var(--ink)" : "transparent",
+                color: craftFilter === c ? "var(--bg)" : "var(--muted)",
+                cursor: "pointer", fontWeight: 600,
+              }}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
 
       {fetching ? (
         <div style={{ color: "var(--muted)", padding: "48px 0", textAlign: "center" }}>
@@ -84,9 +112,13 @@ export default function DashboardPage() {
             Record your first paddle in the ImuaTrak app and it will appear here.
           </p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="card" style={{ textAlign: "center", padding: "40px 24px", color: "var(--muted)" }}>
+          No {craftFilter} sessions found.
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {sessions.map((s) => (
+          {filtered.map((s) => (
             <SessionRow
               key={s.id}
               session={s}
