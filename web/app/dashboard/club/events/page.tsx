@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { getUserClub, getClubEvents, createClubEvent, bulkCreateClubEvents, deleteClubEvent } from "@/lib/firebase";
-import type { ClubEvent, EventType, MemberRole } from "@/lib/clubTypes";
+import { getUserClub, getClubEvents, createClubEvent, bulkCreateClubEvents, deleteClubEvent, rsvpClubEvent } from "@/lib/firebase";
+import type { ClubEvent, EventType, MemberRole, RsvpStatus } from "@/lib/clubTypes";
 
 const TYPE_COLOR: Record<EventType, string> = {
   practice: "var(--blue-bright)",
@@ -45,6 +45,22 @@ export default function EventsPage() {
     if (!clubId || !confirm(`Delete "${title}"?`)) return;
     await deleteClubEvent(clubId, id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  const handleRsvp = async (eventId: string, status: RsvpStatus) => {
+    if (!clubId || !user) return;
+    const current = events.find((e) => e.id === eventId)?.rsvps.find((r) => r.uid === user.uid)?.status;
+    const next = current === status ? null : status;
+    // Optimistic update
+    setEvents((prev) =>
+      prev.map((e) => {
+        if (e.id !== eventId) return e;
+        const rsvps = e.rsvps.filter((r) => r.uid !== user.uid);
+        if (next !== null) rsvps.push({ uid: user.uid, status: next });
+        return { ...e, rsvps };
+      }),
+    );
+    await rsvpClubEvent(clubId, eventId, user.uid, next);
   };
 
   if (loading) return <div className="container"><p style={{ color: "var(--muted)" }}>Loading…</p></div>;
@@ -88,10 +104,10 @@ export default function EventsPage() {
       {tab === "list" && (
         <>
           {upcoming.length > 0 && (
-            <EventSection title="Upcoming" events={upcoming} canManage={canManage} onDelete={handleDelete} />
+            <EventSection title="Upcoming" events={upcoming} canManage={canManage} onDelete={handleDelete} uid={user?.uid} onRsvp={handleRsvp} />
           )}
           {past.length > 0 && (
-            <EventSection title="Past" events={past} canManage={canManage} onDelete={handleDelete} muted />
+            <EventSection title="Past" events={past} canManage={canManage} onDelete={handleDelete} muted uid={user?.uid} onRsvp={handleRsvp} />
           )}
           {events.length === 0 && (
             <div className="card" style={{ textAlign: "center", padding: 56, color: "var(--muted)" }}>
@@ -108,7 +124,19 @@ export default function EventsPage() {
 
 // ─── Event list section ───────────────────────────────────────────────────────
 
-function EventSection({ title, events, canManage, onDelete, muted }: { title: string; events: ClubEvent[]; canManage: boolean; onDelete: (id: string, title: string) => void; muted?: boolean }) {
+const RSVP_OPTIONS: { status: RsvpStatus; label: string; color: string }[] = [
+  { status: "going", label: "Going", color: "#16a34a" },
+  { status: "maybe", label: "Maybe", color: "#ca8a04" },
+  { status: "not_going", label: "Can't go", color: "#dc2626" },
+];
+
+function EventSection({
+  title, events, canManage, onDelete, muted, uid, onRsvp,
+}: {
+  title: string; events: ClubEvent[]; canManage: boolean;
+  onDelete: (id: string, title: string) => void; muted?: boolean;
+  uid?: string; onRsvp: (eventId: string, status: RsvpStatus) => void;
+}) {
   return (
     <section style={{ marginBottom: 32 }}>
       <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--muted)", margin: "0 0 10px" }}>{title}</h2>
@@ -116,6 +144,7 @@ function EventSection({ title, events, canManage, onDelete, muted }: { title: st
         {events.map((e) => {
           const start = new Date(e.startAt);
           const goingCount = e.rsvps.filter((r) => r.status === "going").length;
+          const myRsvp = uid ? e.rsvps.find((r) => r.uid === uid)?.status : undefined;
           return (
             <div key={e.id} className="card" style={{ opacity: muted ? 0.7 : 1, display: "grid", gridTemplateColumns: "4px 1fr auto", gap: 0, padding: 0, overflow: "hidden" }}>
               <div style={{ background: TYPE_COLOR[e.type] }} />
@@ -124,7 +153,7 @@ function EventSection({ title, events, canManage, onDelete, muted }: { title: st
                   <span style={{ background: TYPE_COLOR[e.type], color: "#fff", fontSize: 10, fontWeight: 800, letterSpacing: 1, borderRadius: 4, padding: "2px 7px", textTransform: "uppercase" }}>{e.type}</span>
                   <span style={{ fontWeight: 700, fontSize: 15 }}>{e.title}</span>
                 </div>
-                <div style={{ fontSize: 13, color: "var(--muted)", display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 13, color: "var(--muted)", display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
                   <span>
                     {start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                     {" · "}
@@ -133,6 +162,28 @@ function EventSection({ title, events, canManage, onDelete, muted }: { title: st
                   {e.location?.name && <span>📍 {e.location.name}</span>}
                   {goingCount > 0 && <span>✓ {goingCount} going</span>}
                 </div>
+                {/* RSVP buttons */}
+                {uid && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {RSVP_OPTIONS.map(({ status, label, color }) => {
+                      const active = myRsvp === status;
+                      return (
+                        <button
+                          key={status}
+                          onClick={() => onRsvp(e.id, status)}
+                          style={{
+                            fontSize: 12, padding: "4px 12px", borderRadius: 20, cursor: "pointer", fontWeight: 600,
+                            border: `1px solid ${active ? color : "var(--line)"}`,
+                            background: active ? `${color}22` : "transparent",
+                            color: active ? color : "var(--muted)",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               {canManage && (
                 <div style={{ display: "flex", alignItems: "center", padding: "0 16px" }}>

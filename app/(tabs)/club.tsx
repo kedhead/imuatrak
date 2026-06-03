@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
-import { getPosts, createPost, getUpcomingEvents } from "@/services/clubService";
+import { getPosts, createPost, getUpcomingEvents, toggleLike } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
 import type { ClubPost, ClubEvent } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
@@ -84,6 +84,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const club = useClub((s) => s.club);
   const router = useRouter();
   const role = useClub((s) => s.role);
+  const user = currentUser();
   const [posts, setPosts] = useState<ClubPost[]>([]);
   const [events, setEvents] = useState<ClubEvent[]>([]);
   const [postText, setPostText] = useState("");
@@ -221,7 +222,23 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             </View>
           </>
         }
-        renderItem={({ item, index }) => <PostCard post={item} index={index} />}
+        renderItem={({ item, index }) => (
+          <PostCard
+            post={item}
+            index={index}
+            clubId={clubId}
+            currentUserId={user?.uid}
+            onLikeChange={(id, delta, liked) =>
+              setPosts((prev) =>
+                prev.map((p) =>
+                  p.id === id
+                    ? { ...p, likeCount: p.likeCount + delta, likedBy: liked ? [...(p.likedBy ?? []), user!.uid] : (p.likedBy ?? []).filter((u) => u !== user!.uid) }
+                    : p,
+                ),
+              )
+            }
+          />
+        )}
         ListEmptyComponent={
           <Text style={styles.emptyFeed}>No posts yet. Be the first to share something!</Text>
         }
@@ -250,10 +267,36 @@ function EventCard({ event, onPress }: { event: ClubEvent; onPress: () => void }
 
 // ── Post card ────────────────────────────────────────────────────────────────
 
-function PostCard({ post, index }: { post: ClubPost; index: number }) {
+function PostCard({
+  post,
+  index,
+  clubId,
+  currentUserId,
+  onLikeChange,
+}: {
+  post: ClubPost;
+  index: number;
+  clubId: string;
+  currentUserId?: string;
+  onLikeChange: (id: string, delta: number, liked: boolean) => void;
+}) {
   const date = new Date(post.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const isPinned = post.type === "announcement";
   const initial = (post.authorName?.[0] ?? "?").toUpperCase();
+  const liked = currentUserId ? (post.likedBy ?? []).includes(currentUserId) : false;
+  const [liking, setLiking] = useState(false);
+
+  const handleLike = async () => {
+    if (!currentUserId || liking) return;
+    setLiking(true);
+    try {
+      const result = await toggleLike(clubId, post.id, currentUserId);
+      onLikeChange(post.id, result.liked ? 1 : -1, result.liked);
+    } finally {
+      setLiking(false);
+    }
+  };
+
   return (
     <Animated.View entering={FadeInDown.delay(index * 60).duration(400)} style={styles.postWrap}>
       <GradientCard>
@@ -275,11 +318,19 @@ function PostCard({ post, index }: { post: ClubPost; index: number }) {
           </View>
         </View>
         <Text style={styles.postContent}>{post.content}</Text>
-        {post.commentCount > 0 && (
-          <Text style={styles.postComments}>
-            {post.commentCount} comment{post.commentCount !== 1 ? "s" : ""}
-          </Text>
-        )}
+        <View style={styles.postActions}>
+          <AnimatedPressable onPress={handleLike} disabled={!currentUserId || liking} style={styles.likeBtn} haptic>
+            <Ionicons name={liked ? "heart" : "heart-outline"} size={18} color={liked ? colors.coral : colors.muted} />
+            {post.likeCount > 0 && (
+              <Text style={[styles.likeCount, liked && { color: colors.coral }]}>{post.likeCount}</Text>
+            )}
+          </AnimatedPressable>
+          {post.commentCount > 0 && (
+            <Text style={styles.postComments}>
+              {post.commentCount} comment{post.commentCount !== 1 ? "s" : ""}
+            </Text>
+          )}
+        </View>
       </GradientCard>
     </Animated.View>
   );
@@ -317,6 +368,9 @@ const styles = StyleSheet.create({
   postAuthor: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.ink },
   postDate: { fontSize: type.size.xs, color: colors.muted },
   postContent: { fontSize: type.size.md, color: colors.inkSoft, lineHeight: 22 },
-  postComments: { fontSize: type.size.xs, color: colors.muted, marginTop: spacing.sm },
+  postActions: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.sm },
+  likeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingRight: spacing.sm },
+  likeCount: { fontSize: type.size.sm, color: colors.muted, fontWeight: type.weight.bold },
+  postComments: { fontSize: type.size.xs, color: colors.muted },
   emptyFeed: { textAlign: "center", color: colors.muted, marginTop: spacing.xl, paddingHorizontal: spacing.xl },
 });

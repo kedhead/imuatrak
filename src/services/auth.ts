@@ -1,6 +1,8 @@
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import {
+  GoogleAuthProvider,
+  signInWithCredential,
   signInWithCustomToken,
   signOut as fbSignOut,
   onAuthStateChanged,
@@ -67,12 +69,14 @@ export async function signInWithApple(): Promise<AuthUser> {
 }
 
 /**
- * Google sign-in is wired up via expo-auth-session in a follow-up — for
- * Android-first development the placeholder stays here so the UI can show
- * the right button label without crashing.
+ * Sign in with a Google access token obtained from expo-auth-session.
+ * The caller (onboarding screen) handles the OAuth prompt; this function
+ * exchanges the token for a Firebase credential.
  */
-export async function signInWithGoogle(): Promise<AuthUser> {
-  throw new Error("Google sign-in is not wired up yet (Phase 1.5)");
+export async function signInWithGoogleAccessToken(accessToken: string): Promise<AuthUser> {
+  const credential = GoogleAuthProvider.credential(null, accessToken);
+  const { user } = await signInWithCredential(auth, credential);
+  return user;
 }
 
 export async function updateDisplayName(name: string): Promise<void> {

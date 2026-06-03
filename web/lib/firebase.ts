@@ -19,7 +19,7 @@ import {
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { DashboardSession, PublicSession } from "./types";
-import type { Club, ClubMember, ClubEvent, ClubPost, MemberRole, EventType, PostType } from "./clubTypes";
+import type { Club, ClubMember, ClubEvent, ClubPost, MemberRole, EventType, PostType, RsvpStatus } from "./clubTypes";
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -112,6 +112,25 @@ export async function getUserClub(uid: string): Promise<{ club: Club; role: Memb
 export async function getClubMembers(clubId: string): Promise<ClubMember[]> {
   const snap = await getDocs(collection(db, "clubs", clubId, "members"));
   return snap.docs.map((d) => d.data() as ClubMember);
+}
+
+/**
+ * Set or remove a user's RSVP on a club event.
+ * Pass status=null to remove the RSVP entirely.
+ */
+export async function rsvpClubEvent(
+  clubId: string,
+  eventId: string,
+  uid: string,
+  status: RsvpStatus | null,
+): Promise<void> {
+  const ref = doc(db, "clubs", clubId, "events", eventId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data() as { rsvps?: { uid: string; status: RsvpStatus }[] };
+  const rsvps = (data.rsvps ?? []).filter((r) => r.uid !== uid);
+  if (status !== null) rsvps.push({ uid, status });
+  await updateDoc(ref, { rsvps });
 }
 
 export async function getClubEvents(clubId: string): Promise<ClubEvent[]> {

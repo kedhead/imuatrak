@@ -80,6 +80,7 @@ export interface ClubPost {
   pinnedUntil?: string;
   linkedSessionId?: string;
   likeCount: number;
+  likedBy?: string[];
   commentCount: number;
   createdAt: string;
   updatedAt: string;

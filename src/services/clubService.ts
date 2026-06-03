@@ -12,6 +12,7 @@ import {
   orderBy,
   limit,
   arrayUnion,
+  arrayRemove,
   increment,
   writeBatch,
   Timestamp,
@@ -409,6 +410,23 @@ export async function createPost(
 
 export async function deletePost(clubId: string, postId: string): Promise<void> {
   await deleteDoc(doc(db, "clubs", clubId, "posts", postId));
+}
+
+export async function toggleLike(
+  clubId: string,
+  postId: string,
+  uid: string,
+): Promise<{ liked: boolean }> {
+  const ref = doc(db, "clubs", clubId, "posts", postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { liked: false };
+  const data = snap.data() as { likedBy?: string[] };
+  const alreadyLiked = (data.likedBy ?? []).includes(uid);
+  await updateDoc(ref, {
+    likedBy: alreadyLiked ? arrayRemove(uid) : arrayUnion(uid),
+    likeCount: increment(alreadyLiked ? -1 : 1),
+  });
+  return { liked: !alreadyLiked };
 }
 
 export async function getComments(clubId: string, postId: string): Promise<ClubComment[]> {

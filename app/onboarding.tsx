@@ -1,4 +1,5 @@
 import * as AppleAuthentication from "expo-apple-authentication";
+import * as Google from "expo-auth-session/providers/google";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Platform, StyleSheet, Text, View } from "react-native";
@@ -13,7 +14,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { appleSignInAvailable, signInWithApple } from "@/services/auth";
+import { appleSignInAvailable, signInWithApple, signInWithGoogleAccessToken } from "@/services/auth";
 import { Button } from "@/ui/Button";
 import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
@@ -21,7 +22,16 @@ import { colors, spacing, type } from "@/ui/theme";
 
 export default function Onboarding() {
   const [appleAvailable, setAppleAvailable] = useState(false);
+  const [signingInGoogle, setSigningInGoogle] = useState(false);
   const insets = useSafeAreaInsets();
+
+  // Google OAuth — client IDs come from env vars set in .env / EAS secrets:
+  //   EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID     (iOS OAuth 2.0 client from Google Cloud)
+  //   EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID (Android OAuth 2.0 client)
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+  });
 
   const bob = useSharedValue(0);
   useEffect(() => {
@@ -32,6 +42,17 @@ export default function Onboarding() {
       true,
     );
   }, [bob]);
+
+  useEffect(() => {
+    if (response?.type !== "success") return;
+    const accessToken = response.authentication?.accessToken;
+    if (!accessToken) { Alert.alert("Sign-in failed", "No access token returned by Google."); return; }
+    setSigningInGoogle(true);
+    signInWithGoogleAccessToken(accessToken)
+      .then(() => router.replace("/(tabs)"))
+      .catch((e) => Alert.alert("Sign-in failed", e instanceof Error ? e.message : String(e)))
+      .finally(() => setSigningInGoogle(false));
+  }, [response]);
 
   const logoStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bob.value }] }));
 
@@ -44,6 +65,17 @@ export default function Onboarding() {
       Alert.alert("Sign-in failed", msg);
     }
   };
+
+  const handleGoogle = async () => {
+    if (!request) {
+      Alert.alert("Not configured", "Google Sign-In requires client IDs in your environment variables.");
+      return;
+    }
+    await promptAsync();
+  };
+
+  // Show Google on Android always; on iOS only when Apple Sign-In isn't available
+  const showGoogle = Platform.OS === "android" || !appleAvailable;
 
   return (
     <ScreenBackground gradient="night">
@@ -70,11 +102,12 @@ export default function Onboarding() {
               onPress={handleApple}
             />
           )}
-          {Platform.OS === "android" && (
+          {showGoogle && (
             <Button
-              title="Continue with Google (coming soon)"
+              title={signingInGoogle ? "Signing in…" : "Continue with Google"}
               variant="outline"
-              onPress={() => Alert.alert("Coming soon", "Google sign-in lands in Phase 1.5.")}
+              onPress={handleGoogle}
+              disabled={signingInGoogle}
               style={styles.googleBtn}
             />
           )}
