@@ -15,6 +15,16 @@ import { Pill } from "@/ui/Pill";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
+const KG_TO_LBS = 2.20462;
+const KM_TO_MI = 0.621371;
+
+function kgDisplay(kg: number, imperial: boolean) {
+  return imperial ? String(Math.round(kg * KG_TO_LBS * 10) / 10) : String(kg);
+}
+function kmDisplay(km: number, imperial: boolean) {
+  return km > 0 ? String(Math.round(km * (imperial ? KM_TO_MI : 1) * 10) / 10) : "";
+}
+
 export default function Settings() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -29,13 +39,18 @@ export default function Settings() {
   const setWeightKg = useSettings((s) => s.setWeightKg);
   const setWeeklyGoalDistanceKm = useSettings((s) => s.setWeeklyGoalDistanceKm);
   const setWeeklyGoalDurationMin = useSettings((s) => s.setWeeklyGoalDurationMin);
-  const [weightInput, setWeightInput] = useState(String(weightKg));
-  const [goalDistInput, setGoalDistInput] = useState(
-    weeklyGoalDistanceKm > 0 ? String(weeklyGoalDistanceKm) : "",
-  );
+  const imperial = units === "imperial";
+  const [weightInput, setWeightInput] = useState(() => kgDisplay(weightKg, imperial));
+  const [goalDistInput, setGoalDistInput] = useState(() => kmDisplay(weeklyGoalDistanceKm, imperial));
   const [goalDurInput, setGoalDurInput] = useState(
     weeklyGoalDurationMin > 0 ? String(weeklyGoalDurationMin) : "",
   );
+
+  // Re-sync display inputs when the unit preference changes
+  useEffect(() => {
+    setWeightInput(kgDisplay(weightKg, units === "imperial"));
+    setGoalDistInput(kmDisplay(weeklyGoalDistanceKm, units === "imperial"));
+  }, [units, weightKg, weeklyGoalDistanceKm]);
   const club = useClub((s) => s.club);
   const role = useClub((s) => s.role);
   const loaded = useClub((s) => s.loaded);
@@ -199,7 +214,7 @@ export default function Settings() {
           <GradientCard>
             <Text style={styles.label}>BODY WEIGHT</Text>
             <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs, marginBottom: spacing.sm }]}>
-              Used to estimate calorie burn (kg)
+              Used to estimate calorie burn ({imperial ? "lbs" : "kg"})
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
               <TextInput
@@ -210,16 +225,18 @@ export default function Settings() {
                 returnKeyType="done"
                 onSubmitEditing={() => {
                   const n = parseFloat(weightInput);
-                  if (!isNaN(n) && n > 0 && n < 300) void setWeightKg(n);
-                  else setWeightInput(String(weightKg));
+                  const kg = imperial ? n / KG_TO_LBS : n;
+                  if (!isNaN(kg) && kg > 0 && kg < 300) void setWeightKg(kg);
+                  else setWeightInput(kgDisplay(weightKg, imperial));
                 }}
                 onBlur={() => {
                   const n = parseFloat(weightInput);
-                  if (!isNaN(n) && n > 0 && n < 300) void setWeightKg(n);
-                  else setWeightInput(String(weightKg));
+                  const kg = imperial ? n / KG_TO_LBS : n;
+                  if (!isNaN(kg) && kg > 0 && kg < 300) void setWeightKg(kg);
+                  else setWeightInput(kgDisplay(weightKg, imperial));
                 }}
               />
-              <Text style={[styles.body, { color: colors.muted }]}>kg</Text>
+              <Text style={[styles.body, { color: colors.muted }]}>{imperial ? "lbs" : "kg"}</Text>
             </View>
           </GradientCard>
         </Section>
@@ -237,20 +254,22 @@ export default function Settings() {
                 onChangeText={setGoalDistInput}
                 keyboardType="decimal-pad"
                 returnKeyType="done"
-                placeholder="e.g. 50"
+                placeholder={imperial ? "e.g. 30" : "e.g. 50"}
                 placeholderTextColor={colors.muted}
                 onSubmitEditing={() => {
                   const n = parseFloat(goalDistInput);
-                  void setWeeklyGoalDistanceKm(!isNaN(n) && n > 0 ? n : 0);
+                  const km = imperial ? n / KM_TO_MI : n;
+                  void setWeeklyGoalDistanceKm(!isNaN(km) && km > 0 ? km : 0);
                   if (isNaN(n) || n <= 0) setGoalDistInput("");
                 }}
                 onBlur={() => {
                   const n = parseFloat(goalDistInput);
-                  void setWeeklyGoalDistanceKm(!isNaN(n) && n > 0 ? n : 0);
+                  const km = imperial ? n / KM_TO_MI : n;
+                  void setWeeklyGoalDistanceKm(!isNaN(km) && km > 0 ? km : 0);
                   if (isNaN(n) || n <= 0) setGoalDistInput("");
                 }}
               />
-              <Text style={[styles.body, { color: colors.muted }]}>km / week</Text>
+              <Text style={[styles.body, { color: colors.muted }]}>{imperial ? "mi" : "km"} / week</Text>
             </View>
             <Text style={styles.label}>TIME</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
