@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { deleteField } from "firebase/firestore";
 import { currentUser } from "@/services/auth";
 import {
   getEvent,
@@ -434,35 +435,39 @@ function EventForm({
     try {
       const startAt = startDate.toISOString();
       const endAt = new Date(startDate.getTime() + 2 * 60 * 60 * 1000).toISOString();
-      const maxParticipants = maxStr.trim() ? parseInt(maxStr, 10) : undefined;
-      const boatAssignments: BoatAssignment[] =
-        numBoats > 0
-          ? Array.from({ length: numBoats }, (_, i) => ({
-              boatName:
-                initialEvent?.boatAssignments?.[i]?.boatName ?? `Boat ${i + 1}`,
-              seats: Array.from({ length: seatsPerBoat }, (_, j) => ({
-                seatNumber: j + 1,
-                uid: initialEvent?.boatAssignments?.[i]?.seats[j]?.uid ?? null,
-              })),
-            }))
-          : (undefined as unknown as BoatAssignment[]);
-
-      const payload = {
-        title: title.trim(),
-        type: eventType,
-        description: description.trim() || undefined,
-        startAt,
-        endAt,
-        location: locationName.trim() ? { name: locationName.trim() } : undefined,
-        meetTime: meetTime.trim() || undefined,
-        maxParticipants,
-        boatAssignments: numBoats > 0 ? boatAssignments : undefined,
-      };
+      const boatAssignments: BoatAssignment[] = Array.from({ length: numBoats }, (_, i) => ({
+        boatName: initialEvent?.boatAssignments?.[i]?.boatName ?? `Boat ${i + 1}`,
+        seats: Array.from({ length: seatsPerBoat }, (_, j) => ({
+          seatNumber: j + 1,
+          uid: initialEvent?.boatAssignments?.[i]?.seats[j]?.uid ?? null,
+        })),
+      }));
 
       if (mode === "edit" && initialEvent) {
-        await updateEvent(clubId, initialEvent.id, payload);
+        // updateDoc rejects undefined — use deleteField() to clear optional fields
+        await updateEvent(clubId, initialEvent.id, {
+          title: title.trim(),
+          type: eventType,
+          startAt,
+          endAt,
+          description: description.trim() || (deleteField() as unknown as string),
+          location: locationName.trim() ? { name: locationName.trim() } : (deleteField() as unknown as { name: string }),
+          meetTime: meetTime.trim() || (deleteField() as unknown as string),
+          maxParticipants: maxStr.trim() ? parseInt(maxStr, 10) : (deleteField() as unknown as number),
+          boatAssignments: numBoats > 0 ? boatAssignments : (deleteField() as unknown as BoatAssignment[]),
+        });
       } else {
-        await createEvent(clubId, me.uid, payload);
+        await createEvent(clubId, me.uid, {
+          title: title.trim(),
+          type: eventType,
+          description: description.trim() || undefined,
+          startAt,
+          endAt,
+          location: locationName.trim() ? { name: locationName.trim() } : undefined,
+          meetTime: meetTime.trim() || undefined,
+          maxParticipants: maxStr.trim() ? parseInt(maxStr, 10) : undefined,
+          boatAssignments: numBoats > 0 ? boatAssignments : undefined,
+        });
       }
       onDone();
     } catch {
