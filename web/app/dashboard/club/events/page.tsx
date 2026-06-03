@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { getUserClub, getClubEvents, createClubEvent, bulkCreateClubEvents, deleteClubEvent, rsvpClubEvent } from "@/lib/firebase";
+import { getUserClub, getClubEvents, createClubEvent, updateClubEvent, bulkCreateClubEvents, deleteClubEvent, rsvpClubEvent } from "@/lib/firebase";
 import type { ClubEvent, EventType, MemberRole, RsvpStatus } from "@/lib/clubTypes";
 
 const TYPE_COLOR: Record<EventType, string> = {
@@ -23,6 +23,7 @@ export default function EventsPage() {
   const [myRole, setMyRole] = useState<MemberRole | null>(null);
   const [events, setEvents] = useState<ClubEvent[]>([]);
   const [tab, setTab] = useState<"list" | "single" | "bulk">("list");
+  const [editingEvent, setEditingEvent] = useState<ClubEvent | null>(null);
 
   const canManage = myRole === "owner" || myRole === "admin" || myRole === "coach";
   const now = new Date().toISOString();
@@ -99,15 +100,26 @@ export default function EventsPage() {
           onCancel={() => setTab("list")}
         />
       )}
+      {editingEvent && clubId && (
+        <EditEventForm
+          clubId={clubId}
+          event={editingEvent}
+          onSaved={(updated) => {
+            setEvents((prev) => prev.map((e) => e.id === updated.id ? updated : e));
+            setEditingEvent(null);
+          }}
+          onCancel={() => setEditingEvent(null)}
+        />
+      )}
 
       {/* Event list */}
       {tab === "list" && (
         <>
           {upcoming.length > 0 && (
-            <EventSection title="Upcoming" events={upcoming} canManage={canManage} onDelete={handleDelete} uid={user?.uid} onRsvp={handleRsvp} />
+            <EventSection title="Upcoming" events={upcoming} canManage={canManage} onDelete={handleDelete} onEdit={setEditingEvent} uid={user?.uid} onRsvp={handleRsvp} />
           )}
           {past.length > 0 && (
-            <EventSection title="Past" events={past} canManage={canManage} onDelete={handleDelete} muted uid={user?.uid} onRsvp={handleRsvp} />
+            <EventSection title="Past" events={past} canManage={canManage} onDelete={handleDelete} onEdit={setEditingEvent} muted uid={user?.uid} onRsvp={handleRsvp} />
           )}
           {events.length === 0 && (
             <div className="card" style={{ textAlign: "center", padding: 56, color: "var(--muted)" }}>
@@ -131,10 +143,12 @@ const RSVP_OPTIONS: { status: RsvpStatus; label: string; color: string }[] = [
 ];
 
 function EventSection({
-  title, events, canManage, onDelete, muted, uid, onRsvp,
+  title, events, canManage, onDelete, onEdit, muted, uid, onRsvp,
 }: {
   title: string; events: ClubEvent[]; canManage: boolean;
-  onDelete: (id: string, title: string) => void; muted?: boolean;
+  onDelete: (id: string, title: string) => void;
+  onEdit: (event: ClubEvent) => void;
+  muted?: boolean;
   uid?: string; onRsvp: (eventId: string, status: RsvpStatus) => void;
 }) {
   return (
@@ -186,7 +200,13 @@ function EventSection({
                 )}
               </div>
               {canManage && (
-                <div style={{ display: "flex", alignItems: "center", padding: "0 16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 16px" }}>
+                  <button
+                    onClick={() => onEdit(e)}
+                    style={{ fontSize: 12, color: "var(--blue-bright)", background: "none", border: "1px solid var(--blue-bright)", borderRadius: 6, padding: "4px 10px", cursor: "pointer", whiteSpace: "nowrap" }}
+                  >
+                    Edit
+                  </button>
                   <button
                     onClick={() => onDelete(e.id, e.title)}
                     style={{ fontSize: 12, color: "#ef4444", background: "none", border: "1px solid #ef4444", borderRadius: 6, padding: "4px 10px", cursor: "pointer", whiteSpace: "nowrap" }}
@@ -431,6 +451,89 @@ function BulkScheduleForm({ clubId, uid, onCreated, onCancel }: { clubId: string
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Edit event form ──────────────────────────────────────────────────────────
+
+function EditEventForm({ clubId, event, onSaved, onCancel }: {
+  clubId: string; event: ClubEvent;
+  onSaved: (updated: ClubEvent) => void; onCancel: () => void;
+}) {
+  const [type, setType] = useState<EventType>(event.type);
+  const [title, setTitle] = useState(event.title);
+  const startD = new Date(event.startAt);
+  const [date, setDate] = useState(startD.toISOString().slice(0, 10));
+  const [time, setTime] = useState(startD.toTimeString().slice(0, 5));
+  const endD = new Date(event.endAt);
+  const durationMs = endD.getTime() - startD.getTime();
+  const [durationMin, setDurationMin] = useState(Math.round(durationMs / 60000));
+  const [location, setLocation] = useState(event.location?.name ?? "");
+  const [meetTime, setMeetTime] = useState(event.meetTime ?? "");
+  const [description, setDescription] = useState(event.description ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!title || !date || !time) return;
+    setSaving(true);
+    const startAt = new Date(`${date}T${time}`).toISOString();
+    const endAt = new Date(new Date(startAt).getTime() + durationMin * 60000).toISOString();
+    const updates = {
+      type, title,
+      startAt, endAt,
+      ...(description ? { description } : {}),
+      ...(location ? { location: { name: location } } : {}),
+      ...(meetTime ? { meetTime } : {}),
+    };
+    await updateClubEvent(clubId, event.id, updates);
+    setSaving(false);
+    onSaved({ ...event, ...updates });
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: 28, padding: "24px 28px", border: "2px solid var(--blue-bright)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Edit Event</h3>
+        <button onClick={onCancel} style={ghostBtn}>Cancel</button>
+      </div>
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
+        <FormRow label="Event type">
+          <div style={{ display: "flex", gap: 8 }}>
+            {(["practice", "race", "social"] as EventType[]).map((t) => (
+              <TypePill key={t} type={t} active={type === t} onClick={() => setType(t)} />
+            ))}
+          </div>
+        </FormRow>
+        <FormRow label="Title *">
+          <input required value={title} onChange={(e) => setTitle(e.target.value)} style={inp} />
+        </FormRow>
+        <FormRow label="Date & time *">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inp} />
+            <input required type="time" value={time} onChange={(e) => setTime(e.target.value)} style={inp} />
+            <select value={durationMin} onChange={(e) => setDurationMin(Number(e.target.value))} style={inp}>
+              {DURATIONS.map((d) => <option key={d} value={d}>{d >= 60 ? `${d / 60}h` : `${d}m`} duration</option>)}
+            </select>
+          </div>
+        </FormRow>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <FormRow label="Location">
+            <input value={location} onChange={(e) => setLocation(e.target.value)} style={inp} />
+          </FormRow>
+          <FormRow label="Meet time">
+            <input value={meetTime} onChange={(e) => setMeetTime(e.target.value)} style={inp} />
+          </FormRow>
+        </div>
+        <FormRow label="Description">
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ ...inp, resize: "vertical" }} />
+        </FormRow>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button type="button" onClick={onCancel} style={ghostBtn}>Cancel</button>
+          <button type="submit" disabled={saving} style={primaryBtn}>{saving ? "Saving…" : "Save changes"}</button>
+        </div>
+      </form>
     </div>
   );
 }

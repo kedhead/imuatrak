@@ -74,6 +74,7 @@ export interface WeatherSample {
 
 export interface WeatherSummary {
   start: WeatherSample;
+  end?: WeatherSample;
   samples: WeatherSample[];
 }
 

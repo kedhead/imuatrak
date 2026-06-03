@@ -55,6 +55,7 @@ export interface WeatherSample {
 
 export interface WeatherSummary {
   start: WeatherSample;
+  end?: WeatherSample;
   samples: WeatherSample[];
 }
 
@@ -76,4 +77,5 @@ export interface PublicSession {
 /** A session owned by the signed-in user — isPublic may be false or absent. */
 export interface DashboardSession extends Omit<PublicSession, "isPublic"> {
   isPublic?: boolean;
+  trackStoragePath?: string;
 }

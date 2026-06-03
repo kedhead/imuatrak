@@ -138,18 +138,30 @@ export const useRecorder = create<RecorderState>((set, get) => ({
       speedMps: p.speedMps,
     }));
 
-    // Best-effort weather fetch using the first GPS fix (5 s timeout).
+    // Best-effort weather fetch at both session start and end (parallel, 6 s timeout).
     let weather: WeatherSummary | undefined;
     if (track.length > 0 && auth.currentUser) {
       try {
         type WResp = { windMps: number; windDeg: number; gustMps: number; airTempC: number; pressureHpa: number; conditions: string };
         const fn = httpsCallable<{ lat: number; lon: number }, WResp>(functions, "fetchWeather");
-        const call = fn({ lat: track[0]!.lat, lon: track[0]!.lon });
-        const timedOut = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000));
-        const result = await Promise.race([call, timedOut]);
-        const w = result.data;
-        const sample: WeatherSample = { tSec: 0, windMps: w.windMps, windDeg: w.windDeg, gustMps: w.gustMps, airTempC: w.airTempC, pressureHpa: w.pressureHpa, conditions: w.conditions };
-        weather = { start: sample, samples: [sample] };
+        const deadline = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 6000));
+        const first = track[0]!;
+        const last = track[track.length - 1]!;
+        const startCall = fn({ lat: first.lat, lon: first.lon });
+        const endCall = last !== first ? fn({ lat: last.lat, lon: last.lon }) : startCall;
+        const [startRes, endRes] = await Promise.race([
+          Promise.allSettled([startCall, endCall]),
+          deadline,
+        ]);
+        const toSample = (w: WResp, tSec: number): WeatherSample => ({
+          tSec, windMps: w.windMps, windDeg: w.windDeg, gustMps: w.gustMps,
+          airTempC: w.airTempC, pressureHpa: w.pressureHpa, conditions: w.conditions,
+        });
+        if (startRes.status === "fulfilled") {
+          const startSample = toSample(startRes.value.data, 0);
+          const endSample = endRes.status === "fulfilled" ? toSample(endRes.value.data, last.t - first.t) : undefined;
+          weather = { start: startSample, end: endSample, samples: [startSample, ...(endSample ? [endSample] : [])] };
+        }
       } catch {
         // Weather is non-critical — continue without it.
       }

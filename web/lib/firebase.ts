@@ -61,6 +61,11 @@ export async function getUserSession(
   return { ...snap.data(), id: snap.id } as DashboardSession;
 }
 
+/** Get a time-limited download URL for a session's GPX file from Firebase Storage. */
+export async function getSessionGpxUrl(storagePath: string): Promise<string> {
+  return getDownloadURL(ref(storage, storagePath));
+}
+
 /** Delete a session and its public copy from Firestore. */
 export async function deleteUserSession(uid: string, session: DashboardSession): Promise<void> {
   await deleteDoc(doc(db, "users", uid, "sessions", session.id));
@@ -226,6 +231,14 @@ export async function createClubEvent(
     meetTime: opts.meetTime ?? "",
     createdBy: uid, rsvps: [], linkedSessionIds: [],
   });
+}
+
+export async function updateClubEvent(
+  clubId: string,
+  eventId: string,
+  updates: Partial<Pick<ClubEvent, "title" | "type" | "description" | "startAt" | "endAt" | "location" | "meetTime">>,
+): Promise<void> {
+  await updateDoc(doc(db, "clubs", clubId, "events", eventId), updates);
 }
 
 export async function deleteClubEvent(clubId: string, eventId: string): Promise<void> {

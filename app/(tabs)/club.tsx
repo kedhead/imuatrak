@@ -5,7 +5,10 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,9 +18,9 @@ import {
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
-import { getPosts, createPost, getUpcomingEvents, toggleLike } from "@/services/clubService";
+import { getPosts, createPost, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
-import type { ClubPost, ClubEvent } from "@/models/club";
+import type { ClubPost, ClubEvent, ClubComment } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
@@ -237,6 +240,11 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
                 ),
               )
             }
+            onCommentAdded={(id) =>
+              setPosts((prev) =>
+                prev.map((p) => p.id === id ? { ...p, commentCount: p.commentCount + 1 } : p),
+              )
+            }
           />
         )}
         ListEmptyComponent={
@@ -273,18 +281,21 @@ function PostCard({
   clubId,
   currentUserId,
   onLikeChange,
+  onCommentAdded,
 }: {
   post: ClubPost;
   index: number;
   clubId: string;
   currentUserId?: string;
   onLikeChange: (id: string, delta: number, liked: boolean) => void;
+  onCommentAdded: (id: string) => void;
 }) {
   const date = new Date(post.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const isPinned = post.type === "announcement";
   const initial = (post.authorName?.[0] ?? "?").toUpperCase();
   const liked = currentUserId ? (post.likedBy ?? []).includes(currentUserId) : false;
   const [liking, setLiking] = useState(false);
+  const [showComments, setShowComments] = useState(false);
 
   const handleLike = async () => {
     if (!currentUserId || liking) return;
@@ -325,14 +336,115 @@ function PostCard({
               <Text style={[styles.likeCount, liked && { color: colors.coral }]}>{post.likeCount}</Text>
             )}
           </AnimatedPressable>
-          {post.commentCount > 0 && (
-            <Text style={styles.postComments}>
-              {post.commentCount} comment{post.commentCount !== 1 ? "s" : ""}
-            </Text>
-          )}
+          <AnimatedPressable onPress={() => setShowComments(true)} style={styles.likeBtn} haptic>
+            <Ionicons name="chatbubble-outline" size={16} color={colors.muted} />
+            {post.commentCount > 0 && (
+              <Text style={styles.likeCount}>{post.commentCount}</Text>
+            )}
+          </AnimatedPressable>
         </View>
       </GradientCard>
+      {showComments && (
+        <CommentsSheet
+          clubId={clubId}
+          postId={post.id}
+          currentUserId={currentUserId}
+          onClose={() => setShowComments(false)}
+          onCommentAdded={() => onCommentAdded(post.id)}
+        />
+      )}
     </Animated.View>
+  );
+}
+
+// ── Comments sheet ────────────────────────────────────────────────────────────
+
+function CommentsSheet({
+  clubId,
+  postId,
+  currentUserId,
+  onClose,
+  onCommentAdded,
+}: {
+  clubId: string;
+  postId: string;
+  currentUserId?: string;
+  onClose: () => void;
+  onCommentAdded: () => void;
+}) {
+  const [comments, setComments] = useState<ClubComment[]>([]);
+  const [text, setText] = useState("");
+  const [posting, setPosting] = useState(false);
+
+  useEffect(() => {
+    void getComments(clubId, postId).then(setComments);
+  }, [clubId, postId]);
+
+  const handleSend = async () => {
+    const content = text.trim();
+    if (!content || !currentUserId || posting) return;
+    setPosting(true);
+    try {
+      const me = currentUser();
+      const comment = await addComment(clubId, postId, currentUserId, me?.displayName ?? "Member", content);
+      setComments((prev) => [...prev, comment]);
+      setText("");
+      onCommentAdded();
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.sheet}
+      >
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Comments</Text>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Ionicons name="close" size={22} color={colors.muted} />
+          </Pressable>
+        </View>
+        <ScrollView style={styles.commentList} contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}>
+          {comments.length === 0 && (
+            <Text style={{ color: colors.muted, textAlign: "center", marginTop: spacing.lg }}>
+              No comments yet. Be the first!
+            </Text>
+          )}
+          {comments.map((c) => (
+            <View key={c.id} style={styles.commentItem}>
+              <Text style={styles.commentAuthor}>{c.authorName}</Text>
+              <Text style={styles.commentText}>{c.content}</Text>
+            </View>
+          ))}
+        </ScrollView>
+        {currentUserId && (
+          <View style={styles.commentComposer}>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Add a comment…"
+              placeholderTextColor={colors.muted}
+              value={text}
+              onChangeText={setText}
+              multiline
+              maxLength={500}
+            />
+            <AnimatedPressable
+              onPress={handleSend}
+              disabled={!text.trim() || posting}
+              haptic
+              style={[styles.sendBtn, (!text.trim() || posting) && { opacity: 0.4 }]}
+            >
+              <Ionicons name="send" size={18} color={colors.white} />
+            </AnimatedPressable>
+          </View>
+        )}
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -373,4 +485,17 @@ const styles = StyleSheet.create({
   likeCount: { fontSize: type.size.sm, color: colors.muted, fontWeight: type.weight.bold },
   postComments: { fontSize: type.size.xs, color: colors.muted },
   emptyFeed: { textAlign: "center", color: colors.muted, marginTop: spacing.xl, paddingHorizontal: spacing.xl },
+  // Comments modal
+  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: colors.white, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, maxHeight: "80%", paddingBottom: spacing.xl },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.card, alignSelf: "center", marginTop: spacing.sm },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  sheetTitle: { fontSize: type.size.lg, fontWeight: type.weight.bold, color: colors.ink },
+  commentList: { flexGrow: 0 },
+  commentItem: { backgroundColor: colors.bgSoft, borderRadius: radii.md, padding: spacing.sm },
+  commentAuthor: { fontSize: type.size.xs, fontWeight: type.weight.bold, color: colors.ink, marginBottom: 2 },
+  commentText: { fontSize: type.size.sm, color: colors.inkSoft, lineHeight: 20 },
+  commentComposer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.card },
+  commentInput: { flex: 1, fontSize: type.size.sm, color: colors.ink, backgroundColor: colors.bgSoft, borderRadius: radii.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, maxHeight: 100 },
+  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.ocean, alignItems: "center", justifyContent: "center" },
 });

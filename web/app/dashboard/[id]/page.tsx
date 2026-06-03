@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { deleteUserSession, getUserSession, setSessionPublic } from "@/lib/firebase";
+import { deleteUserSession, getSessionGpxUrl, getUserSession, setSessionPublic } from "@/lib/firebase";
 import {
   formatDate,
   formatTime,
@@ -30,6 +30,7 @@ export default function DashboardSessionPage() {
   const [toggling, setToggling] = useState(false);
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [downloadingGpx, setDownloadingGpx] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -61,6 +62,22 @@ export default function DashboardSessionPage() {
     await navigator.clipboard.writeText(`${BASE_URL}/s/${session.id}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
+  };
+
+  const handleDownloadGpx = async () => {
+    if (!session?.trackStoragePath) return;
+    setDownloadingGpx(true);
+    try {
+      const url = await getSessionGpxUrl(session.trackStoragePath);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `imuatrak-${session.id}.gpx`;
+      a.click();
+    } catch {
+      alert("Could not get download link. The file may not have uploaded yet.");
+    } finally {
+      setDownloadingGpx(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -144,8 +161,8 @@ export default function DashboardSessionPage() {
           </p>
         </div>
 
-        {/* Sharing controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Sharing controls + GPX download */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <button
             onClick={handleToggle}
             disabled={toggling}
@@ -189,6 +206,20 @@ export default function DashboardSessionPage() {
                 Public page ↗
               </Link>
             </>
+          )}
+          {session.trackStoragePath && (
+            <button
+              onClick={() => void handleDownloadGpx()}
+              disabled={downloadingGpx}
+              style={{
+                fontSize: 13, padding: "8px 16px", borderRadius: 10,
+                border: "1px solid var(--line)", background: "transparent",
+                color: "var(--muted)", cursor: downloadingGpx ? "default" : "pointer",
+                opacity: downloadingGpx ? 0.6 : 1, fontWeight: 600,
+              }}
+            >
+              {downloadingGpx ? "Preparing…" : "↓ GPX"}
+            </button>
           )}
         </div>
       </div>
@@ -276,18 +307,25 @@ export default function DashboardSessionPage() {
             }}
           >
             <Stat
-              label="Wind"
+              label={session.weather.end ? "Wind (start)" : "Wind"}
               value={`${Math.round(session.weather.start.windMps * 1.944)} kts`}
               sub={`${session.weather.start.windDeg}°`}
             />
-            <Stat label="Temperature" value={`${Math.round(session.weather.start.airTempC)}°C`} />
+            <Stat label={session.weather.end ? "Temp (start)" : "Temperature"} value={`${Math.round(session.weather.start.airTempC)}°C`} />
             {session.weather.start.conditions && (
               <Stat label="Conditions" value={session.weather.start.conditions} />
             )}
-            <Stat
-              label="Gusts"
-              value={`${Math.round(session.weather.start.gustMps * 1.944)} kts`}
-            />
+            <Stat label="Gusts" value={`${Math.round(session.weather.start.gustMps * 1.944)} kts`} />
+            {session.weather.end && (
+              <>
+                <Stat
+                  label="Wind (end)"
+                  value={`${Math.round(session.weather.end.windMps * 1.944)} kts`}
+                  sub={`${session.weather.end.windDeg}°`}
+                />
+                <Stat label="Temp (end)" value={`${Math.round(session.weather.end.airTempC)}°C`} />
+              </>
+            )}
           </div>
         </section>
       )}

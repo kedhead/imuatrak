@@ -218,24 +218,35 @@ export default function SessionDetail() {
             <Text style={styles.sectionLabel}>Conditions</Text>
             <GradientCard>
               <Metric
-                label="Wind"
+                label={s.weather.end ? "Wind (start)" : "Wind"}
                 value={`${Math.round(s.weather.start.windMps * 1.944)} kts @ ${s.weather.start.windDeg}°`}
                 icon="navigate"
                 accent={colors.aqua}
               />
               <Metric
-                label="Temperature"
+                label={s.weather.end ? "Temp (start)" : "Temperature"}
                 value={`${Math.round(s.weather.start.airTempC)}°C`}
                 icon="thermometer-outline"
                 accent={colors.gold}
               />
               {s.weather.start.conditions && (
-                <Metric
-                  label="Conditions"
-                  value={s.weather.start.conditions}
-                  icon="cloud-outline"
-                  accent={colors.muted}
-                />
+                <Metric label="Conditions" value={s.weather.start.conditions} icon="cloud-outline" accent={colors.muted} />
+              )}
+              {s.weather.end && (
+                <>
+                  <Metric
+                    label="Wind (end)"
+                    value={`${Math.round(s.weather.end.windMps * 1.944)} kts @ ${s.weather.end.windDeg}°`}
+                    icon="navigate-outline"
+                    accent={colors.aqua}
+                  />
+                  <Metric
+                    label="Temp (end)"
+                    value={`${Math.round(s.weather.end.airTempC)}°C`}
+                    icon="thermometer"
+                    accent={colors.gold}
+                  />
+                </>
               )}
             </GradientCard>
           </Animated.View>
