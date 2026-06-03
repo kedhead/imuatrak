@@ -116,7 +116,7 @@ export default function StatsTab() {
         title="Stats"
         subtitle={stats.totalSessions > 0 ? `${stats.totalSessions} paddle${stats.totalSessions === 1 ? "" : "s"}` : "No sessions yet"}
       />
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
 
         {stats.totalSessions === 0 ? (
           <Animated.View entering={FadeInDown.duration(400)}>
@@ -127,8 +127,8 @@ export default function StatsTab() {
         ) : (
           <>
             {/* Totals */}
-            <Animated.View entering={FadeInDown.duration(400)}>
-              <Text style={styles.section}>Totals</Text>
+            <Animated.View entering={FadeInDown.duration(400)} style={styles.section}>
+              <Text style={styles.sectionLabel}>Totals</Text>
               <View style={styles.grid}>
                 <StatCard label="Sessions" value={String(stats.totalSessions)} />
                 <StatCard label="Distance" value={formatDistance(stats.totalDistanceM, units)} />
@@ -141,8 +141,8 @@ export default function StatsTab() {
             </Animated.View>
 
             {/* Personal bests */}
-            <Animated.View entering={FadeInDown.delay(80).duration(400)}>
-              <Text style={styles.section}>Personal Bests</Text>
+            <Animated.View entering={FadeInDown.delay(80).duration(400)} style={styles.section}>
+              <Text style={styles.sectionLabel}>Personal Bests</Text>
               <View style={styles.grid}>
                 <StatCard label="Longest paddle" value={formatDistance(stats.longestDistanceM, units)} accent />
                 <StatCard label="Longest session" value={formatDuration(stats.longestDurationSec)} accent />
@@ -154,8 +154,8 @@ export default function StatsTab() {
             </Animated.View>
 
             {/* Streaks & habits */}
-            <Animated.View entering={FadeInDown.delay(160).duration(400)}>
-              <Text style={styles.section}>Habits</Text>
+            <Animated.View entering={FadeInDown.delay(160).duration(400)} style={styles.section}>
+              <Text style={styles.sectionLabel}>Habits</Text>
               <View style={styles.grid}>
                 <StatCard label="Current streak" value={`${stats.currentStreakDays} day${stats.currentStreakDays === 1 ? "" : "s"}`} />
                 <StatCard label="Longest streak" value={`${stats.longestStreakDays} day${stats.longestStreakDays === 1 ? "" : "s"}`} />
@@ -179,7 +179,8 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
 }
 
 const styles = StyleSheet.create({
-  section: {
+  section: { marginBottom: spacing.lg },
+  sectionLabel: {
     fontSize: type.size.xs,
     fontWeight: type.weight.heavy,
     letterSpacing: type.spacing.label,
