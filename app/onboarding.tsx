@@ -20,18 +20,17 @@ import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, spacing, type } from "@/ui/theme";
 
+// Google OAuth client IDs — set in EAS secrets or local .env.
+// Evaluated at build time; undefined when not configured.
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+// Only mount the Google auth component when at least one ID is available.
+// This prevents expo-auth-session from crashing when IDs are missing.
+const GOOGLE_CONFIGURED = !!(GOOGLE_IOS_CLIENT_ID || GOOGLE_ANDROID_CLIENT_ID);
+
 export default function Onboarding() {
   const [appleAvailable, setAppleAvailable] = useState(false);
-  const [signingInGoogle, setSigningInGoogle] = useState(false);
   const insets = useSafeAreaInsets();
-
-  // Google OAuth — client IDs come from env vars set in .env / EAS secrets:
-  //   EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID     (iOS OAuth 2.0 client from Google Cloud)
-  //   EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID (Android OAuth 2.0 client)
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-  });
 
   const bob = useSharedValue(0);
   useEffect(() => {
@@ -43,17 +42,6 @@ export default function Onboarding() {
     );
   }, [bob]);
 
-  useEffect(() => {
-    if (response?.type !== "success") return;
-    const accessToken = response.authentication?.accessToken;
-    if (!accessToken) { Alert.alert("Sign-in failed", "No access token returned by Google."); return; }
-    setSigningInGoogle(true);
-    signInWithGoogleAccessToken(accessToken)
-      .then(() => router.replace("/(tabs)"))
-      .catch((e) => Alert.alert("Sign-in failed", e instanceof Error ? e.message : String(e)))
-      .finally(() => setSigningInGoogle(false));
-  }, [response]);
-
   const logoStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bob.value }] }));
 
   const handleApple = async () => {
@@ -64,14 +52,6 @@ export default function Onboarding() {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert("Sign-in failed", msg);
     }
-  };
-
-  const handleGoogle = async () => {
-    if (!request) {
-      Alert.alert("Not configured", "Google Sign-In requires client IDs in your environment variables.");
-      return;
-    }
-    await promptAsync();
   };
 
   // Show Google on Android always; on iOS only when Apple Sign-In isn't available
@@ -102,18 +82,56 @@ export default function Onboarding() {
               onPress={handleApple}
             />
           )}
-          {showGoogle && (
+          {showGoogle && GOOGLE_CONFIGURED && (
+            <GoogleSignInButton />
+          )}
+          {showGoogle && !GOOGLE_CONFIGURED && (
             <Button
-              title={signingInGoogle ? "Signing in…" : "Continue with Google"}
+              title="Continue with Google"
               variant="outline"
-              onPress={handleGoogle}
-              disabled={signingInGoogle}
+              disabled
+              onPress={() => Alert.alert("Not configured", "Google Sign-In requires EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID / EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID to be set.")}
               style={styles.googleBtn}
             />
           )}
         </Animated.View>
       </View>
     </ScreenBackground>
+  );
+}
+
+/**
+ * Isolated component so that Google.useAuthRequest (which validates client IDs
+ * eagerly and can throw) is only mounted when GOOGLE_CONFIGURED is true.
+ * Hooks must be called unconditionally within a component, but a component
+ * itself can be conditionally rendered.
+ */
+function GoogleSignInButton() {
+  const [signingIn, setSigningIn] = useState(false);
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    iosClientId: GOOGLE_IOS_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+  });
+
+  useEffect(() => {
+    if (response?.type !== "success") return;
+    const accessToken = response.authentication?.accessToken;
+    if (!accessToken) { Alert.alert("Sign-in failed", "No access token returned by Google."); return; }
+    setSigningIn(true);
+    signInWithGoogleAccessToken(accessToken)
+      .then(() => router.replace("/(tabs)"))
+      .catch((e) => Alert.alert("Sign-in failed", e instanceof Error ? e.message : String(e)))
+      .finally(() => setSigningIn(false));
+  }, [response]);
+
+  return (
+    <Button
+      title={signingIn ? "Signing in…" : "Continue with Google"}
+      variant="outline"
+      onPress={() => { if (request) promptAsync(); }}
+      disabled={signingIn || !request}
+      style={styles.googleBtn}
+    />
   );
 }
 
