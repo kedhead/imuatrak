@@ -22,10 +22,20 @@ export default function Settings() {
   const units = useSettings((s) => s.units);
   const defaultCraft = useSettings((s) => s.defaultCraft);
   const weightKg = useSettings((s) => s.weightKg);
+  const weeklyGoalDistanceKm = useSettings((s) => s.weeklyGoalDistanceKm);
+  const weeklyGoalDurationMin = useSettings((s) => s.weeklyGoalDurationMin);
   const setUnits = useSettings((s) => s.setUnits);
   const setDefaultCraft = useSettings((s) => s.setDefaultCraft);
   const setWeightKg = useSettings((s) => s.setWeightKg);
+  const setWeeklyGoalDistanceKm = useSettings((s) => s.setWeeklyGoalDistanceKm);
+  const setWeeklyGoalDurationMin = useSettings((s) => s.setWeeklyGoalDurationMin);
   const [weightInput, setWeightInput] = useState(String(weightKg));
+  const [goalDistInput, setGoalDistInput] = useState(
+    weeklyGoalDistanceKm > 0 ? String(weeklyGoalDistanceKm) : "",
+  );
+  const [goalDurInput, setGoalDurInput] = useState(
+    weeklyGoalDurationMin > 0 ? String(weeklyGoalDurationMin) : "",
+  );
   const club = useClub((s) => s.club);
   const role = useClub((s) => s.role);
   const loaded = useClub((s) => s.loaded);
@@ -210,6 +220,60 @@ export default function Settings() {
                 }}
               />
               <Text style={[styles.body, { color: colors.muted }]}>kg</Text>
+            </View>
+          </GradientCard>
+        </Section>
+
+        <Section title="Weekly Goals">
+          <GradientCard>
+            <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs, marginBottom: spacing.md }]}>
+              Set targets to see progress on your home screen. Leave blank to disable.
+            </Text>
+            <Text style={styles.label}>DISTANCE</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md }}>
+              <TextInput
+                style={[styles.nameInput, { flex: 1 }]}
+                value={goalDistInput}
+                onChangeText={setGoalDistInput}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                placeholder="e.g. 50"
+                placeholderTextColor={colors.muted}
+                onSubmitEditing={() => {
+                  const n = parseFloat(goalDistInput);
+                  void setWeeklyGoalDistanceKm(!isNaN(n) && n > 0 ? n : 0);
+                  if (isNaN(n) || n <= 0) setGoalDistInput("");
+                }}
+                onBlur={() => {
+                  const n = parseFloat(goalDistInput);
+                  void setWeeklyGoalDistanceKm(!isNaN(n) && n > 0 ? n : 0);
+                  if (isNaN(n) || n <= 0) setGoalDistInput("");
+                }}
+              />
+              <Text style={[styles.body, { color: colors.muted }]}>km / week</Text>
+            </View>
+            <Text style={styles.label}>TIME</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              <TextInput
+                style={[styles.nameInput, { flex: 1 }]}
+                value={goalDurInput}
+                onChangeText={setGoalDurInput}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                placeholder="e.g. 180"
+                placeholderTextColor={colors.muted}
+                onSubmitEditing={() => {
+                  const n = parseInt(goalDurInput, 10);
+                  void setWeeklyGoalDurationMin(!isNaN(n) && n > 0 ? n : 0);
+                  if (isNaN(n) || n <= 0) setGoalDurInput("");
+                }}
+                onBlur={() => {
+                  const n = parseInt(goalDurInput, 10);
+                  void setWeeklyGoalDurationMin(!isNaN(n) && n > 0 ? n : 0);
+                  if (isNaN(n) || n <= 0) setGoalDurInput("");
+                }}
+              />
+              <Text style={[styles.body, { color: colors.muted }]}>min / week</Text>
             </View>
           </GradientCard>
         </Section>

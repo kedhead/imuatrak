@@ -19,6 +19,8 @@ export default function DashboardPage() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [craftFilter, setCraftFilter] = useState<string>("All");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -59,10 +61,14 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const filtered = useMemo(
-    () => craftFilter === "All" ? sessions : sessions.filter((s) => s.craftType === craftFilter),
-    [sessions, craftFilter],
-  );
+  const filtered = useMemo(() => {
+    return sessions.filter((s) => {
+      if (craftFilter !== "All" && s.craftType !== craftFilter) return false;
+      if (dateFrom && s.startedAt.slice(0, 10) < dateFrom) return false;
+      if (dateTo && s.startedAt.slice(0, 10) > dateTo) return false;
+      return true;
+    });
+  }, [sessions, craftFilter, dateFrom, dateTo]);
 
   if (loading || !user) return null;
 
@@ -75,24 +81,64 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Craft type filter */}
+      {/* Filters */}
       {sessions.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-          {["All", ...CRAFT_TYPES].map((c) => (
-            <button
-              key={c}
-              onClick={() => setCraftFilter(c)}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+          {/* Craft filter */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {["All", ...CRAFT_TYPES].map((c) => (
+              <button
+                key={c}
+                onClick={() => setCraftFilter(c)}
+                style={{
+                  fontSize: 13, padding: "5px 14px", borderRadius: 20,
+                  border: "1px solid var(--line)",
+                  background: craftFilter === c ? "var(--ink)" : "transparent",
+                  color: craftFilter === c ? "var(--bg)" : "var(--muted)",
+                  cursor: "pointer", fontWeight: 600,
+                }}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          {/* Date range */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>From</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
               style={{
-                fontSize: 13, padding: "5px 14px", borderRadius: 20,
-                border: "1px solid var(--line)",
-                background: craftFilter === c ? "var(--ink)" : "transparent",
-                color: craftFilter === c ? "var(--bg)" : "var(--muted)",
-                cursor: "pointer", fontWeight: 600,
+                fontSize: 13, padding: "4px 10px", borderRadius: 8,
+                border: "1px solid var(--line)", background: "transparent",
+                color: "var(--ink)", cursor: "pointer",
               }}
-            >
-              {c}
-            </button>
-          ))}
+            />
+            <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              style={{
+                fontSize: 13, padding: "4px 10px", borderRadius: 8,
+                border: "1px solid var(--line)", background: "transparent",
+                color: "var(--ink)", cursor: "pointer",
+              }}
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                style={{
+                  fontSize: 12, padding: "4px 10px", borderRadius: 8,
+                  border: "1px solid var(--line)", background: "transparent",
+                  color: "var(--muted)", cursor: "pointer",
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       )}
 

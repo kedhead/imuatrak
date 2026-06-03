@@ -15,13 +15,13 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
 import {
   getEvent,
   setRsvp,
   deleteEvent,
   createEvent,
+  updateEvent,
   updateBoatAssignments,
 } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
@@ -55,6 +55,7 @@ export default function EventScreen() {
   const club = useClub((s) => s.club);
   const role = useClub((s) => s.role);
   const members = useClub((s) => s.members);
+  const [editingEvent, setEditingEvent] = useState<ClubEvent | null>(null);
 
   const isNew = id === "new";
   const isAdmin = role === "owner" || role === "admin" || role === "coach";
@@ -63,14 +64,41 @@ export default function EventScreen() {
     return (
       <ScreenBackground>
         <GradientHeader title="New Event" />
-        <CreateEventForm clubId={club?.id ?? ""} onDone={() => router.back()} />
+        <EventForm clubId={club?.id ?? ""} mode="create" onDone={() => router.back()} />
+      </ScreenBackground>
+    );
+  }
+
+  if (editingEvent && isAdmin) {
+    return (
+      <ScreenBackground>
+        <GradientHeader
+          title="Edit Event"
+          right={
+            <Pressable onPress={() => setEditingEvent(null)} hitSlop={8}>
+              <Text style={{ color: colors.white, fontSize: type.size.md, fontWeight: type.weight.bold }}>Cancel</Text>
+            </Pressable>
+          }
+        />
+        <EventForm
+          clubId={club?.id ?? ""}
+          mode="edit"
+          initialEvent={editingEvent}
+          onDone={() => setEditingEvent(null)}
+        />
       </ScreenBackground>
     );
   }
 
   return (
     <ScreenBackground>
-      <EventDetail eventId={id} clubId={club?.id ?? ""} role={role} members={members} />
+      <EventDetail
+        eventId={id}
+        clubId={club?.id ?? ""}
+        role={role}
+        members={members}
+        onEdit={isAdmin ? setEditingEvent : undefined}
+      />
     </ScreenBackground>
   );
 }
@@ -82,11 +110,13 @@ function EventDetail({
   clubId,
   role,
   members,
+  onEdit,
 }: {
   eventId: string;
   clubId: string;
   role: string | null;
   members: ClubMember[];
+  onEdit?: (event: ClubEvent) => void;
 }) {
   const router = useRouter();
   const [event, setEvent] = useState<ClubEvent | null>(null);
@@ -185,9 +215,16 @@ function EventDetail({
         subtitle={formatEventDate(event.startAt)}
         right={
           isAdmin ? (
-            <Pressable onPress={handleDelete} hitSlop={8}>
-              <Ionicons name="trash-outline" size={22} color={colors.white} />
-            </Pressable>
+            <View style={styles.headerActions}>
+              {onEdit && (
+                <Pressable onPress={() => onEdit(event)} hitSlop={8}>
+                  <Ionicons name="pencil-outline" size={20} color={colors.white} />
+                </Pressable>
+              )}
+              <Pressable onPress={handleDelete} hitSlop={8}>
+                <Ionicons name="trash-outline" size={22} color={colors.white} />
+              </Pressable>
+            </View>
           ) : undefined
         }
       />
@@ -353,25 +390,41 @@ function EventDetail({
   );
 }
 
-// ── Create event form ─────────────────────────────────────────────────────────
+// ── Event form (create + edit) ────────────────────────────────────────────────
 
-function CreateEventForm({ clubId, onDone }: { clubId: string; onDone: () => void }) {
-  const [title, setTitle] = useState("");
-  const [eventType, setEventType] = useState<EventType>("practice");
-  const [description, setDescription] = useState("");
-  const [startDate, setStartDate] = useState(new Date());
+function EventForm({
+  clubId,
+  mode,
+  initialEvent,
+  onDone,
+}: {
+  clubId: string;
+  mode: "create" | "edit";
+  initialEvent?: ClubEvent;
+  onDone: () => void;
+}) {
+  const [title, setTitle] = useState(initialEvent?.title ?? "");
+  const [eventType, setEventType] = useState<EventType>(initialEvent?.type ?? "practice");
+  const [description, setDescription] = useState(initialEvent?.description ?? "");
+  const [startDate, setStartDate] = useState(
+    initialEvent ? new Date(initialEvent.startAt) : new Date(),
+  );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [locationName, setLocationName] = useState("");
-  const [meetTime, setMeetTime] = useState("");
-  const [maxStr, setMaxStr] = useState("");
-  const [numBoats, setNumBoats] = useState(0);
-  const [seatsPerBoat, setSeatsPerBoat] = useState(6);
+  const [locationName, setLocationName] = useState(initialEvent?.location?.name ?? "");
+  const [meetTime, setMeetTime] = useState(initialEvent?.meetTime ?? "");
+  const [maxStr, setMaxStr] = useState(
+    initialEvent?.maxParticipants != null ? String(initialEvent.maxParticipants) : "",
+  );
+  const [numBoats, setNumBoats] = useState(initialEvent?.boatAssignments?.length ?? 0);
+  const [seatsPerBoat, setSeatsPerBoat] = useState(
+    initialEvent?.boatAssignments?.[0]?.seats.length ?? 6,
+  );
   const [loading, setLoading] = useState(false);
 
   const me = currentUser();
 
-  const handleCreate = async () => {
+  const handleSubmit = async () => {
     if (!title.trim()) {
       Alert.alert("Title is required");
       return;
@@ -382,17 +435,19 @@ function CreateEventForm({ clubId, onDone }: { clubId: string; onDone: () => voi
       const startAt = startDate.toISOString();
       const endAt = new Date(startDate.getTime() + 2 * 60 * 60 * 1000).toISOString();
       const maxParticipants = maxStr.trim() ? parseInt(maxStr, 10) : undefined;
-      const boatAssignments: BoatAssignment[] = numBoats > 0
-        ? Array.from({ length: numBoats }, (_, i) => ({
-            boatName: `Boat ${i + 1}`,
-            seats: Array.from({ length: seatsPerBoat }, (_, j) => ({
-              seatNumber: j + 1,
-              uid: null,
-            })),
-          }))
-        : undefined as unknown as BoatAssignment[];
+      const boatAssignments: BoatAssignment[] =
+        numBoats > 0
+          ? Array.from({ length: numBoats }, (_, i) => ({
+              boatName:
+                initialEvent?.boatAssignments?.[i]?.boatName ?? `Boat ${i + 1}`,
+              seats: Array.from({ length: seatsPerBoat }, (_, j) => ({
+                seatNumber: j + 1,
+                uid: initialEvent?.boatAssignments?.[i]?.seats[j]?.uid ?? null,
+              })),
+            }))
+          : (undefined as unknown as BoatAssignment[]);
 
-      await createEvent(clubId, me.uid, {
+      const payload = {
         title: title.trim(),
         type: eventType,
         description: description.trim() || undefined,
@@ -402,10 +457,16 @@ function CreateEventForm({ clubId, onDone }: { clubId: string; onDone: () => voi
         meetTime: meetTime.trim() || undefined,
         maxParticipants,
         boatAssignments: numBoats > 0 ? boatAssignments : undefined,
-      });
+      };
+
+      if (mode === "edit" && initialEvent) {
+        await updateEvent(clubId, initialEvent.id, payload);
+      } else {
+        await createEvent(clubId, me.uid, payload);
+      }
       onDone();
     } catch {
-      Alert.alert("Error", "Failed to create event.");
+      Alert.alert("Error", `Failed to ${mode === "edit" ? "update" : "create"} event.`);
     } finally {
       setLoading(false);
     }
@@ -462,7 +523,6 @@ function CreateEventForm({ clubId, onDone }: { clubId: string; onDone: () => voi
           value={startDate}
           mode="date"
           display={Platform.OS === "ios" ? "inline" : "default"}
-          minimumDate={new Date()}
           onChange={(_, d) => {
             setShowDatePicker(Platform.OS === "ios");
             if (d) {
@@ -561,11 +621,11 @@ function CreateEventForm({ clubId, onDone }: { clubId: string; onDone: () => voi
       />
 
       <Button
-        title={loading ? "Creating…" : "Create Event"}
+        title={loading ? (mode === "edit" ? "Saving…" : "Creating…") : (mode === "edit" ? "Save Changes" : "Create Event")}
         gradient="aqua"
         glow
         disabled={loading}
-        onPress={handleCreate}
+        onPress={handleSubmit}
         style={{ marginTop: spacing.lg, marginBottom: spacing.xxl }}
       />
     </ScrollView>
@@ -605,6 +665,9 @@ const styles = StyleSheet.create({
   infoText: { fontSize: type.size.sm, color: colors.muted },
   description: { fontSize: type.size.md, color: colors.inkSoft, lineHeight: 22, marginTop: spacing.sm },
 
+  // Header
+  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+
   // RSVP
   rsvpBtns: { flexDirection: "row", gap: spacing.sm },
   rsvpBtn: { flex: 1, borderWidth: 1.5, borderColor: colors.line, borderRadius: radii.md, paddingVertical: spacing.sm, alignItems: "center" },
@@ -637,7 +700,7 @@ const styles = StyleSheet.create({
   assignRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
   assignName: { fontSize: type.size.md, color: colors.ink },
 
-  // Create form
+  // Event form
   typeSelector: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xs },
   input: { backgroundColor: colors.white, borderRadius: radii.md, padding: spacing.md, fontSize: type.size.md, color: colors.ink },
   multiline: { minHeight: 80, textAlignVertical: "top" },

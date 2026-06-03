@@ -27,9 +27,21 @@ import { ScreenBackground } from "@/ui/ScreenBackground";
 import { formatDate, formatDistance, formatDuration } from "@/ui/format";
 import { colors, craftColor, radii, shadow, spacing, type } from "@/ui/theme";
 
+function thisWeekMonday(): Date {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sun
+  const diff = (day === 0 ? -6 : 1 - day);
+  const mon = new Date(now);
+  mon.setDate(now.getDate() + diff);
+  mon.setHours(0, 0, 0, 0);
+  return mon;
+}
+
 export default function HomeTab() {
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const units = useSettings((s) => s.units);
+  const weeklyGoalDistanceKm = useSettings((s) => s.weeklyGoalDistanceKm);
+  const weeklyGoalDurationMin = useSettings((s) => s.weeklyGoalDurationMin);
 
   const reload = useCallback(() => { void list().then(setSessions); }, []);
 
@@ -65,6 +77,12 @@ export default function HomeTab() {
     return sub.remove;
   }, [reload]);
 
+  const hasGoal = weeklyGoalDistanceKm > 0 || weeklyGoalDurationMin > 0;
+  const monday = thisWeekMonday();
+  const thisWeekSessions = sessions.filter((s) => new Date(s.session.startedAt) >= monday);
+  const weekDistKm = thisWeekSessions.reduce((sum, s) => sum + s.session.totals.distanceMeters / 1000, 0);
+  const weekDurMin = thisWeekSessions.reduce((sum, s) => sum + s.session.totals.durationSec / 60, 0);
+
   return (
     <ScreenBackground>
       <GradientHeader
@@ -80,10 +98,73 @@ export default function HomeTab() {
           data={sessions}
           keyExtractor={(s) => s.session.id}
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: 120 }}
+          ListHeaderComponent={
+            hasGoal ? (
+              <WeeklyGoalCard
+                distKm={weekDistKm}
+                durMin={weekDurMin}
+                goalDistKm={weeklyGoalDistanceKm}
+                goalDurMin={weeklyGoalDurationMin}
+                units={units}
+              />
+            ) : null
+          }
           renderItem={({ item, index }) => <SessionRow stored={item} units={units} index={index} />}
         />
       )}
     </ScreenBackground>
+  );
+}
+
+function WeeklyGoalCard({
+  distKm,
+  durMin,
+  goalDistKm,
+  goalDurMin,
+  units,
+}: {
+  distKm: number;
+  durMin: number;
+  goalDistKm: number;
+  goalDurMin: number;
+  units: "metric" | "imperial";
+}) {
+  const distProgress = goalDistKm > 0 ? Math.min(distKm / goalDistKm, 1) : null;
+  const durProgress = goalDurMin > 0 ? Math.min(durMin / goalDurMin, 1) : null;
+
+  const distLabel = units === "imperial"
+    ? `${(distKm * 0.621371).toFixed(1)} / ${(goalDistKm * 0.621371).toFixed(0)} mi`
+    : `${distKm.toFixed(1)} / ${goalDistKm} km`;
+  const durLabel = `${Math.round(durMin)} / ${goalDurMin} min`;
+
+  return (
+    <Animated.View entering={FadeInDown.duration(400)} style={styles.goalCard}>
+      <GradientCard gradient="ocean">
+        <Text style={styles.goalTitle}>THIS WEEK</Text>
+        {distProgress !== null && (
+          <View style={styles.goalRow}>
+            <View style={styles.goalMeta}>
+              <Ionicons name="map-outline" size={14} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.goalLabel}>{distLabel}</Text>
+            </View>
+            <View style={styles.goalBar}>
+              <View style={[styles.goalFill, { width: `${(distProgress * 100).toFixed(1)}%` }]} />
+            </View>
+          </View>
+        )}
+        {durProgress !== null && (
+          <View style={[styles.goalRow, distProgress !== null && { marginTop: spacing.sm }]}>
+            <View style={styles.goalMeta}>
+              <Ionicons name="time-outline" size={14} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.goalLabel}>{durLabel}</Text>
+            </View>
+            <View style={styles.goalBar}>
+              <View style={[styles.goalFill, { width: `${(durProgress * 100).toFixed(1)}%` }]} />
+            </View>
+          </View>
+        )}
+      </GradientCard>
+    </Animated.View>
   );
 }
 
@@ -191,4 +272,11 @@ const styles = StyleSheet.create({
   emptyLogoFill: { padding: spacing.xl, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: type.size.xl, fontWeight: type.weight.heavy, color: colors.ink, marginTop: spacing.sm },
   emptyBody: { color: colors.muted, textAlign: "center", fontSize: type.size.md, lineHeight: 22 },
+  goalCard: { marginBottom: spacing.md },
+  goalTitle: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: "rgba(255,255,255,0.7)", letterSpacing: 1.2, marginBottom: spacing.sm },
+  goalRow: {},
+  goalMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
+  goalLabel: { fontSize: type.size.sm, color: colors.white, fontWeight: type.weight.bold },
+  goalBar: { height: 6, backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 3, overflow: "hidden" },
+  goalFill: { height: 6, backgroundColor: colors.white, borderRadius: 3 },
 });
