@@ -1,7 +1,6 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import { list, type StoredSession } from "@/services/storage";
 import { useSettings } from "@/services/settings";
 import { GradientCard } from "@/ui/GradientCard";
@@ -119,54 +118,46 @@ export default function StatsTab() {
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
 
         {stats.totalSessions === 0 ? (
-          <Animated.View entering={FadeInDown.duration(400)}>
-            <GradientCard>
-              <Text style={styles.emptyText}>Record your first paddle to see stats here.</Text>
-            </GradientCard>
-          </Animated.View>
+          <GradientCard>
+            <Text style={styles.emptyText}>Record your first paddle to see stats here.</Text>
+          </GradientCard>
         ) : (
           <>
-            {/* Totals — outer View owns spacing, inner Animated.View owns animation */}
+            {/* Totals */}
             <View style={styles.section}>
-              <Animated.View entering={FadeInDown.duration(400)}>
-                <Text style={styles.sectionLabel}>Totals</Text>
-                <View style={styles.grid}>
-                  <StatCard label="Sessions" value={String(stats.totalSessions)} />
-                  <StatCard label="Distance" value={formatDistance(stats.totalDistanceM, units)} />
-                  <StatCard label="Time" value={formatDuration(stats.totalDurationSec)} />
-                  <StatCard
-                    label="Calories"
-                    value={stats.totalCalories > 0 ? `${Math.round(stats.totalCalories).toLocaleString()} kcal` : "—"}
-                  />
-                </View>
-              </Animated.View>
+              <Text style={styles.sectionLabel}>Totals</Text>
+              <View style={styles.grid}>
+                <StatCard label="Sessions" value={String(stats.totalSessions)} />
+                <StatCard label="Distance" value={formatDistance(stats.totalDistanceM, units)} />
+                <StatCard label="Time" value={formatDuration(stats.totalDurationSec)} />
+                <StatCard
+                  label="Calories"
+                  value={stats.totalCalories > 0 ? `${Math.round(stats.totalCalories).toLocaleString()} kcal` : "—"}
+                />
+              </View>
             </View>
 
             {/* Personal bests */}
             <View style={styles.section}>
-              <Animated.View entering={FadeInDown.delay(80).duration(400)}>
-                <Text style={styles.sectionLabel}>Personal Bests</Text>
-                <View style={styles.grid}>
-                  <StatCard label="Longest paddle" value={formatDistance(stats.longestDistanceM, units)} accent />
-                  <StatCard label="Longest session" value={formatDuration(stats.longestDurationSec)} accent />
-                  {stats.fastestPaceSecPerKm > 0 && (
-                    <StatCard label="Fastest pace" value={formatPaceStr(stats.fastestPaceSecPerKm, units)} accent />
-                  )}
-                  <StatCard label="Most strokes" value={stats.mostStrokes.toLocaleString()} accent />
-                </View>
-              </Animated.View>
+              <Text style={styles.sectionLabel}>Personal Bests</Text>
+              <View style={styles.grid}>
+                <StatCard label="Longest paddle" value={formatDistance(stats.longestDistanceM, units)} accent />
+                <StatCard label="Longest session" value={formatDuration(stats.longestDurationSec)} accent />
+                {stats.fastestPaceSecPerKm > 0 && (
+                  <StatCard label="Fastest pace" value={formatPaceStr(stats.fastestPaceSecPerKm, units)} accent />
+                )}
+                <StatCard label="Most strokes" value={stats.mostStrokes.toLocaleString()} accent />
+              </View>
             </View>
 
             {/* Streaks & habits */}
             <View style={styles.section}>
-              <Animated.View entering={FadeInDown.delay(160).duration(400)}>
-                <Text style={styles.sectionLabel}>Habits</Text>
-                <View style={styles.grid}>
-                  <StatCard label="Current streak" value={`${stats.currentStreakDays} day${stats.currentStreakDays === 1 ? "" : "s"}`} />
-                  <StatCard label="Longest streak" value={`${stats.longestStreakDays} day${stats.longestStreakDays === 1 ? "" : "s"}`} />
-                  <StatCard label="Favourite craft" value={stats.topCraft} />
-                </View>
-              </Animated.View>
+              <Text style={styles.sectionLabel}>Habits</Text>
+              <View style={styles.grid}>
+                <StatCard label="Current streak" value={`${stats.currentStreakDays} day${stats.currentStreakDays === 1 ? "" : "s"}`} />
+                <StatCard label="Longest streak" value={`${stats.longestStreakDays} day${stats.longestStreakDays === 1 ? "" : "s"}`} />
+                <StatCard label="Favourite craft" value={stats.topCraft} />
+              </View>
             </View>
           </>
         )}
