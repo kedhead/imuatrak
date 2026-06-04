@@ -17,6 +17,7 @@ import { watchAuth } from "@/services/auth";
 import { useSettings } from "@/services/settings";
 import { WatchBridge } from "@imuatrak/watch-bridge";
 import { WearBridge } from "@imuatrak/wear-bridge";
+import { AdBanner } from "@/ui/AdBanner";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
 import { Gradient } from "@/ui/Gradient";
@@ -112,6 +113,7 @@ export default function HomeTab() {
           renderItem={({ item, index }) => <SessionRow stored={item} units={units} index={index} />}
         />
       )}
+      <AdBanner />
     </ScreenBackground>
   );
 }

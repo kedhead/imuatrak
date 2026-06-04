@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { list, type StoredSession } from "@/services/storage";
 import { useSettings } from "@/services/settings";
+import { AdBanner } from "@/ui/AdBanner";
 import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { ScreenBackground } from "@/ui/ScreenBackground";
@@ -162,6 +163,7 @@ export default function StatsTab() {
           </>
         )}
       </ScrollView>
+      <AdBanner />
     </ScreenBackground>
   );
 }
