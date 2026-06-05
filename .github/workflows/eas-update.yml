@@ -1,0 +1,41 @@
+name: EAS Update (OTA)
+
+# Publishes an over-the-air JavaScript update to a channel. Only works for
+# builds that were created AFTER EAS Update was configured in app.config.js
+# (i.e. builds produced by the EAS Build workflow on/after that change).
+# JS-only fixes reach installed apps on the next relaunch — no rebuild needed.
+# Requires an EXPO_TOKEN repository secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Channel to publish the update to (must match the installed build's channel)"
+        type: choice
+        options: [preview, development, production]
+        default: preview
+      message:
+        description: "Update message"
+        type: string
+        default: "OTA update"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20.19"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Publish OTA update
+        run: eas update --channel ${{ inputs.channel }} --message "${{ inputs.message }}" --non-interactive
