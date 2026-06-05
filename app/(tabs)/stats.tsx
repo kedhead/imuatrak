@@ -188,8 +188,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginLeft: spacing.xs,
   },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  statCard: { flex: 1, minWidth: "45%" },
+  // Two-column grid. Explicit widths (not flex) so the wrap container measures
+  // its height correctly — flex items inside flexWrap collapse the row height in
+  // Yoga and cause sections to overlap.
+  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: spacing.sm },
+  statCard: { width: "48.5%" },
   statLabel: { fontSize: type.size.xs, color: colors.muted, fontWeight: type.weight.bold, textTransform: "uppercase", letterSpacing: 0.8 },
   statValue: { fontSize: type.size.xl, fontWeight: type.weight.heavy, color: colors.ink, marginTop: spacing.xs, ...type.mono },
   emptyText: { color: colors.muted, textAlign: "center", fontSize: type.size.md, paddingVertical: spacing.lg },
