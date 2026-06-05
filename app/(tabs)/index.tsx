@@ -150,7 +150,7 @@ function WeeklyGoalCard({
               <Text style={styles.goalLabel}>{distLabel}</Text>
             </View>
             <View style={styles.goalBar}>
-              <View style={[styles.goalFill, { width: `${(distProgress * 100).toFixed(1)}%` }]} />
+              <View style={[styles.goalFill, { width: `${(distProgress * 100).toFixed(1)}%` as `${number}%` }]} />
             </View>
           </View>
         )}
@@ -161,7 +161,7 @@ function WeeklyGoalCard({
               <Text style={styles.goalLabel}>{durLabel}</Text>
             </View>
             <View style={styles.goalBar}>
-              <View style={[styles.goalFill, { width: `${(durProgress * 100).toFixed(1)}%` }]} />
+              <View style={[styles.goalFill, { width: `${(durProgress * 100).toFixed(1)}%` as `${number}%` }]} />
             </View>
           </View>
         )}

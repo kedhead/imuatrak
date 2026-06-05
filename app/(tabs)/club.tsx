@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
   postComments: { fontSize: type.size.xs, color: colors.muted },
   emptyFeed: { textAlign: "center", color: colors.muted, marginTop: spacing.xl, paddingHorizontal: spacing.xl },
   // Comments modal
-  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  modalOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: colors.white, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, maxHeight: "80%", paddingBottom: spacing.xl },
   sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.card, alignSelf: "center", marginTop: spacing.sm },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
