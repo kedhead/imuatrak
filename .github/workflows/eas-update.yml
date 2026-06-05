@@ -38,4 +38,13 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - name: Publish OTA update
-        run: eas update --channel ${{ inputs.channel }} --message "${{ inputs.message }}" --non-interactive
+        # Publish to a branch named after the channel and ensure the channel
+        # is linked to it. branch:create / channel:edit are idempotent here —
+        # the `|| true` guards the "already exists / already linked" cases so
+        # repeat runs don't fail. `eas update --branch` creates the branch on
+        # first publish if needed.
+        run: |
+          CH="${{ inputs.channel }}"
+          eas branch:create "$CH" --non-interactive || true
+          eas channel:edit "$CH" --branch "$CH" --non-interactive || true
+          eas update --branch "$CH" --message "${{ inputs.message }}" --non-interactive
