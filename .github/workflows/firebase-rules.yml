@@ -27,7 +27,7 @@ jobs:
       # index problem (a bad index once failed the whole combined deploy and
       # silently left stale rules in production).
       - name: Deploy Firestore + Storage security rules
-        run: firebase deploy --only firestore:rules,storage:rules --project imuatrak
+        run: firebase deploy --only firestore:rules,storage --project imuatrak
         working-directory: firebase
 
       # Indexes deploy separately. If this fails it should NOT mask a
