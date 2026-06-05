@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,39 +13,69 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
-import { resolveInviteToken, joinClub, getClub } from "@/services/clubService";
+import { resolveInviteToken, joinClub, getClub, getClubBySlug } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
-import { colors, spacing, radii } from "@/ui/theme";
+import { colors, radii, spacing, type } from "@/ui/theme";
+
+function extractSlug(raw: string): string | null {
+  // Full URL: https://imuatrak.app/join/my-club-slug
+  const match = raw.match(/imuatrak\.app\/join\/([a-z0-9-]+)/i);
+  if (match) return match[1] ?? null;
+  // Looks like a slug (lowercase, hyphens only, no spaces)
+  if (/^[a-z0-9-]{2,60}$/.test(raw)) return raw;
+  return null;
+}
 
 export default function JoinClubScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ slug?: string; code?: string }>();
   const switchClub = useClub((s) => s.switchClub);
-  const [token, setToken] = useState("");
+  const [input, setInput] = useState(params.code ?? "");
   const [loading, setLoading] = useState(false);
 
-  const handleJoin = async () => {
-    const code = token.trim().toUpperCase();
-    if (!code) {
-      Alert.alert("Enter an invite code");
-      return;
+  // Auto-join when opened via deep link with a slug param
+  useEffect(() => {
+    if (params.slug) {
+      setInput(params.slug);
+      void handleJoinWithSlug(params.slug);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleJoinWithSlug = async (slug: string) => {
     const user = currentUser();
-    if (!user) {
-      Alert.alert("Please sign in first");
-      return;
-    }
+    if (!user) { Alert.alert("Please sign in first"); return; }
     setLoading(true);
     try {
-      const clubId = await resolveInviteToken(code);
+      const club = await getClubBySlug(slug);
+      if (!club) {
+        Alert.alert("Club not found", "This link may be invalid. Ask your admin for a new one.");
+        return;
+      }
+      await joinClub(club.id, user.uid, user.displayName ?? "Member");
+      await switchClub(club.id, user.uid);
+      Alert.alert("Joined!", `Welcome to ${club.name}!`, [
+        { text: "Let's go", onPress: () => router.back() },
+      ]);
+    } catch {
+      Alert.alert("Error", "Failed to join. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleJoinWithToken = async (token: string) => {
+    const user = currentUser();
+    if (!user) { Alert.alert("Please sign in first"); return; }
+    setLoading(true);
+    try {
+      const clubId = await resolveInviteToken(token);
       if (!clubId) {
-        Alert.alert("Invalid or expired invite code", "Ask your club admin for a new invite link.");
+        Alert.alert("Invalid or expired code", "Ask your club admin for a new invite.");
         return;
       }
       const club = await getClub(clubId);
-      if (!club) {
-        Alert.alert("Club not found");
-        return;
-      }
+      if (!club) { Alert.alert("Club not found"); return; }
       await joinClub(clubId, user.uid, user.displayName ?? "Member");
       await switchClub(clubId, user.uid);
       Alert.alert("Joined!", `Welcome to ${club.name}!`, [
@@ -58,6 +88,19 @@ export default function JoinClubScreen() {
     }
   };
 
+  const handleSubmit = async () => {
+    const raw = input.trim();
+    if (!raw) { Alert.alert("Enter an invite code or paste a link"); return; }
+
+    const slug = extractSlug(raw.toLowerCase());
+    if (slug) {
+      await handleJoinWithSlug(slug);
+    } else {
+      // Treat as a one-time invite token (uppercase alphanumeric)
+      await handleJoinWithToken(raw.toUpperCase());
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <KeyboardAvoidingView
@@ -65,31 +108,30 @@ export default function JoinClubScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.content}>
-          <Text style={styles.title}>Enter your invite code</Text>
+          <Text style={styles.title}>Join a club</Text>
           <Text style={styles.subtitle}>
-            Ask your club admin to generate an invite code from the Club Settings screen.
+            Paste the invite link your admin shared, or type the invite code.
           </Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g. ABC123DEF456"
+            placeholder="Link or invite code"
             placeholderTextColor={colors.muted}
-            value={token}
-            onChangeText={setToken}
-            autoCapitalize="characters"
+            value={input}
+            onChangeText={setInput}
+            autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="join"
-            onSubmitEditing={handleJoin}
+            onSubmitEditing={handleSubmit}
           />
           <Pressable
-            style={[styles.btn, loading && { opacity: 0.6 }]}
-            onPress={handleJoin}
-            disabled={loading}
+            style={[styles.btn, (loading || !input.trim()) && { opacity: 0.5 }]}
+            onPress={handleSubmit}
+            disabled={loading || !input.trim()}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>Join Club</Text>
-            )}
+            {loading
+              ? <ActivityIndicator color={colors.white} />
+              : <Text style={styles.btnText}>Join Club</Text>
+            }
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -98,11 +140,26 @@ export default function JoinClubScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: colors.bgSoft },
   content: { padding: spacing.xl, gap: spacing.md },
-  title: { fontSize: 24, fontWeight: "800", color: colors.ink },
-  subtitle: { fontSize: 15, color: colors.muted, lineHeight: 22 },
-  input: { backgroundColor: colors.card, borderRadius: radii.md, padding: spacing.md, fontSize: 20, color: colors.ink, fontWeight: "700", letterSpacing: 2, textAlign: "center", marginTop: spacing.lg },
-  btn: { backgroundColor: colors.blue, borderRadius: radii.md, paddingVertical: spacing.md + 2, alignItems: "center", marginTop: spacing.sm },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: 17 },
+  title: { fontSize: type.size.xxl, fontWeight: type.weight.heavy, color: colors.ink },
+  subtitle: { fontSize: type.size.md, color: colors.muted, lineHeight: 22 },
+  input: {
+    backgroundColor: colors.white,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    fontSize: type.size.md,
+    color: colors.ink,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  btn: {
+    backgroundColor: colors.ocean,
+    borderRadius: radii.pill,
+    paddingVertical: spacing.md + 2,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  btnText: { color: colors.white, fontWeight: type.weight.bold, fontSize: type.size.lg },
 });

@@ -72,7 +72,9 @@ service cloud.firestore {
 
     // ── Clubs ────────────────────────────────────────────────────────────────
     match /clubs/{clubId} {
-      allow read: if isClubMember(clubId);
+      // Members get full read access. Any signed-in user can read basic club
+      // metadata so they can preview a club before joining via a slug link.
+      allow read: if isSignedIn();
       allow update: if hasClubRole(clubId, ["owner", "admin"]);
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid;
