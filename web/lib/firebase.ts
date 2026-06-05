@@ -40,6 +40,25 @@ export async function getPublicSession(id: string): Promise<PublicSession | null
   return snap.data() as PublicSession;
 }
 
+/**
+ * Resolve a club from an invite link identifier, which may be either the
+ * club document ID (preferred — always unique) or a slug (legacy links).
+ * Used by the public /join/[id] landing page; no auth required.
+ */
+export async function getClubByIdOrSlug(idOrSlug: string): Promise<Club | null> {
+  const byId = await getDoc(doc(db, "clubs", idOrSlug));
+  if (byId.exists()) return { ...(byId.data() as Omit<Club, "id">), id: byId.id };
+
+  const bySlug = await getDocs(
+    query(collection(db, "clubs"), where("slug", "==", idOrSlug), limit(1)),
+  );
+  if (!bySlug.empty) {
+    const d = bySlug.docs[0]!;
+    return { ...(d.data() as Omit<Club, "id">), id: d.id };
+  }
+  return null;
+}
+
 /** Read all sessions for an authenticated user, newest first. */
 export async function getUserSessions(uid: string): Promise<DashboardSession[]> {
   const q = query(
