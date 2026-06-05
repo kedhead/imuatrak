@@ -16,6 +16,15 @@ const config = {
   newArchEnabled: true,
   assetBundlePatterns: ["**/*"],
 
+  // EAS Update (over-the-air JS updates). The runtime version ties an OTA
+  // update to compatible native builds; JS-only fixes can ship without a
+  // rebuild via `eas update`. Builds must be made AFTER this is configured
+  // for the app to start checking for updates.
+  runtimeVersion: { policy: "appVersion" },
+  updates: {
+    url: "https://u.expo.dev/e23de54c-0b38-4c19-b13f-066535bcdd14",
+  },
+
   ios: {
     bundleIdentifier: "app.imuatrak",
     supportsTablet: false,
