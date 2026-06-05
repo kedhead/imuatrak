@@ -72,6 +72,7 @@ function NoClubScreen() {
           <Button
             title="Join with invite code"
             variant="outline"
+            light
             onPress={() => router.push("/club/join")}
             style={styles.joinBtn}
           />
