@@ -127,7 +127,7 @@ export async function updateClub(
   clubId: string,
   updates: Record<string, unknown>,
 ): Promise<void> {
-  await updateDoc(doc(db, "clubs", clubId), updates);
+  await updateDoc(doc(db, "clubs", clubId), updates as Record<string, unknown> & object);
 }
 
 export async function updateMemberDisplayName(
