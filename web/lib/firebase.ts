@@ -284,7 +284,7 @@ export async function updateClub(
   if (updates.location !== undefined) payload.location = updates.location;
   if (updates.logoUrl !== undefined) payload.logoUrl = updates.logoUrl;
   if (updates.websiteUrl !== undefined) payload.websiteUrl = updates.websiteUrl;
-  if (Object.keys(payload).length > 0) await updateDoc(docRef, payload as Parameters<typeof updateDoc>[1]);
+  if (Object.keys(payload).length > 0) await updateDoc(docRef, payload as Record<string, unknown> & object);
 }
 
 export async function uploadClubLogo(clubId: string, file: File): Promise<string> {
