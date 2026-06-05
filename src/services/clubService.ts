@@ -465,6 +465,15 @@ export async function addComment(
   return { ...comment, id: ref.id };
 }
 
+export async function getClubBySlug(slug: string): Promise<Club | null> {
+  const snap = await getDocs(
+    query(collection(db, "clubs"), where("slug", "==", slug), limit(1)),
+  );
+  if (snap.empty) return null;
+  const d = snap.docs[0]!;
+  return { ...(d.data() as Omit<Club, "id">), id: d.id };
+}
+
 // ── Club chat ─────────────────────────────────────────────────────────────────
 
 export function subscribeMessages(
