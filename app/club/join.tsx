@@ -17,12 +17,12 @@ import { resolveInviteToken, joinClub, getClub, getClubBySlug } from "@/services
 import { useClub } from "@/services/clubStore";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
-function extractSlug(raw: string): string | null {
-  // Full URL: https://imuatrak.app/join/my-club-slug
+function extractIdentifier(raw: string): string | null {
+  // Full URL: https://imuatrak.app/join/{clubId-or-slug}
   const match = raw.match(/imuatrak\.app\/join\/([a-z0-9-]+)/i);
   if (match) return match[1] ?? null;
-  // Looks like a slug (lowercase, hyphens only, no spaces)
-  if (/^[a-z0-9-]{2,60}$/.test(raw)) return raw;
+  // Bare club ID (Firestore auto-ID, alphanumeric) or slug (with hyphens)
+  if (/^[a-z0-9-]{2,60}$/i.test(raw)) return raw;
   return null;
 }
 
@@ -33,23 +33,34 @@ export default function JoinClubScreen() {
   const [input, setInput] = useState(params.code ?? "");
   const [loading, setLoading] = useState(false);
 
-  // Auto-join when opened via deep link with a slug param
+  // Auto-join when opened via deep link with a slug/id param
   useEffect(() => {
     if (params.slug) {
       setInput(params.slug);
-      void handleJoinWithSlug(params.slug);
+      void handleJoinWithIdentifier(params.slug);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleJoinWithSlug = async (slug: string) => {
+  const handleJoinWithIdentifier = async (identifier: string) => {
     const user = currentUser();
     if (!user) { Alert.alert("Please sign in first"); return; }
     setLoading(true);
     try {
-      const club = await getClubBySlug(slug);
+      // Resolve in order: club document ID (current links) → slug (legacy
+      // links) → one-time invite token (12-char hex code).
+      const lower = identifier.toLowerCase();
+      let club =
+        (await getClub(identifier)) ?? (await getClubBySlug(lower));
       if (!club) {
-        Alert.alert("Club not found", "This link may be invalid. Ask your admin for a new one.");
+        const clubId = await resolveInviteToken(lower);
+        if (clubId) club = await getClub(clubId);
+      }
+      if (!club) {
+        Alert.alert(
+          "Club not found",
+          "This link or code may be invalid or expired. Ask your admin for a new one.",
+        );
         return;
       }
       await joinClub(club.id, user.uid, user.displayName ?? "Member");
@@ -64,41 +75,12 @@ export default function JoinClubScreen() {
     }
   };
 
-  const handleJoinWithToken = async (token: string) => {
-    const user = currentUser();
-    if (!user) { Alert.alert("Please sign in first"); return; }
-    setLoading(true);
-    try {
-      const clubId = await resolveInviteToken(token);
-      if (!clubId) {
-        Alert.alert("Invalid or expired code", "Ask your club admin for a new invite.");
-        return;
-      }
-      const club = await getClub(clubId);
-      if (!club) { Alert.alert("Club not found"); return; }
-      await joinClub(clubId, user.uid, user.displayName ?? "Member");
-      await switchClub(clubId, user.uid);
-      Alert.alert("Joined!", `Welcome to ${club.name}!`, [
-        { text: "Let's go", onPress: () => router.back() },
-      ]);
-    } catch {
-      Alert.alert("Error", "Failed to join. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSubmit = async () => {
     const raw = input.trim();
     if (!raw) { Alert.alert("Enter an invite code or paste a link"); return; }
-
-    const slug = extractSlug(raw.toLowerCase());
-    if (slug) {
-      await handleJoinWithSlug(slug);
-    } else {
-      // Treat as a one-time invite token (uppercase alphanumeric)
-      await handleJoinWithToken(raw.toUpperCase());
-    }
+    // extractIdentifier strips a full URL down to the id/slug; otherwise the
+    // raw text (id, slug, or one-time code) is resolved directly.
+    await handleJoinWithIdentifier(extractIdentifier(raw) ?? raw);
   };
 
   return (

@@ -20,7 +20,10 @@ export default function InviteScreen() {
 
   if (!club) return null;
 
-  const permanentLink = `${BASE_URL}/${club.slug}`;
+  // Use the club's unique document ID (not the slug) so the link is always
+  // specific to this club and never stale — slugs can collide or go out of
+  // date if the club is renamed.
+  const permanentLink = `${BASE_URL}/${club.id}`;
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(permanentLink);

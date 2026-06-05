@@ -72,9 +72,11 @@ service cloud.firestore {
 
     // ── Clubs ────────────────────────────────────────────────────────────────
     match /clubs/{clubId} {
-      // Members get full read access. Any signed-in user can read basic club
-      // metadata so they can preview a club before joining via a slug link.
-      allow read: if isSignedIn();
+      // The club document holds only non-sensitive metadata (name, logo,
+      // location, member count). It is publicly readable so invite links and
+      // the imuatrak.app/join landing page can show which club you're joining
+      // before sign-in. All sub-collections below keep their stricter rules.
+      allow read: if true;
       allow update: if hasClubRole(clubId, ["owner", "admin"]);
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid;
