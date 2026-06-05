@@ -93,6 +93,17 @@ service cloud.firestore {
         allow delete: if hasClubRole(clubId, ["owner", "admin"]);
       }
 
+      // ── Chat messages ──────────────────────────────────────────────────────
+      match /messages/{messageId} {
+        allow read: if isClubMember(clubId);
+        allow create: if isClubMember(clubId)
+          && request.resource.data.authorId == request.auth.uid;
+        allow delete: if isClubMember(clubId)
+          && (resource.data.authorId == request.auth.uid
+              || hasClubRole(clubId, ["owner", "admin"]));
+        allow update: if false;
+      }
+
       // ── Posts ──────────────────────────────────────────────────────────────
       match /posts/{postId} {
         allow read: if isClubMember(clubId);

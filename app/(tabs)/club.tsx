@@ -138,6 +138,9 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
         subtitle="Your paddling crew"
         right={
           <>
+            <Pressable onPress={() => router.push("/club/chat")} hitSlop={8}>
+              <Ionicons name="chatbubbles-outline" size={23} color={colors.white} />
+            </Pressable>
             <Pressable onPress={() => router.push("/club/events" as never)} hitSlop={8}>
               <Ionicons name="calendar-outline" size={23} color={colors.white} />
             </Pressable>

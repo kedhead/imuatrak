@@ -83,6 +83,7 @@ export default function RootLayout() {
           <Stack.Screen name="club/admin" options={{ headerShown: true, title: "Club Settings" }} />
           <Stack.Screen name="club/admin/invite" options={{ headerShown: true, title: "Invite Members" }} />
           <Stack.Screen name="club/admin/bulk-schedule" options={{ headerShown: true, title: "Bulk Schedule" }} />
+          <Stack.Screen name="club/chat" options={{ headerShown: true, title: "Club Chat" }} />
           <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false }} />
         </Stack>
         {!splashHidden && <AnimatedSplash hidden={loaded} />}
