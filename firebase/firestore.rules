@@ -77,7 +77,12 @@ service cloud.firestore {
       // the imuatrak.app/join landing page can show which club you're joining
       // before sign-in. All sub-collections below keep their stricter rules.
       allow read: if true;
-      allow update: if hasClubRole(clubId, ["owner", "admin"]);
+      // Owners/admins can edit the club. Any signed-in user may update the
+      // memberCount counter only (and nothing else) so joining/leaving keeps
+      // the count accurate without granting broader write access.
+      allow update: if hasClubRole(clubId, ["owner", "admin"])
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["memberCount"]));
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid;
       allow delete: if hasClubRole(clubId, ["owner"]);

@@ -165,17 +165,24 @@ export async function joinClub(
     role: "member",
     displayName,
     joinedAt: new Date().toISOString(),
-    invitedBy,
+    // Only include invitedBy when set — Firestore rejects `undefined` values.
+    ...(invitedBy ? { invitedBy } : {}),
   };
   await setDoc(doc(db, "clubs", clubId, "members", uid), member);
-  await updateDoc(doc(db, "clubs", clubId), { memberCount: increment(1) });
   await addClubToIndex(uid, clubId);
+  // memberCount is a non-critical display counter; never fail the join if the
+  // increment is rejected (e.g. stricter rules on the club doc).
+  await updateDoc(doc(db, "clubs", clubId), { memberCount: increment(1) }).catch(
+    () => undefined,
+  );
 }
 
 export async function leaveClub(clubId: string, uid: string): Promise<void> {
   await deleteDoc(doc(db, "clubs", clubId, "members", uid));
-  await updateDoc(doc(db, "clubs", clubId), { memberCount: increment(-1) });
   await removeClubFromIndex(uid, clubId);
+  await updateDoc(doc(db, "clubs", clubId), { memberCount: increment(-1) }).catch(
+    () => undefined,
+  );
 }
 
 export async function updateMemberRole(
