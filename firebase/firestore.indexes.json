@@ -15,13 +15,6 @@
         { "fieldPath": "clubId",    "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "clubs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "slug", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []
