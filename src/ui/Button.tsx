@@ -12,6 +12,8 @@ interface Props {
   disabled?: boolean;
   /** Add a colored glow shadow (great for primary CTAs). */
   glow?: boolean;
+  /** Use white border + text — for outline buttons on dark/gradient backgrounds. */
+  light?: boolean;
   style?: ViewStyle;
 }
 
@@ -22,6 +24,7 @@ export function Button({
   gradient = "aqua",
   disabled,
   glow,
+  light,
   style,
 }: Props) {
   const isGradient = variant === "gradient";
@@ -31,7 +34,7 @@ export function Button({
       style={[
         styles.label,
         (variant === "gradient" || variant === "primary") && styles.labelLight,
-        variant === "outline" && styles.labelOutline,
+        variant === "outline" && (light ? styles.labelOutlineLight : styles.labelOutline),
         variant === "danger" && styles.labelDanger,
       ]}
     >
@@ -47,7 +50,7 @@ export function Button({
       style={[
         styles.base,
         variant === "primary" && styles.primary,
-        variant === "outline" && styles.outline,
+        variant === "outline" && (light ? styles.outlineLight : styles.outline),
         variant === "danger" && styles.danger,
         isGradient && styles.gradientWrap,
         glow && (variant === "danger" ? shadow.glowCoral : shadow.glowAqua),
@@ -83,10 +86,12 @@ const styles = StyleSheet.create({
   gradientWrap: { ...shadow.sm },
   primary: { backgroundColor: colors.ocean },
   outline: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.ocean },
+  outlineLight: { backgroundColor: "rgba(255,255,255,0.12)", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.6)" },
   danger: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.danger },
   disabled: { opacity: 0.5 },
   label: { fontWeight: type.weight.bold, fontSize: type.size.lg, letterSpacing: type.spacing.wide },
   labelLight: { color: colors.white },
   labelOutline: { color: colors.ocean },
+  labelOutlineLight: { color: colors.white },
   labelDanger: { color: colors.danger },
 });
