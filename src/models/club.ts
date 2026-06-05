@@ -98,3 +98,16 @@ export interface UserClubs {
   clubIds: string[];
   activeClubId: string;
 }
+
+export interface ClubMessage {
+  id: string;
+  clubId: ClubId;
+  content: string;
+  authorId: string;
+  authorName: string;
+  authorAvatarUrl?: string;
+  mediaUrl?: string;
+  mediaStoragePath?: string;
+  mediaType?: "photo" | "video";
+  createdAt: string;
+}

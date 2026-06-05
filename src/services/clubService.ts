@@ -16,9 +16,11 @@ import {
   increment,
   writeBatch,
   Timestamp,
+  onSnapshot,
 } from "firebase/firestore";
+import * as FileSystem from "expo-file-system/legacy";
 import { httpsCallable } from "firebase/functions";
-import { db, functions } from "./firebase";
+import { auth, db, functions } from "./firebase";
 import type {
   BoatAssignment,
   Club,
@@ -26,6 +28,7 @@ import type {
   ClubEvent,
   ClubPost,
   ClubComment,
+  ClubMessage,
   MemberRole,
   EventType,
   PostType,
@@ -460,4 +463,88 @@ export async function addComment(
     commentCount: increment(1),
   });
   return { ...comment, id: ref.id };
+}
+
+// ── Club chat ─────────────────────────────────────────────────────────────────
+
+export function subscribeMessages(
+  clubId: string,
+  onUpdate: (msgs: ClubMessage[]) => void,
+  msgLimit = 60,
+): () => void {
+  const q = query(
+    collection(db, "clubs", clubId, "messages"),
+    orderBy("createdAt", "asc"),
+    limit(msgLimit),
+  );
+  return onSnapshot(q, (snap) => {
+    const msgs = snap.docs.map(
+      (d) => ({ ...(d.data() as Omit<ClubMessage, "id">), id: d.id }),
+    );
+    onUpdate(msgs);
+  });
+}
+
+export async function sendMessage(
+  clubId: string,
+  uid: string,
+  displayName: string,
+  content: string,
+  mediaType?: "photo" | "video",
+): Promise<ClubMessage> {
+  const msg: Omit<ClubMessage, "id"> = {
+    clubId,
+    content,
+    authorId: uid,
+    authorName: displayName,
+    createdAt: new Date().toISOString(),
+    ...(mediaType ? { mediaType } : {}),
+  };
+  const ref = await addDoc(collection(db, "clubs", clubId, "messages"), msg);
+  return { ...msg, id: ref.id };
+}
+
+export async function uploadMessageMedia(
+  clubId: string,
+  messageId: string,
+  localUri: string,
+  mimeType: string,
+): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("not signed in");
+  const token = await user.getIdToken();
+
+  const ext = mimeType.split("/")[1] ?? "bin";
+  const bucket = "imuatrak.firebasestorage.app";
+  const path = `clubs/${clubId}/messages/${messageId}/media.${ext}`;
+  const uploadUrl =
+    `https://firebasestorage.googleapis.com/v0/b/` +
+    `${encodeURIComponent(bucket)}/o` +
+    `?uploadType=media&name=${encodeURIComponent(path)}`;
+
+  const upload = await FileSystem.uploadAsync(uploadUrl, localUri, {
+    httpMethod: "POST",
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": mimeType },
+  });
+
+  if (upload.status < 200 || upload.status >= 300) {
+    throw new Error(`Upload failed: HTTP ${upload.status}`);
+  }
+
+  const meta = JSON.parse(upload.body) as { downloadTokens?: string };
+  const downloadToken = meta.downloadTokens?.split(",")[0];
+  if (!downloadToken) throw new Error("No download token in Storage response");
+
+  const mediaUrl =
+    `https://firebasestorage.googleapis.com/v0/b/` +
+    `${encodeURIComponent(bucket)}/o/${encodeURIComponent(path)}` +
+    `?alt=media&token=${downloadToken}`;
+
+  await updateDoc(doc(db, "clubs", clubId, "messages", messageId), {
+    mediaUrl,
+    mediaStoragePath: `gs://${bucket}/${path}`,
+  });
+
+  return mediaUrl;
 }
