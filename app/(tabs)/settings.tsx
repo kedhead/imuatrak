@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CRAFT_TYPES, type CraftType } from "@/models";
 import { signOut, watchAuth, updateDisplayName, type AuthUser } from "@/services/auth";
 import { leaveClub, updateMemberDisplayName } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
+import { useSubscription } from "@/services/subscriptionStore";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { GradientCard } from "@/ui/GradientCard";
@@ -55,6 +56,8 @@ export default function Settings() {
   const role = useClub((s) => s.role);
   const loaded = useClub((s) => s.loaded);
   const clearClub = useClub((s) => s.clearClub);
+  const isAdFree = useSubscription((s) => s.isAdFree);
+  const clubAdFree = club?.subscriptionStatus === "active" || club?.subscriptionStatus === "trial";
   const routerHook = useRouter();
 
   useEffect(() => watchAuth((u) => {
@@ -142,6 +145,42 @@ export default function Settings() {
                 )}
                 <Button title="Sign out" variant="danger" onPress={onSignOut} style={{ marginTop: spacing.md }} />
               </>
+            )}
+          </GradientCard>
+        </Section>
+
+        <Section title="ImuaTrak+">
+          <GradientCard>
+            {isAdFree ? (
+              <>
+                <View style={styles.clubRow}>
+                  <Text style={styles.body}>Ad-Free Active</Text>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
+                </View>
+                <Pressable
+                  style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+                  onPress={() => {
+                    const url = "https://apps.apple.com/account/subscriptions";
+                    void Linking.openURL(url);
+                  }}
+                >
+                  <Text style={styles.settingsRowText}>Manage Subscription</Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                </Pressable>
+              </>
+            ) : clubAdFree ? (
+              <View style={styles.clubRow}>
+                <Text style={styles.body}>Ad-Free via Club</Text>
+                <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
+              </View>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+                onPress={() => routerHook.push("/paywall")}
+              >
+                <Text style={styles.settingsRowText}>Remove Ads</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+              </Pressable>
             )}
           </GradientCard>
         </Section>

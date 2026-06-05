@@ -8,6 +8,7 @@ import "react-native-reanimated";
 import { useSettings } from "@/services/settings";
 import { useRecorder } from "@/services/recorder";
 import { useClub } from "@/services/clubStore";
+import { useSubscription } from "@/services/subscriptionStore";
 import { watchAuth } from "@/services/auth";
 import { AnimatedSplash } from "@/ui/AnimatedSplash";
 import { colors } from "@/ui/theme";
@@ -22,6 +23,7 @@ export default function RootLayout() {
   const isRecording = useRecorder((s) => s.isRecording);
   const loadClub = useClub((s) => s.load);
   const clearClub = useClub((s) => s.clearClub);
+  const initSubscription = useSubscription((s) => s.initialize);
 
   // Keep the animated splash up for a beat so it can play, then cross-fade out.
   const [splashHidden, setSplashHidden] = useState(false);
@@ -42,13 +44,17 @@ export default function RootLayout() {
     return () => clearTimeout(t);
   }, [loaded]);
 
-  // Load club context whenever auth state changes.
+  // Load club context and subscription status whenever auth state changes.
   useEffect(() => {
     return watchAuth((user) => {
-      if (user) void loadClub(user.uid);
-      else clearClub();
+      if (user) {
+        void loadClub(user.uid);
+        void initSubscription(user.uid);
+      } else {
+        clearClub();
+      }
     });
-  }, [loadClub, clearClub]);
+  }, [loadClub, clearClub, initSubscription]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -77,6 +83,7 @@ export default function RootLayout() {
           <Stack.Screen name="club/admin" options={{ headerShown: true, title: "Club Settings" }} />
           <Stack.Screen name="club/admin/invite" options={{ headerShown: true, title: "Invite Members" }} />
           <Stack.Screen name="club/admin/bulk-schedule" options={{ headerShown: true, title: "Bulk Schedule" }} />
+          <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false }} />
         </Stack>
         {!splashHidden && <AnimatedSplash hidden={loaded} />}
       </SafeAreaProvider>
