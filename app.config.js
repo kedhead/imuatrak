@@ -49,6 +49,7 @@ const config = {
       "com.apple.developer.healthkit": true,
       "com.apple.developer.healthkit.access": [],
       "com.apple.developer.applesignin": ["Default"],
+      "aps-environment": "production",
     },
     config: {
       usesNonExemptEncryption: false,
