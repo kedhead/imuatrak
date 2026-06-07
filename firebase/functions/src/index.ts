@@ -2,6 +2,7 @@ import * as crypto from "crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
@@ -274,4 +275,229 @@ export const createClubInvite = onCall(async (request) => {
   });
 
   return { token };
+});
+
+// ---------------------------------------------------------------------------
+// createChannel — subscription-gated callable that creates a new chat channel.
+// Free/expired clubs may only have the General channel; trial/active clubs are
+// unlimited. All channel creation goes through this function so billing logic
+// stays server-side and security rules can simply deny direct client writes.
+//
+// Request:  { clubId, name, icon, iconType, description?, isPrivate, memberIds? }
+// Response: ClubChannel
+// ---------------------------------------------------------------------------
+export const createChannel = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const {
+    clubId,
+    name,
+    icon,
+    iconType,
+    description,
+    isPrivate,
+    memberIds,
+  } = (request.data ?? {}) as {
+    clubId?: unknown;
+    name?: unknown;
+    icon?: unknown;
+    iconType?: unknown;
+    description?: unknown;
+    isPrivate?: unknown;
+    memberIds?: unknown;
+  };
+
+  if (typeof clubId !== "string" || !clubId) {
+    throw new HttpsError("invalid-argument", "clubId is required");
+  }
+  if (typeof name !== "string" || !name.trim()) {
+    throw new HttpsError("invalid-argument", "name is required");
+  }
+  if (typeof icon !== "string" || !icon) {
+    throw new HttpsError("invalid-argument", "icon is required");
+  }
+  if (iconType !== "emoji" && iconType !== "ionicon") {
+    throw new HttpsError("invalid-argument", "iconType must be emoji or ionicon");
+  }
+
+  const db = getFirestore();
+
+  const memberSnap = await db.doc(`clubs/${clubId}/members/${uid}`).get();
+  if (!memberSnap.exists) {
+    throw new HttpsError("permission-denied", "You are not a member of this club");
+  }
+  const memberRole = (memberSnap.data() as { role?: string } | undefined)?.role;
+  if (memberRole !== "owner" && memberRole !== "admin") {
+    throw new HttpsError("permission-denied", "Only owners and admins can create channels");
+  }
+
+  const clubSnap = await db.doc(`clubs/${clubId}`).get();
+  const clubData = clubSnap.data() as { subscriptionStatus?: string } | undefined;
+  if (clubData?.subscriptionStatus === "expired") {
+    const existingChannels = await db.collection(`clubs/${clubId}/channels`).count().get();
+    if (existingChannels.data().count >= 1) {
+      throw new HttpsError(
+        "permission-denied",
+        "Upgrade your subscription to add more channels",
+      );
+    }
+  }
+
+  const existingChannels = await db.collection(`clubs/${clubId}/channels`).get();
+  const sortOrder = existingChannels.size;
+
+  const now = new Date().toISOString();
+  const channelRef = db.collection(`clubs/${clubId}/channels`).doc();
+  const channelData = {
+    id: channelRef.id,
+    clubId,
+    name: (name as string).trim(),
+    icon: icon as string,
+    iconType: iconType as "emoji" | "ionicon",
+    description: typeof description === "string" ? description.trim() : "",
+    isPrivate: Boolean(isPrivate),
+    memberIds: Array.isArray(memberIds)
+      ? (memberIds as unknown[]).filter((v): v is string => typeof v === "string")
+      : [],
+    createdBy: uid,
+    createdAt: now,
+    sortOrder,
+  };
+  await channelRef.set(channelData);
+
+  return channelData;
+});
+
+// ---------------------------------------------------------------------------
+// onChannelMessageCreate — sends FCM push notifications to channel members
+// when a new message is created, respecting per-user mute preferences.
+// Also updates lastMessageAt on the channel doc for unread indicators.
+// ---------------------------------------------------------------------------
+export const onChannelMessageCreate = onDocumentCreated(
+  "clubs/{clubId}/channels/{channelId}/messages/{messageId}",
+  async (event) => {
+    const { clubId, channelId } = event.params;
+    const messageData = event.data?.data() as {
+      authorId: string;
+      authorName: string;
+      content: string;
+    } | undefined;
+    if (!messageData) return;
+
+    const db = getFirestore();
+
+    const channelSnap = await db.doc(`clubs/${clubId}/channels/${channelId}`).get();
+    if (!channelSnap.exists) return;
+    const channel = channelSnap.data() as {
+      name: string;
+      isPrivate: boolean;
+      memberIds: string[];
+    };
+
+    let recipientUids: string[];
+    if (channel.isPrivate) {
+      recipientUids = channel.memberIds;
+    } else {
+      const membersSnap = await db.collection(`clubs/${clubId}/members`).get();
+      recipientUids = membersSnap.docs.map((d) => d.id);
+    }
+
+    recipientUids = recipientUids.filter((id) => id !== messageData.authorId);
+    if (recipientUids.length === 0) return;
+
+    const tokenArrays = await Promise.all(
+      recipientUids.map(async (userId) => {
+        const prefSnap = await db
+          .doc(`users/${userId}/channelPreferences/${channelId}`)
+          .get();
+        if (prefSnap.exists && (prefSnap.data() as { muteNotifications?: boolean })?.muteNotifications === true) {
+          return [] as string[];
+        }
+        const tokensSnap = await db.collection(`users/${userId}/fcmTokens`).get();
+        return tokensSnap.docs.map((d) => (d.data() as { token: string }).token);
+      }),
+    );
+
+    const tokens = tokenArrays.flat().filter(Boolean);
+    if (tokens.length > 0) {
+      const body = messageData.content.length > 0
+        ? messageData.content.slice(0, 200)
+        : "Sent a photo";
+
+      for (let i = 0; i < tokens.length; i += 500) {
+        const chunk = tokens.slice(i, i + 500);
+        await getMessaging().sendEachForMulticast({
+          tokens: chunk,
+          notification: {
+            title: `${messageData.authorName} in #${channel.name}`,
+            body,
+          },
+          data: { clubId, channelId, screen: "club/chat" },
+          apns: { payload: { aps: { sound: "default", badge: 1 } } },
+          android: { priority: "high", notification: { sound: "default" } },
+        });
+      }
+    }
+
+    await db.doc(`clubs/${clubId}/channels/${channelId}`).update({
+      lastMessageAt: event.data?.createTime?.toDate().toISOString() ?? new Date().toISOString(),
+    });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// migrateMessagesToGeneralChannel — one-time callable (owner only) that copies
+// all legacy messages from clubs/{clubId}/messages to the General channel.
+// ---------------------------------------------------------------------------
+export const migrateMessagesToGeneralChannel = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { clubId } = (request.data ?? {}) as { clubId?: unknown };
+  if (typeof clubId !== "string" || !clubId) {
+    throw new HttpsError("invalid-argument", "clubId is required");
+  }
+
+  const db = getFirestore();
+
+  const memberSnap = await db.doc(`clubs/${clubId}/members/${uid}`).get();
+  if ((memberSnap.data() as { role?: string } | undefined)?.role !== "owner") {
+    throw new HttpsError("permission-denied", "Owner only");
+  }
+
+  const generalChannelRef = db.doc(`clubs/${clubId}/channels/general`);
+  const generalSnap = await generalChannelRef.get();
+  if (!generalSnap.exists) {
+    await generalChannelRef.set({
+      id: "general",
+      clubId,
+      name: "General",
+      icon: "chatbubbles-outline",
+      iconType: "ionicon",
+      description: "",
+      isPrivate: false,
+      memberIds: [],
+      createdBy: uid,
+      createdAt: new Date().toISOString(),
+      sortOrder: 0,
+    });
+  }
+
+  const legacySnap = await db.collection(`clubs/${clubId}/messages`).get();
+  if (legacySnap.empty) return { migrated: 0 };
+
+  let migrated = 0;
+  const docs = legacySnap.docs;
+  for (let i = 0; i < docs.length; i += 499) {
+    const batch = db.batch();
+    for (const d of docs.slice(i, i + 499)) {
+      const newRef = db.doc(`clubs/${clubId}/channels/general/messages/${d.id}`);
+      batch.set(newRef, { ...d.data(), channelId: "general" });
+    }
+    await batch.commit();
+    migrated += Math.min(499, docs.length - i);
+  }
+
+  return { migrated };
 });

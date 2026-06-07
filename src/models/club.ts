@@ -102,6 +102,7 @@ export interface UserClubs {
 export interface ClubMessage {
   id: string;
   clubId: ClubId;
+  channelId: string;
   content: string;
   authorId: string;
   authorName: string;
@@ -110,4 +111,32 @@ export interface ClubMessage {
   mediaStoragePath?: string;
   mediaType?: "photo" | "video";
   createdAt: string;
+}
+
+export type ChannelIconType = "emoji" | "ionicon";
+
+export interface ClubChannel {
+  id: string;
+  clubId: ClubId;
+  name: string;
+  icon: string;
+  iconType: ChannelIconType;
+  description?: string;
+  isPrivate: boolean;
+  memberIds: string[];
+  createdBy: string;
+  createdAt: string;
+  sortOrder: number;
+  lastMessageAt?: string;
+}
+
+export interface ChannelPreference {
+  muteNotifications: boolean;
+  lastReadAt: string;
+}
+
+export interface FcmToken {
+  token: string;
+  platform: "ios" | "android";
+  updatedAt: string;
 }

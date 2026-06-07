@@ -17,6 +17,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { deleteField } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/services/firebase";
 import { useClub } from "@/services/clubStore";
 import { updateClub, leaveClub } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
@@ -35,6 +37,8 @@ export default function ClubAdminScreen() {
   const [logoUrl, setLogoUrl] = useState(club?.logoUrl ?? "");
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+  const [migrated, setMigrated] = useState(false);
 
   if (!club || (role !== "owner" && role !== "admin")) {
     return (
@@ -126,6 +130,36 @@ export default function ClubAdminScreen() {
     }
   };
 
+  const handleMigrateMessages = async () => {
+    Alert.alert(
+      "Migrate Chat",
+      "This will move all existing chat messages into the General channel. Run this once after upgrading.",
+      [
+        {
+          text: "Migrate",
+          onPress: async () => {
+            setMigrating(true);
+            try {
+              const migrate = httpsCallable<{ clubId: string }, { migrated: number }>(
+                functions,
+                "migrateMessagesToGeneralChannel",
+              );
+              const result = await migrate({ clubId: club!.id });
+              setMigrated(true);
+              Alert.alert("Done", `Moved ${result.data.migrated} messages to General.`);
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : "Unknown error";
+              Alert.alert("Migration failed", msg);
+            } finally {
+              setMigrating(false);
+            }
+          },
+        },
+        { text: "Cancel", style: "cancel" },
+      ],
+    );
+  };
+
   const handleLeave = () => {
     if (role === "owner") {
       Alert.alert("Can't leave", "Transfer ownership before leaving.");
@@ -194,6 +228,34 @@ export default function ClubAdminScreen() {
           <Text style={styles.inviteBtnText}>Generate Invite Link</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: "auto" }} />
         </Pressable>
+
+        {/* Channels */}
+        <Text style={styles.sectionLabel}>CHANNELS</Text>
+        <Pressable style={styles.inviteBtn} onPress={() => router.push("/club/admin/channels" as never)}>
+          <Ionicons name="chatbubbles-outline" size={18} color={colors.blue} />
+          <Text style={styles.inviteBtnText}>Manage Channels</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: "auto" }} />
+        </Pressable>
+        {role === "owner" && !migrated && (
+          <Pressable
+            style={[styles.inviteBtn, migrating && { opacity: 0.6 }]}
+            onPress={() => void handleMigrateMessages()}
+            disabled={migrating}
+          >
+            {migrating
+              ? <ActivityIndicator size="small" color={colors.blue} />
+              : <Ionicons name="arrow-forward-circle-outline" size={18} color={colors.blue} />
+            }
+            <Text style={styles.inviteBtnText}>
+              {migrating ? "Migrating…" : "Migrate Chat to Channels"}
+            </Text>
+          </Pressable>
+        )}
+        {migrated && (
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: spacing.xs }}>
+            Migration complete — messages are now in the General channel.
+          </Text>
+        )}
 
         {/* Club settings */}
         <Text style={styles.sectionLabel}>CLUB NAME</Text>
