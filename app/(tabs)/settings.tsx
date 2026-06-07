@@ -168,19 +168,24 @@ export default function Settings() {
                   <Ionicons name="chevron-forward" size={18} color={colors.muted} />
                 </Pressable>
               </>
-            ) : clubAdFree ? (
-              <View style={styles.clubRow}>
-                <Text style={styles.body}>Ad-Free via Club</Text>
-                <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
-              </View>
             ) : (
-              <Pressable
-                style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
-                onPress={() => routerHook.push("/paywall")}
-              >
-                <Text style={styles.settingsRowText}>Remove Ads</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-              </Pressable>
+              <>
+                {clubAdFree && (
+                  <View style={[styles.clubRow, { marginBottom: spacing.sm }]}>
+                    <Text style={styles.body}>Ad-Free via Club</Text>
+                    <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
+                  </View>
+                )}
+                <Pressable
+                  style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+                  onPress={() => routerHook.push("/paywall")}
+                >
+                  <Text style={styles.settingsRowText}>
+                    {clubAdFree ? "ImuaTrak+ Subscription" : "Remove Ads"}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                </Pressable>
+              </>
             )}
           </GradientCard>
         </Section>
