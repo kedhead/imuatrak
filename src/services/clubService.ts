@@ -29,6 +29,9 @@ import type {
   ClubPost,
   ClubComment,
   ClubMessage,
+  ClubChannel,
+  ChannelPreference,
+  FcmToken,
   MemberRole,
   EventType,
   PostType,
@@ -485,15 +488,64 @@ export async function getClubBySlug(slug: string): Promise<Club | null> {
   return { ...(d.data() as Omit<Club, "id">), id: d.id };
 }
 
-// ── Club chat ─────────────────────────────────────────────────────────────────
+// ── Club channels ─────────────────────────────────────────────────────────────
 
-export function subscribeMessages(
+export function subscribeChannels(
   clubId: string,
+  onUpdate: (channels: ClubChannel[]) => void,
+): () => void {
+  const q = query(
+    collection(db, "clubs", clubId, "channels"),
+    orderBy("sortOrder", "asc"),
+  );
+  return onSnapshot(q, (snap) => {
+    const channels = snap.docs.map(
+      (d) => ({ ...(d.data() as Omit<ClubChannel, "id">), id: d.id }),
+    );
+    onUpdate(channels);
+  });
+}
+
+export async function getChannel(clubId: string, channelId: string): Promise<ClubChannel | null> {
+  const snap = await getDoc(doc(db, "clubs", clubId, "channels", channelId));
+  if (!snap.exists()) return null;
+  return { ...(snap.data() as Omit<ClubChannel, "id">), id: snap.id };
+}
+
+export async function updateChannel(
+  clubId: string,
+  channelId: string,
+  updates: Partial<Pick<ClubChannel, "name" | "icon" | "iconType" | "description" | "sortOrder">>,
+): Promise<void> {
+  await updateDoc(doc(db, "clubs", clubId, "channels", channelId), updates);
+}
+
+export async function deleteChannel(clubId: string, channelId: string): Promise<void> {
+  await deleteDoc(doc(db, "clubs", clubId, "channels", channelId));
+}
+
+export async function addChannelMember(clubId: string, channelId: string, uid: string): Promise<void> {
+  await updateDoc(doc(db, "clubs", clubId, "channels", channelId), {
+    memberIds: arrayUnion(uid),
+  });
+}
+
+export async function removeChannelMember(clubId: string, channelId: string, uid: string): Promise<void> {
+  await updateDoc(doc(db, "clubs", clubId, "channels", channelId), {
+    memberIds: arrayRemove(uid),
+  });
+}
+
+// ── Club chat (channel-scoped) ─────────────────────────────────────────────────
+
+export function subscribeChannelMessages(
+  clubId: string,
+  channelId: string,
   onUpdate: (msgs: ClubMessage[]) => void,
   msgLimit = 60,
 ): () => void {
   const q = query(
-    collection(db, "clubs", clubId, "messages"),
+    collection(db, "clubs", clubId, "channels", channelId, "messages"),
     orderBy("createdAt", "asc"),
     limit(msgLimit),
   );
@@ -507,25 +559,36 @@ export function subscribeMessages(
 
 export async function sendMessage(
   clubId: string,
+  channelId: string,
   uid: string,
   displayName: string,
   content: string,
   mediaType?: "photo" | "video",
 ): Promise<ClubMessage> {
+  const now = new Date().toISOString();
   const msg: Omit<ClubMessage, "id"> = {
     clubId,
+    channelId,
     content,
     authorId: uid,
     authorName: displayName,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
     ...(mediaType ? { mediaType } : {}),
   };
-  const ref = await addDoc(collection(db, "clubs", clubId, "messages"), msg);
+  const ref = await addDoc(
+    collection(db, "clubs", clubId, "channels", channelId, "messages"),
+    msg,
+  );
+  // Update lastMessageAt on the channel for unread indicators
+  void updateDoc(doc(db, "clubs", clubId, "channels", channelId), {
+    lastMessageAt: now,
+  }).catch(() => undefined);
   return { ...msg, id: ref.id };
 }
 
 export async function uploadMessageMedia(
   clubId: string,
+  channelId: string,
   messageId: string,
   localUri: string,
   mimeType: string,
@@ -536,7 +599,7 @@ export async function uploadMessageMedia(
 
   const ext = mimeType.split("/")[1] ?? "bin";
   const bucket = "imuatrak.firebasestorage.app";
-  const path = `clubs/${clubId}/messages/${messageId}/media.${ext}`;
+  const path = `clubs/${clubId}/channels/${channelId}/messages/${messageId}/media.${ext}`;
   const uploadUrl =
     `https://firebasestorage.googleapis.com/v0/b/` +
     `${encodeURIComponent(bucket)}/o` +
@@ -561,10 +624,48 @@ export async function uploadMessageMedia(
     `${encodeURIComponent(bucket)}/o/${encodeURIComponent(path)}` +
     `?alt=media&token=${downloadToken}`;
 
-  await updateDoc(doc(db, "clubs", clubId, "messages", messageId), {
-    mediaUrl,
-    mediaStoragePath: `gs://${bucket}/${path}`,
-  });
+  await updateDoc(
+    doc(db, "clubs", clubId, "channels", channelId, "messages", messageId),
+    { mediaUrl, mediaStoragePath: `gs://${bucket}/${path}` },
+  );
 
   return mediaUrl;
+}
+
+// ── Channel preferences & FCM ─────────────────────────────────────────────────
+
+export async function registerFcmToken(
+  uid: string,
+  token: string,
+  platform: "ios" | "android",
+): Promise<void> {
+  const entry: FcmToken = { token, platform, updatedAt: new Date().toISOString() };
+  await setDoc(doc(db, "users", uid, "fcmTokens", token), entry);
+}
+
+export async function getChannelPreferences(
+  uid: string,
+): Promise<Map<string, ChannelPreference>> {
+  const snap = await getDocs(collection(db, "users", uid, "channelPreferences"));
+  const map = new Map<string, ChannelPreference>();
+  snap.docs.forEach((d) => {
+    map.set(d.id, d.data() as ChannelPreference);
+  });
+  return map;
+}
+
+export async function setChannelPreference(
+  uid: string,
+  channelId: string,
+  prefs: Partial<ChannelPreference>,
+): Promise<void> {
+  await setDoc(doc(db, "users", uid, "channelPreferences", channelId), prefs, { merge: true });
+}
+
+export async function markChannelRead(uid: string, channelId: string): Promise<void> {
+  await setDoc(
+    doc(db, "users", uid, "channelPreferences", channelId),
+    { lastReadAt: new Date().toISOString() },
+    { merge: true },
+  );
 }
