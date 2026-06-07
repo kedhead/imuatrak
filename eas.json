@@ -21,7 +21,7 @@
       "node": "22.15.0",
       "autoIncrement": true,
       "ios": { "image": "latest" },
-      "android": { "image": "latest", "buildType": "aab", "distribution": "store" }
+      "android": { "image": "latest", "buildType": "app-bundle", "distribution": "store" }
     }
   },
   "submit": {
