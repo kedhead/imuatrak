@@ -114,7 +114,7 @@ const config = {
       "expo-build-properties",
       {
         ios: { deploymentTarget: "16.4" },
-        android: { compileSdkVersion: 35, targetSdkVersion: 35, minSdkVersion: 26 },
+        android: { compileSdkVersion: 36, targetSdkVersion: 35, minSdkVersion: 26 },
       },
     ],
     // @kingstinct/react-native-healthkit is iOS-only; skip on Android
