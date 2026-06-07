@@ -90,6 +90,7 @@ const config = {
 
   plugins: [
     "expo-router",
+    "expo-notifications",
     [
       "react-native-google-mobile-ads",
       {
