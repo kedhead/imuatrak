@@ -160,6 +160,10 @@ export async function joinClub(
   displayName: string,
   invitedBy?: string,
 ): Promise<void> {
+  const memberRef = doc(db, "clubs", clubId, "members", uid);
+  const existing = await getDoc(memberRef);
+  if (existing.exists()) return; // Already a member — never overwrite an existing role
+
   const member: ClubMember = {
     uid,
     role: "member",
@@ -168,7 +172,7 @@ export async function joinClub(
     // Only include invitedBy when set — Firestore rejects `undefined` values.
     ...(invitedBy ? { invitedBy } : {}),
   };
-  await setDoc(doc(db, "clubs", clubId, "members", uid), member);
+  await setDoc(memberRef, member);
   await addClubToIndex(uid, clubId);
   // memberCount is a non-critical display counter; never fail the join if the
   // increment is rejected (e.g. stricter rules on the club doc).
