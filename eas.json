@@ -20,7 +20,8 @@
       "channel": "production",
       "node": "22.15.0",
       "autoIncrement": true,
-      "ios": { "image": "latest" }
+      "ios": { "image": "latest" },
+      "android": { "image": "latest", "buildType": "aab", "distribution": "store" }
     }
   },
   "submit": {
