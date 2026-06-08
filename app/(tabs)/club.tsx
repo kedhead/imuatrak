@@ -118,8 +118,9 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
       });
       setPosts((prev) => [post, ...prev]);
       setPostText("");
-    } catch {
-      Alert.alert("Error", "Failed to post. Please try again.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert("Error", msg);
     } finally {
       setPosting(false);
     }
