@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -117,6 +118,8 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
       });
       setPosts((prev) => [post, ...prev]);
       setPostText("");
+    } catch {
+      Alert.alert("Error", "Failed to post. Please try again.");
     } finally {
       setPosting(false);
     }
