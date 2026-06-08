@@ -414,12 +414,12 @@ export async function createPost(
     content: opts.content,
     authorId: uid,
     authorName: displayName,
-    pinnedUntil: opts.pinnedUntil,
-    linkedSessionId: opts.linkedSessionId,
     likeCount: 0,
     commentCount: 0,
     createdAt: now,
     updatedAt: now,
+    ...(opts.pinnedUntil !== undefined && { pinnedUntil: opts.pinnedUntil }),
+    ...(opts.linkedSessionId !== undefined && { linkedSessionId: opts.linkedSessionId }),
   };
   const ref = await addDoc(collection(db, "clubs", clubId, "posts"), post);
   return { ...post, id: ref.id };
