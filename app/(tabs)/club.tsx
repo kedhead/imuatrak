@@ -206,24 +206,30 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
 
             <View style={styles.composerWrap}>
               <GradientCard padded>
-                <TextInput
-                  style={styles.composerInput}
-                  placeholder="Share something with the club…"
-                  placeholderTextColor={colors.muted}
-                  value={postText}
-                  onChangeText={setPostText}
-                  multiline
-                  maxLength={2000}
-                />
-                {postText.trim().length > 0 && (
-                  <Button
-                    title={posting ? "Posting…" : "Post"}
-                    gradient="aqua"
-                    onPress={handlePost}
-                    disabled={posting}
-                    style={styles.postBtn}
+                <View style={styles.composerRow}>
+                  <TextInput
+                    style={styles.composerInput}
+                    placeholder="Share something with the club…"
+                    placeholderTextColor={colors.muted}
+                    value={postText}
+                    onChangeText={setPostText}
+                    multiline
+                    maxLength={2000}
                   />
-                )}
+                  {postText.trim().length > 0 && (
+                    <AnimatedPressable
+                      onPress={() => void handlePost()}
+                      disabled={posting}
+                      haptic
+                      style={[styles.postSendBtn, posting && { opacity: 0.5 }]}
+                    >
+                      {posting
+                        ? <ActivityIndicator size="small" color={colors.white} />
+                        : <Ionicons name="send" size={18} color={colors.white} />
+                      }
+                    </AnimatedPressable>
+                  )}
+                </View>
               </GradientCard>
             </View>
 
@@ -475,8 +481,9 @@ const styles = StyleSheet.create({
   eventDateRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   eventDate: { fontSize: type.size.xs, color: colors.muted },
   composerWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.sm },
-  composerInput: { fontSize: type.size.md, color: colors.ink, minHeight: 56 },
-  postBtn: { alignSelf: "flex-end", marginTop: spacing.sm, minHeight: 40 },
+  composerRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
+  composerInput: { flex: 1, fontSize: type.size.md, color: colors.ink, minHeight: 56 },
+  postSendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.ocean, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   postWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   pinnedBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: spacing.sm },
   pinnedText: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.gold, letterSpacing: 0.5 },
