@@ -7,20 +7,6 @@
         { "fieldPath": "userId",    "order": "ASCENDING" },
         { "fieldPath": "startedAt", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "messages",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "channels",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "sortOrder", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []
