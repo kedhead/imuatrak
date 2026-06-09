@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,15 +14,16 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
-import { getPosts, createPost, deletePost, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
+import { getPosts, createPost, deletePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
-import type { ClubPost, ClubEvent, ClubComment } from "@/models/club";
+import type { ClubPost, ClubEvent, ClubComment, PollOption } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
@@ -95,6 +97,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const [postText, setPostText] = useState("");
   const [posting, setPosting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showPollComposer, setShowPollComposer] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -234,7 +237,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
                     multiline
                     maxLength={2000}
                   />
-                  {postText.trim().length > 0 && (
+                  {postText.trim().length > 0 ? (
                     <AnimatedPressable
                       onPress={() => void handlePost()}
                       disabled={posting}
@@ -246,10 +249,28 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
                         : <Ionicons name="send" size={18} color={colors.white} />
                       }
                     </AnimatedPressable>
+                  ) : (
+                    <AnimatedPressable
+                      onPress={() => setShowPollComposer(true)}
+                      haptic
+                      style={styles.pollIconBtn}
+                    >
+                      <Ionicons name="bar-chart-outline" size={20} color={colors.ocean} />
+                    </AnimatedPressable>
                   )}
                 </View>
               </GradientCard>
             </View>
+            {showPollComposer && (
+              <PollComposer
+                clubId={clubId}
+                onClose={() => setShowPollComposer(false)}
+                onCreated={(poll) => {
+                  setPosts((prev) => [poll, ...prev]);
+                  setShowPollComposer(false);
+                }}
+              />
+            )}
 
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionLabel}>FEED</Text>
@@ -371,20 +392,25 @@ function PostCard({
           )}
         </View>
         <Text style={styles.postContent}>{post.content}</Text>
-        <View style={styles.postActions}>
-          <AnimatedPressable onPress={handleLike} disabled={!currentUserId || liking} style={styles.likeBtn} haptic>
-            <Ionicons name={liked ? "heart" : "heart-outline"} size={18} color={liked ? colors.coral : colors.muted} />
-            {post.likeCount > 0 && (
-              <Text style={[styles.likeCount, liked && { color: colors.coral }]}>{post.likeCount}</Text>
-            )}
-          </AnimatedPressable>
-          <AnimatedPressable onPress={() => setShowComments(true)} style={styles.likeBtn} haptic>
-            <Ionicons name="chatbubble-outline" size={16} color={colors.muted} />
-            {post.commentCount > 0 && (
-              <Text style={styles.likeCount}>{post.commentCount}</Text>
-            )}
-          </AnimatedPressable>
-        </View>
+        {post.type === "poll" && (
+          <PollCard post={post} clubId={clubId} currentUserId={currentUserId} />
+        )}
+        {post.type !== "poll" && (
+          <View style={styles.postActions}>
+            <AnimatedPressable onPress={handleLike} disabled={!currentUserId || liking} style={styles.likeBtn} haptic>
+              <Ionicons name={liked ? "heart" : "heart-outline"} size={18} color={liked ? colors.coral : colors.muted} />
+              {post.likeCount > 0 && (
+                <Text style={[styles.likeCount, liked && { color: colors.coral }]}>{post.likeCount}</Text>
+              )}
+            </AnimatedPressable>
+            <AnimatedPressable onPress={() => setShowComments(true)} style={styles.likeBtn} haptic>
+              <Ionicons name="chatbubble-outline" size={16} color={colors.muted} />
+              {post.commentCount > 0 && (
+                <Text style={styles.likeCount}>{post.commentCount}</Text>
+              )}
+            </AnimatedPressable>
+          </View>
+        )}
       </GradientCard>
       {showComments && (
         <CommentsSheet
@@ -490,6 +516,259 @@ function CommentsSheet({
   );
 }
 
+// ── Poll composer modal ───────────────────────────────────────────────────────
+
+function PollComposer({
+  clubId,
+  onClose,
+  onCreated,
+}: {
+  clubId: string;
+  onClose: () => void;
+  onCreated: (post: ClubPost) => void;
+}) {
+  const [question, setQuestion] = useState("");
+  const [options, setOptions] = useState(["", ""]);
+  const [multipleChoice, setMultipleChoice] = useState(false);
+  const [expiryEnabled, setExpiryEnabled] = useState(false);
+  const [expiryDate, setExpiryDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d;
+  });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const canSubmit = question.trim().length > 0 && options.filter((o) => o.trim()).length >= 2;
+
+  const setOption = (i: number, text: string) => {
+    setOptions((prev) => prev.map((o, idx) => (idx === i ? text : o)));
+  };
+
+  const addOption = () => {
+    if (options.length < 4) setOptions((prev) => [...prev, ""]);
+  };
+
+  const removeOption = (i: number) => {
+    if (options.length > 2) setOptions((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
+  const handleCreate = async () => {
+    if (!canSubmit) return;
+    const user = currentUser();
+    if (!user) return;
+    setSubmitting(true);
+    try {
+      const pollOptions: PollOption[] = options.filter((o) => o.trim()).map((o) => ({ text: o.trim() }));
+      const post = await createPost(clubId, user.uid, user.displayName ?? "Member", {
+        type: "poll",
+        content: question.trim(),
+        pollOptions,
+        pollMultipleChoice: multipleChoice,
+        ...(expiryEnabled && { pollEndsAt: expiryDate.toISOString() }),
+      });
+      onCreated(post);
+    } catch (e) {
+      Alert.alert("Error", e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose} />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.sheet}>
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>New Poll</Text>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Ionicons name="close" size={22} color={colors.muted} />
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }} keyboardShouldPersistTaps="handled">
+          <Text style={styles.pollLabel}>Question</Text>
+          <TextInput
+            style={styles.pollQuestionInput}
+            placeholder="Ask the club something…"
+            placeholderTextColor={colors.muted}
+            value={question}
+            onChangeText={setQuestion}
+            multiline
+            maxLength={200}
+            autoFocus
+          />
+
+          <Text style={[styles.pollLabel, { marginTop: spacing.sm }]}>Options</Text>
+          {options.map((opt, i) => (
+            <View key={i} style={styles.pollOptionRow}>
+              <TextInput
+                style={styles.pollOptionInput}
+                placeholder={`Option ${i + 1}`}
+                placeholderTextColor={colors.muted}
+                value={opt}
+                onChangeText={(t) => setOption(i, t)}
+                maxLength={80}
+              />
+              {options.length > 2 && (
+                <Pressable onPress={() => removeOption(i)} hitSlop={10} style={styles.pollOptionRemove}>
+                  <Ionicons name="close-circle" size={20} color={colors.muted} />
+                </Pressable>
+              )}
+            </View>
+          ))}
+          {options.length < 4 && (
+            <Pressable onPress={addOption} style={styles.addOptionBtn}>
+              <Ionicons name="add-circle-outline" size={18} color={colors.ocean} />
+              <Text style={styles.addOptionText}>Add option</Text>
+            </Pressable>
+          )}
+
+          <View style={styles.pollToggleRow}>
+            <Text style={styles.pollToggleLabel}>Multiple choice</Text>
+            <Switch
+              value={multipleChoice}
+              onValueChange={setMultipleChoice}
+              trackColor={{ true: colors.ocean }}
+              thumbColor={colors.white}
+            />
+          </View>
+
+          <View style={styles.pollToggleRow}>
+            <Text style={styles.pollToggleLabel}>Poll expires</Text>
+            <Switch
+              value={expiryEnabled}
+              onValueChange={setExpiryEnabled}
+              trackColor={{ true: colors.ocean }}
+              thumbColor={colors.white}
+            />
+          </View>
+          {expiryEnabled && (
+            <>
+              <Pressable onPress={() => setShowDatePicker(true)} style={styles.datePillBtn}>
+                <Ionicons name="calendar-outline" size={15} color={colors.ocean} />
+                <Text style={styles.datePillText}>
+                  {expiryDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                </Text>
+              </Pressable>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={expiryDate}
+                  mode="date"
+                  minimumDate={new Date()}
+                  onChange={(_, d) => {
+                    setShowDatePicker(false);
+                    if (d) setExpiryDate(d);
+                  }}
+                />
+              )}
+            </>
+          )}
+
+          <AnimatedPressable
+            onPress={() => void handleCreate()}
+            disabled={!canSubmit || submitting}
+            haptic
+            style={[styles.postSendBtn, { width: "100%", borderRadius: 12, height: 48, marginTop: spacing.sm }, (!canSubmit || submitting) && { opacity: 0.4 }]}
+          >
+            {submitting
+              ? <ActivityIndicator size="small" color={colors.white} />
+              : <Text style={{ color: colors.white, fontWeight: "700", fontSize: 16 }}>Create Poll</Text>
+            }
+          </AnimatedPressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ── Poll card (rendered inside PostCard for type === "poll") ──────────────────
+
+function PollCard({
+  post,
+  clubId,
+  currentUserId,
+}: {
+  post: ClubPost;
+  clubId: string;
+  currentUserId?: string;
+}) {
+  const [localVotes, setLocalVotes] = useState<Record<string, string[]>>(post.pollVotes ?? {});
+  const [voting, setVoting] = useState(false);
+
+  const options = post.pollOptions ?? [];
+  const multi = post.pollMultipleChoice ?? false;
+  const isExpired = post.pollEndsAt ? new Date(post.pollEndsAt) < new Date() : false;
+  const canVote = !!currentUserId && !isExpired && !voting;
+  const totalVotes = Object.values(localVotes).reduce((sum, arr) => sum + arr.length, 0);
+
+  const handleVote = async (i: number) => {
+    if (!canVote || !currentUserId) return;
+    const key = String(i);
+
+    // Optimistic update
+    const next = Object.fromEntries(Object.entries(localVotes).map(([k, v]) => [k, [...v]]));
+    if (multi) {
+      const arr = next[key] ?? [];
+      const idx = arr.indexOf(currentUserId);
+      if (idx >= 0) arr.splice(idx, 1); else arr.push(currentUserId);
+      next[key] = arr;
+    } else {
+      options.forEach((_, j) => {
+        const k = String(j);
+        next[k] = (next[k] ?? []).filter((u) => u !== currentUserId);
+      });
+      const arr = next[key] ?? [];
+      const idx = arr.indexOf(currentUserId);
+      if (idx >= 0) arr.splice(idx, 1); else arr.push(currentUserId);
+      next[key] = arr;
+    }
+    setLocalVotes(next);
+    setVoting(true);
+    try {
+      await votePoll(clubId, post.id, currentUserId, i, localVotes, multi);
+    } catch {
+      setLocalVotes(post.pollVotes ?? {});
+    } finally {
+      setVoting(false);
+    }
+  };
+
+  return (
+    <View style={styles.pollWrap}>
+      {options.map((opt, i) => {
+        const count = (localVotes[String(i)] ?? []).length;
+        const pct = totalVotes > 0 ? count / totalVotes : 0;
+        const voted = currentUserId ? (localVotes[String(i)] ?? []).includes(currentUserId) : false;
+        return (
+          <Pressable
+            key={i}
+            onPress={() => void handleVote(i)}
+            disabled={!canVote}
+            style={[styles.pollOption, voted && styles.pollOptionVoted]}
+          >
+            <View style={[styles.pollBar, { width: `${Math.round(pct * 100)}%` as `${number}%` }]} />
+            <View style={styles.pollOptionContent}>
+              <View style={styles.pollCheckCircle}>
+                {voted && <Ionicons name="checkmark" size={12} color={colors.white} />}
+              </View>
+              <Text style={[styles.pollOptionText, voted && { color: colors.ocean, fontWeight: "700" }]} numberOfLines={2}>
+                {opt.text}
+              </Text>
+              <Text style={styles.pollPct}>{totalVotes > 0 ? `${Math.round(pct * 100)}%` : ""}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
+      <Text style={styles.pollMeta}>
+        {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
+        {multi ? " · Multiple choice" : ""}
+        {isExpired ? " · Closed" : post.pollEndsAt ? ` · Ends ${new Date(post.pollEndsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md, padding: spacing.xl },
   emptyLogo: { marginBottom: spacing.sm },
@@ -541,4 +820,27 @@ const styles = StyleSheet.create({
   commentComposer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.card },
   commentInput: { flex: 1, fontSize: type.size.sm, color: colors.ink, backgroundColor: colors.bgSoft, borderRadius: radii.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, maxHeight: 100 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.ocean, alignItems: "center", justifyContent: "center" },
+  // Poll composer
+  pollIconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.bgSoft, alignItems: "center", justifyContent: "center", marginBottom: 2 },
+  pollLabel: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.muted, letterSpacing: type.spacing.label },
+  pollQuestionInput: { fontSize: type.size.md, color: colors.ink, backgroundColor: colors.bgSoft, borderRadius: radii.md, padding: spacing.md, minHeight: 64 },
+  pollOptionRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  pollOptionInput: { flex: 1, fontSize: type.size.sm, color: colors.ink, backgroundColor: colors.bgSoft, borderRadius: radii.md, paddingHorizontal: spacing.md, paddingVertical: 10 },
+  pollOptionRemove: { padding: 4 },
+  addOptionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  addOptionText: { fontSize: type.size.sm, color: colors.ocean, fontWeight: type.weight.bold },
+  pollToggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
+  pollToggleLabel: { fontSize: type.size.md, color: colors.ink },
+  datePillBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: colors.bgSoft, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  datePillText: { fontSize: type.size.sm, color: colors.ocean, fontWeight: type.weight.bold },
+  // Poll card
+  pollWrap: { marginTop: spacing.sm, gap: spacing.xs },
+  pollOption: { borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.card, overflow: "hidden", minHeight: 44 },
+  pollOptionVoted: { borderColor: colors.ocean },
+  pollBar: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "rgba(0,115,230,0.08)" },
+  pollOptionContent: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: 10 },
+  pollCheckCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: colors.card, alignItems: "center", justifyContent: "center" },
+  pollOptionText: { flex: 1, fontSize: type.size.sm, color: colors.ink },
+  pollPct: { fontSize: type.size.xs, color: colors.muted, fontWeight: type.weight.bold, minWidth: 32, textAlign: "right" },
+  pollMeta: { fontSize: type.size.xs, color: colors.muted, marginTop: 2 },
 });

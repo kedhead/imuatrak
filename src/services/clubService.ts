@@ -35,6 +35,7 @@ import type {
   MemberRole,
   EventType,
   PostType,
+  PollOption,
   RsvpStatus,
   UserClubs,
 } from "@/models/club";
@@ -405,6 +406,9 @@ export async function createPost(
     content: string;
     linkedSessionId?: string;
     pinnedUntil?: string;
+    pollOptions?: PollOption[];
+    pollMultipleChoice?: boolean;
+    pollEndsAt?: string;
   },
 ): Promise<ClubPost> {
   const now = new Date().toISOString();
@@ -420,9 +424,45 @@ export async function createPost(
     updatedAt: now,
     ...(opts.pinnedUntil !== undefined && { pinnedUntil: opts.pinnedUntil }),
     ...(opts.linkedSessionId !== undefined && { linkedSessionId: opts.linkedSessionId }),
+    ...(opts.type === "poll" && opts.pollOptions && {
+      pollOptions: opts.pollOptions,
+      pollVotes: {},
+      pollMultipleChoice: opts.pollMultipleChoice ?? false,
+      ...(opts.pollEndsAt !== undefined && { pollEndsAt: opts.pollEndsAt }),
+    }),
   };
   const ref = await addDoc(collection(db, "clubs", clubId, "posts"), post);
   return { ...post, id: ref.id };
+}
+
+export async function votePoll(
+  clubId: string,
+  postId: string,
+  uid: string,
+  optionIndex: number,
+  currentVotes: Record<string, string[]>,
+  multipleChoice: boolean,
+): Promise<void> {
+  const ref = doc(db, "clubs", clubId, "posts", postId);
+  const key = String(optionIndex);
+
+  if (multipleChoice) {
+    const already = (currentVotes[key] ?? []).includes(uid);
+    await updateDoc(ref, {
+      [`pollVotes.${key}`]: already ? arrayRemove(uid) : arrayUnion(uid),
+    });
+  } else {
+    const updates: Record<string, ReturnType<typeof arrayUnion>> = {};
+    // Remove from any other option the user already voted for
+    Object.keys(currentVotes).forEach((k) => {
+      if (k !== key && (currentVotes[k] ?? []).includes(uid)) {
+        updates[`pollVotes.${k}`] = arrayRemove(uid);
+      }
+    });
+    const already = (currentVotes[key] ?? []).includes(uid);
+    updates[`pollVotes.${key}`] = already ? arrayRemove(uid) : arrayUnion(uid);
+    await updateDoc(ref, updates);
+  }
 }
 
 export async function deletePost(clubId: string, postId: string): Promise<void> {
