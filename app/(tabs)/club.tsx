@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
-import { getPosts, createPost, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
+import { getPosts, createPost, deletePost, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
 import type { ClubPost, ClubEvent, ClubComment } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
@@ -134,6 +134,23 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
     setRefreshing(false);
   };
 
+  const handleDelete = (postId: string) => {
+    Alert.alert("Delete post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete", style: "destructive",
+        onPress: async () => {
+          try {
+            await deletePost(clubId, postId);
+            setPosts((prev) => prev.filter((p) => p.id !== postId));
+          } catch (e) {
+            Alert.alert("Error", e instanceof Error ? e.message : String(e));
+          }
+        },
+      },
+    ]);
+  };
+
   const isAdmin = role === "owner" || role === "admin";
 
   return (
@@ -245,6 +262,8 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             index={index}
             clubId={clubId}
             currentUserId={user?.uid}
+            isAdmin={isAdmin}
+            onDelete={handleDelete}
             onLikeChange={(id, delta, liked) =>
               setPosts((prev) =>
                 prev.map((p) =>
@@ -294,6 +313,8 @@ function PostCard({
   index,
   clubId,
   currentUserId,
+  isAdmin,
+  onDelete,
   onLikeChange,
   onCommentAdded,
 }: {
@@ -301,6 +322,8 @@ function PostCard({
   index: number;
   clubId: string;
   currentUserId?: string;
+  isAdmin?: boolean;
+  onDelete: (id: string) => void;
   onLikeChange: (id: string, delta: number, liked: boolean) => void;
   onCommentAdded: (id: string) => void;
 }) {
@@ -341,6 +364,11 @@ function PostCard({
             <Text style={styles.postAuthor}>{post.authorName}</Text>
             <Text style={styles.postDate}>{date}</Text>
           </View>
+          {(currentUserId === post.authorId || isAdmin) && (
+            <Pressable onPress={() => onDelete(post.id)} hitSlop={12}>
+              <Ionicons name="ellipsis-vertical" size={18} color={colors.muted} />
+            </Pressable>
+          )}
         </View>
         <Text style={styles.postContent}>{post.content}</Text>
         <View style={styles.postActions}>
