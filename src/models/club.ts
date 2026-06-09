@@ -5,7 +5,11 @@ export type MemberRole = "owner" | "admin" | "coach" | "member";
 export type SubscriptionStatus = "trial" | "active" | "expired";
 export type SubscriptionTier = "basic" | "pro";
 export type EventType = "practice" | "race" | "social";
-export type PostType = "announcement" | "post";
+export type PostType = "announcement" | "post" | "poll";
+
+export interface PollOption {
+  text: string;
+}
 export type RsvpStatus = "going" | "maybe" | "not_going";
 
 export interface Club {
@@ -84,6 +88,11 @@ export interface ClubPost {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
+  // Poll fields — present only when type === "poll"
+  pollOptions?: PollOption[];
+  pollVotes?: Record<string, string[]>; // key = option index string, value = voter UIDs
+  pollMultipleChoice?: boolean;
+  pollEndsAt?: string;
 }
 
 export interface ClubComment {
