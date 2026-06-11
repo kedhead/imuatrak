@@ -447,6 +447,61 @@ export const onChannelMessageCreate = onDocumentCreated(
 );
 
 // ---------------------------------------------------------------------------
+// deleteAccount — deletes all user data (sessions, preferences, club memberships)
+// and the Firebase Auth account. Uses the Admin SDK so no client re-auth is
+// required. Called from the mobile app's account-deletion flow.
+// ---------------------------------------------------------------------------
+export const deleteAccount = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const db = getFirestore();
+  const adminAuth = getAuth();
+
+  // Delete sessions subcollection in 500-doc batches.
+  const sessionsRef = db.collection(`users/${uid}/sessions`);
+  let sessionsSnap = await sessionsRef.limit(500).get();
+  while (!sessionsSnap.empty) {
+    const batch = db.batch();
+    for (const d of sessionsSnap.docs) batch.delete(d.ref);
+    await batch.commit();
+    sessionsSnap = await sessionsRef.limit(500).get();
+  }
+
+  // Delete FCM tokens subcollection.
+  const tokensSnap = await db.collection(`users/${uid}/fcmTokens`).limit(500).get();
+  if (!tokensSnap.empty) {
+    const batch = db.batch();
+    for (const d of tokensSnap.docs) batch.delete(d.ref);
+    await batch.commit();
+  }
+
+  // Remove from all clubs the user belongs to.
+  const userClubsSnap = await db.doc(`userClubs/${uid}`).get();
+  if (userClubsSnap.exists) {
+    const clubIds: string[] =
+      (userClubsSnap.data() as { clubIds?: string[] } | undefined)?.clubIds ?? [];
+    if (clubIds.length > 0) {
+      const batch = db.batch();
+      for (const clubId of clubIds) {
+        batch.delete(db.doc(`clubs/${clubId}/members/${uid}`));
+      }
+      await batch.commit();
+    }
+  }
+
+  // Delete top-level user documents.
+  await db.doc(`users/${uid}`).delete().catch(() => undefined);
+  await db.doc(`userClubs/${uid}`).delete().catch(() => undefined);
+
+  // Delete the Firebase Auth account last so the function stays authenticated
+  // throughout the cleanup above.
+  await adminAuth.deleteUser(uid);
+
+  return { success: true };
+});
+
+// ---------------------------------------------------------------------------
 // migrateMessagesToGeneralChannel — one-time callable (owner only) that copies
 // all legacy messages from clubs/{clubId}/messages to the General channel.
 // ---------------------------------------------------------------------------

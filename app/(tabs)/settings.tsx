@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CRAFT_TYPES, type CraftType } from "@/models";
-import { signOut, watchAuth, updateDisplayName, type AuthUser } from "@/services/auth";
+import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
 import { leaveClub, updateMemberDisplayName } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
@@ -113,6 +113,41 @@ export default function Settings() {
     ]);
   };
 
+  const onDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account?",
+      "This will permanently erase your account and all your paddling sessions. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Are you absolutely sure?",
+              "All sessions, data, and club memberships will be permanently deleted.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Yes, Delete Everything",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      await deleteAccount();
+                      router.replace("/onboarding");
+                    } catch {
+                      Alert.alert("Error", "Could not delete your account. Please try again.");
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <ScreenBackground>
       <GradientHeader title="Settings" subtitle="Make it yours" />
@@ -144,6 +179,7 @@ export default function Settings() {
                   />
                 )}
                 <Button title="Sign out" variant="danger" onPress={onSignOut} style={{ marginTop: spacing.md }} />
+                <Button title="Delete Account" variant="danger" onPress={onDeleteAccount} style={{ marginTop: spacing.sm }} />
               </>
             )}
           </GradientCard>
@@ -285,6 +321,22 @@ export default function Settings() {
           </GradientCard>
         </Section>
 
+        {Platform.OS === "ios" && (
+          <Section title="Apple Health">
+            <GradientCard>
+              <View style={styles.healthRow}>
+                <Ionicons name="heart-circle" size={28} color="#FF2D55" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.body}>Saves to Apple Health</Text>
+                  <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs, marginTop: 2 }]}>
+                    Finished sessions are written to Apple Health as Paddle Sports workouts, including distance, calories, and heart rate.
+                  </Text>
+                </View>
+              </View>
+            </GradientCard>
+          </Section>
+        )}
+
         <Section title="Weekly Goals">
           <GradientCard>
             <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs, marginBottom: spacing.md }]}>
@@ -367,6 +419,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  healthRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   clubRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   settingsRow: {
     flexDirection: "row",
