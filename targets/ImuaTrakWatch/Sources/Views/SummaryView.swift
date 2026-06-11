@@ -4,6 +4,7 @@ import MapKit
 struct SummaryView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
     @EnvironmentObject var transferManager: TransferManager
+    @EnvironmentObject var authManager: AuthManager
     @Binding var path: NavigationPath
 
     var body: some View {
@@ -24,17 +25,22 @@ struct SummaryView: View {
                     heartRate: workoutManager.heartRate
                 )
 
-                // Transfer status
+                // Sync status: a session synced directly to the cloud (watch
+                // signed in) vs. one queued for the paired iPhone to forward.
                 if !transferManager.pendingTransfers.isEmpty {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.mini)
-                        Text("Syncing to iPhone…")
+                        Text("Queued for iPhone…")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 6)
+                } else if authManager.isSignedIn {
+                    Label("Synced to cloud", systemImage: "checkmark.icloud.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
                 } else {
-                    Label("Synced", systemImage: "checkmark.circle.fill")
+                    Label("Saved", systemImage: "checkmark.circle.fill")
                         .font(.caption2)
                         .foregroundStyle(.green)
                 }

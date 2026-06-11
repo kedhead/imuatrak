@@ -38,6 +38,26 @@ RCT_EXPORT_MODULE()
   [WCSession.defaultSession activateSession];
 }
 
+// Send a JSON-serialisable payload (auth custom token, weekly goals, units…)
+// to the paired watch. The latest value is stashed in applicationContext so a
+// watch that wakes later still receives it; when the watch is reachable we also
+// sendMessage for immediacy.
+RCT_EXPORT_METHOD(sendContext:(NSDictionary *)payload
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+  if (![WCSession isSupported]) {
+    resolve(@(NO));
+    return;
+  }
+  WCSession *session = WCSession.defaultSession;
+  NSError *ctxError = nil;
+  [session updateApplicationContext:payload error:&ctxError];
+  if (session.isReachable) {
+    [session sendMessage:payload replyHandler:nil errorHandler:nil];
+  }
+  resolve(ctxError == nil ? @(YES) : @(NO));
+}
+
 - (void)session:(WCSession *)session didReceiveFile:(WCSessionFile *)file {
   NSURL *dest = [NSFileManager.defaultManager.temporaryDirectory
       URLByAppendingPathComponent:[[[NSUUID UUID] UUIDString]

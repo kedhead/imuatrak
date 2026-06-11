@@ -27,6 +27,31 @@ export const WatchBridge = {
     if (Platform.OS !== "ios" || !WatchBridgeModule) return false;
     return WatchBridgeModule.isSupported?.() ?? false;
   },
+
+  /**
+   * Send a JSON-serialisable payload to the paired watch (e.g. a Firebase
+   * custom token for the watch to sign in with, or the user's weekly goals).
+   * The latest value is retained in WatchConnectivity's applicationContext, so
+   * a watch that wakes later still receives it. No-op off iOS / without a watch.
+   */
+  async sendContext(payload: WatchContextPayload): Promise<boolean> {
+    if (Platform.OS !== "ios" || !WatchBridgeModule?.sendContext) return false;
+    try {
+      return await WatchBridgeModule.sendContext(payload);
+    } catch {
+      return false;
+    }
+  },
 };
+
+export type WatchContextPayload =
+  | { type: "auth"; customToken: string }
+  | {
+      type: "settings";
+      weeklyGoalDistanceKm: number;
+      weeklyGoalDurationMin: number;
+      units: string;
+      defaultCraft: string;
+    };
 
 export type { SessionReceivedPayload };

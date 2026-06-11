@@ -187,8 +187,14 @@ export const mobileAppleSignIn = onCall(async (request) => {
   if (payload.iss !== "https://appleid.apple.com") {
     throw new HttpsError("invalid-argument", "Invalid Apple token issuer");
   }
+  // Accept tokens issued to either the phone app or the watch app. A native
+  // Sign in with Apple performed on the watch carries the watch bundle id as
+  // its audience; the signature/issuer/expiry checks below still apply, and the
+  // Apple `sub` is stable across both bundle ids, so a watch-first user maps to
+  // the same Firebase uid as a phone-first user.
+  const ALLOWED_AUD = ["app.imuatrak", "app.imuatrak.watchkitapp"];
   const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  if (!audiences.includes("app.imuatrak")) {
+  if (!audiences.some((a) => ALLOWED_AUD.includes(a))) {
     throw new HttpsError("invalid-argument", "Token audience does not match app bundle ID");
   }
   if (payload.exp < Date.now() / 1000) {
@@ -240,6 +246,20 @@ export const mobileAppleSignIn = onCall(async (request) => {
     console.error("mobileAppleSignIn: createCustomToken failed", e);
     throw new HttpsError("internal", `Failed to create token: ${e instanceof Error ? e.message : e}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// issueWatchToken — returns a Firebase custom token for the already-authenticated
+// caller. The phone calls this after sign-in and hands the token to the paired
+// Apple Watch over WatchConnectivity; the watch signs in with it, after which
+// FirebaseAuth on the watch manages its own refresh token and can sync directly
+// to Firestore over cellular with no phone present.
+// ---------------------------------------------------------------------------
+export const issueWatchToken = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+  const customToken = await getAuth().createCustomToken(uid);
+  return { customToken };
 });
 
 export const createClubInvite = onCall(async (request) => {

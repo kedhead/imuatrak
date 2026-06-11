@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>ImuaTrak</string>
+	<key>CFBundleDisplayName</key>
+	<string>ImuaTrak</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>WKApplication</key>
+	<true/>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>app.imuatrak</string>
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+		<string>location</string>
+	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>ImuaTrak reads your heart rate to show effort during paddling sessions.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>ImuaTrak writes finished paddling workouts to Apple Health.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ImuaTrak uses your location to record your route, distance, and pace while you paddle.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>ImuaTrak uses motion sensors to count strokes and measure stroke rate.</string>
+</dict>
+</plist>

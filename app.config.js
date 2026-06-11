@@ -28,6 +28,9 @@ const config = {
   ios: {
     bundleIdentifier: "app.imuatrak",
     supportsTablet: false,
+    // Required by @bacons/apple-targets to sign the embedded watchOS target.
+    // Set APPLE_TEAM_ID in the environment (and as an EAS secret) to your team ID.
+    appleTeamId: process.env.APPLE_TEAM_ID,
     infoPlist: {
       NSLocationAlwaysAndWhenInUseUsageDescription:
         "ImuaTrak uses your location to record your route, distance, and pace while you paddle.",
@@ -50,6 +53,9 @@ const config = {
       "com.apple.developer.healthkit.access": [],
       "com.apple.developer.applesignin": ["Default"],
       "aps-environment": "production",
+      // Shared App Group with the watchOS target (group.app.imuatrak) so the
+      // phone and watch can exchange cached settings/goals via UserDefaults.
+      "com.apple.security.application-groups": ["group.app.imuatrak"],
     },
     config: {
       usesNonExemptEncryption: false,
@@ -102,6 +108,11 @@ const config = {
     "expo-apple-authentication",
     "expo-secure-store",
     "./plugins/withFixGradle",
+    // Generate the watchOS target from targets/ImuaTrakWatch/expo-target.config.js.
+    // Firebase (FirebaseAuth + FirebaseFirestore) is attached to the watch target
+    // only, via targets/ImuaTrakWatch/pods.rb (apple-targets' Podfile loader), so
+    // the phone app keeps using the firebase JS SDK and never links native Firebase.
+    "@bacons/apple-targets",
     "./plugins/withWatchBridge",
     [
       "expo-location",

@@ -17,16 +17,8 @@ struct WeatherResponse: Codable {
 }
 
 enum WeatherService {
-    // Fill in your Firebase project ID — same as EXPO_PUBLIC_FIREBASE_PROJECT_ID
-    static let projectId = "YOUR_FIREBASE_PROJECT_ID"
-    static let region = "us-central1"
-
-    private static var functionURL: URL {
-        URL(string: "https://\(region)-\(projectId).cloudfunctions.net/fetchWeather")!
-    }
-
     static func fetch(lat: Double, lon: Double) async -> WatchWeatherSummary? {
-        var request = URLRequest(url: functionURL, timeoutInterval: 5)
+        var request = URLRequest(url: FunctionsConfig.url(for: "fetchWeather"), timeoutInterval: 5)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: [

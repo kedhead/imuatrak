@@ -12,6 +12,7 @@ import { useRecorder } from "@/services/recorder";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
 import { watchAuth } from "@/services/auth";
+import { pushAuthToWatch } from "@/services/watchHandoff";
 import { registerFcmToken } from "@/services/clubService";
 import { AnimatedSplash } from "@/ui/AnimatedSplash";
 import { colors } from "@/ui/theme";
@@ -64,6 +65,9 @@ export default function RootLayout() {
       if (user) {
         void loadClub(user.uid);
         void initSubscription(user.uid);
+        // Hand a fresh custom token to the paired Apple Watch so it can sign in
+        // and sync directly to Firebase (best-effort; no-op without a watch).
+        void pushAuthToWatch();
         // Register FCM token for push notifications (best-effort)
         void (async () => {
           try {

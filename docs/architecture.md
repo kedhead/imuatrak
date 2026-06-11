@@ -43,11 +43,15 @@ Implemented in `src/services/`:
 The watch sub-projects live outside the Expo source tree because they're
 native (Apple Watch is Swift-only, Wear OS works best in Kotlin):
 
-- **Apple Watch** (`apple-watch/ImuaTrakWatch.xcodeproj`): SwiftUI app using
-  `HKWorkoutSession`. After Stop, sends a session JSON + GPX file to the
-  phone via `WCSession.transferFile`. The Expo app installs a native
-  WatchConnectivity bridge that surfaces those files to JS via an event
-  emitter, then routes them through the same `sync.ts` path.
+- **Apple Watch** (`targets/ImuaTrakWatch/`): SwiftUI app using
+  `HKWorkoutSession`, generated as an embedded watchOS target by the
+  `@bacons/apple-targets` config plugin (see `docs/apple-watch-setup.md`).
+  When signed in (token inherited from the phone, or native Sign in with
+  Apple on the watch) it syncs sessions **directly to Firestore** over
+  cellular via the watch's own Firebase SDK. Otherwise it falls back to
+  sending session JSON to the phone via `WCSession.transferFile`; the Expo
+  app's native WatchConnectivity bridge surfaces those files to JS and routes
+  them through the same `sync.ts` path.
 - **Wear OS** (`wear/`): Compose for Wear app using `HealthServicesClient`.
   Sends finished sessions through `Wearable.DataClient`; the Android
   side of the Expo bridge picks them up.

@@ -164,7 +164,7 @@ final class WorkoutManager: NSObject, ObservableObject {
 
         let session = WatchSession(
             id: sessionId,
-            userId: "",   // filled by phone after receiving (phone knows the uid)
+            userId: AuthManager.shared.uid ?? "",   // SyncManager fills/overwrites before any write
             schemaVersion: 1,
             source: "ios-watch",
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0",
@@ -187,8 +187,8 @@ final class WorkoutManager: NSObject, ObservableObject {
             try? await bldr.finishWorkout()
         }
 
-        // Persist + transfer to phone
-        await TransferManager.shared.transferSession(session, fullTrack: track)
+        // Sync: direct to Firestore when authed+online, else queue for the phone.
+        await SyncManager.shared.sync(session, fullTrack: track)
     }
 
     func discard() {

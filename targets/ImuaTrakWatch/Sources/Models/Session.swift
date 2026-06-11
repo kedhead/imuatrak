@@ -6,7 +6,7 @@ import Foundation
 
 struct WatchSession: Codable {
     let id: String
-    let userId: String
+    var userId: String          // empty until auth is known; SyncManager fills the uid
     let schemaVersion: Int
     let source: String          // "ios-watch"
     let appVersion: String

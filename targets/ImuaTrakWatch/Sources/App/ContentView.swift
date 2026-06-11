@@ -14,6 +14,10 @@ struct ContentView: View {
                         RecordingView(path: $path)
                     case "summary":
                         SummaryView(path: $path)
+                    case "history":
+                        HistoryView()
+                    case "goal":
+                        GoalView()
                     default:
                         CraftPickerView(path: $path)
                     }
