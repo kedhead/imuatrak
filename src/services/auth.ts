@@ -85,6 +85,14 @@ export async function updateDisplayName(name: string): Promise<void> {
   await updateProfile(user, { displayName: name });
 }
 
+export async function deleteAccount(): Promise<void> {
+  if (!auth.currentUser) throw new Error("Not signed in");
+  const fn = httpsCallable(functions, "deleteAccount");
+  await fn({});
+  // Auth user is now deleted server-side; sign out locally to clear cached state.
+  await fbSignOut(auth).catch(() => undefined);
+}
+
 function randomNonce(length: number): string {
   const charset =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._";

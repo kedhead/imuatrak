@@ -1,7 +1,8 @@
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -104,6 +105,13 @@ export default function Record() {
             <Tile label="STROKES" value={recorder.strokeCount.toString()} accent={colors.gold} />
           </View>
         </ScrollView>
+
+        {!recorder.isRecording && Platform.OS === "ios" && (
+          <View style={styles.healthNote}>
+            <Ionicons name="heart-circle" size={14} color="#FF2D55" />
+            <Text style={styles.healthNoteText}>Saves to Apple Health</Text>
+          </View>
+        )}
 
         <View style={styles.actions}>
           {recorder.isRecording ? (
@@ -217,5 +225,7 @@ const styles = StyleSheet.create({
   tileValueRow: { flexDirection: "row", alignItems: "baseline", gap: 4 },
   tileValue: { fontSize: type.size.display, fontWeight: type.weight.heavy, ...type.mono },
   tileUnit: { color: "rgba(255,255,255,0.6)", fontSize: type.size.md, fontWeight: type.weight.bold },
+  healthNote: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingBottom: spacing.sm },
+  healthNoteText: { color: "rgba(255,255,255,0.5)", fontSize: type.size.xs },
   actions: { flexDirection: "row", gap: spacing.sm, padding: spacing.lg, paddingBottom: spacing.xxl },
 });
