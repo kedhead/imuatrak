@@ -8,6 +8,31 @@ export interface PaddlingWorkout {
   averageHeartRateBpm?: number;
 }
 
+/** Whether ImuaTrak can write workouts to Apple Health (share authorization). */
+export type HealthShareStatus = "authorized" | "denied" | "notDetermined" | "unavailable";
+
+/**
+ * Read the *share* (write) authorization status for workouts. HealthKit only
+ * lets apps read back share/write grants — read grants are hidden by Apple — so
+ * we check the workout type we write to. iOS-only; returns "unavailable" on
+ * other platforms or in Expo Go where the native module isn't linked.
+ */
+export function getWorkoutShareStatus(): HealthShareStatus {
+  if (Platform.OS !== "ios") return "unavailable";
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const HealthKit = require("@kingstinct/react-native-healthkit").default;
+    if (!HealthKit?.isHealthDataAvailable?.()) return "unavailable";
+    // AuthorizationStatus: notDetermined=0, sharingDenied=1, sharingAuthorized=2
+    const status = HealthKit.authorizationStatusFor("HKWorkoutTypeIdentifier");
+    if (status === 2) return "authorized";
+    if (status === 1) return "denied";
+    return "notDetermined";
+  } catch {
+    return "unavailable";
+  }
+}
+
 export async function requestAuthorization(): Promise<void> {
   if (Platform.OS === "ios") {
     try {
@@ -55,15 +80,16 @@ export async function writePaddlingWorkout(w: PaddlingWorkout): Promise<void> {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const HealthKit = require("@kingstinct/react-native-healthkit").default;
+      // v14 API: numeric HKWorkoutActivityType, and each quantity sample needs
+      // its own startDate/endDate (QuantitySampleForSaving).
       await HealthKit.saveWorkoutSample(
-        // HKWorkoutActivityType.paddleSports = 53
-        "paddleSports",
+        53, // HKWorkoutActivityType.paddleSports
         [
           ...(w.distanceMeters
-            ? [{ quantity: w.distanceMeters, unit: "m", quantityType: "HKQuantityTypeIdentifierDistanceCycling" }]
+            ? [{ startDate: w.startedAt, endDate: w.endedAt, quantity: w.distanceMeters, unit: "m", quantityType: "HKQuantityTypeIdentifierDistanceCycling" }]
             : []),
           ...(w.calories
-            ? [{ quantity: w.calories, unit: "kcal", quantityType: "HKQuantityTypeIdentifierActiveEnergyBurned" }]
+            ? [{ startDate: w.startedAt, endDate: w.endedAt, quantity: w.calories, unit: "kcal", quantityType: "HKQuantityTypeIdentifierActiveEnergyBurned" }]
             : []),
         ],
         w.startedAt,

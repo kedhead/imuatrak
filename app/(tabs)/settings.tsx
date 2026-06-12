@@ -5,7 +5,7 @@ import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, Text
 import { CRAFT_TYPES, type CraftType } from "@/models";
 import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
 import { leaveClub, updateMemberDisplayName } from "@/services/clubService";
-import { requestAuthorization as requestHealthAuthorization } from "@/services/health";
+import { requestAuthorization as requestHealthAuthorization, getWorkoutShareStatus, type HealthShareStatus } from "@/services/health";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
@@ -31,6 +31,7 @@ export default function Settings() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [healthStatus, setHealthStatus] = useState<HealthShareStatus>(() => getWorkoutShareStatus());
   const units = useSettings((s) => s.units);
   const defaultCraft = useSettings((s) => s.defaultCraft);
   const weightKg = useSettings((s) => s.weightKg);
@@ -116,10 +117,19 @@ export default function Settings() {
 
   const onConnectHealth = async () => {
     await requestHealthAuthorization();
-    Alert.alert(
-      "Apple Health",
-      "ImuaTrak saves finished paddling sessions to Apple Health as Paddle Sports workouts. You can manage access anytime in the Health app under Sharing › Apps.",
-    );
+    const status = getWorkoutShareStatus();
+    setHealthStatus(status);
+    if (status === "denied") {
+      Alert.alert(
+        "Apple Health",
+        "Access is currently turned off. Open the Health app › Sharing › Apps › ImuaTrak and allow it to save your paddling sessions.",
+      );
+    } else {
+      Alert.alert(
+        "Apple Health",
+        "ImuaTrak saves finished paddling sessions to Apple Health as Paddle Sports workouts. You can manage access anytime in the Health app under Sharing › Apps.",
+      );
+    }
   };
 
   const onDeleteAccount = () => {
@@ -342,12 +352,19 @@ export default function Settings() {
                   </Text>
                 </View>
               </View>
-              <Button
-                title="Connect Apple Health"
-                gradient="aqua"
-                onPress={onConnectHealth}
-                style={{ marginTop: spacing.md }}
-              />
+              {healthStatus === "authorized" ? (
+                <View style={[styles.clubRow, { marginTop: spacing.md }]}>
+                  <Text style={[styles.body, { color: colors.teal }]}>Connected to Apple Health</Text>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
+                </View>
+              ) : (
+                <Button
+                  title={healthStatus === "denied" ? "Enable Apple Health" : "Connect Apple Health"}
+                  gradient="aqua"
+                  onPress={onConnectHealth}
+                  style={{ marginTop: spacing.md }}
+                />
+              )}
             </GradientCard>
           </Section>
         )}
