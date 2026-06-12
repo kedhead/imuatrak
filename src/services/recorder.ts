@@ -76,6 +76,11 @@ export const useRecorder = create<RecorderState>((set, get) => ({
     const ok = await location.requestPermissions();
     if (!ok) throw new Error("Location permission denied");
 
+    // Request Apple Health / Health Connect access up front so finished sessions
+    // can be written to the Health app — and so the HealthKit permission sheet is
+    // surfaced in the core record flow. Best-effort: guarded internally, never blocks.
+    await health.requestAuthorization();
+
     sessionId = nanoidLite();
     track = [];
     strokeCount = 0;

@@ -108,8 +108,8 @@ export default function Record() {
 
         {!recorder.isRecording && Platform.OS === "ios" && (
           <View style={styles.healthNote}>
-            <Ionicons name="heart-circle" size={14} color="#FF2D55" />
-            <Text style={styles.healthNoteText}>Saves to Apple Health</Text>
+            <Ionicons name="heart-circle" size={16} color="#FF2D55" />
+            <Text style={styles.healthNoteText}>Saves this workout to Apple Health</Text>
           </View>
         )}
 
@@ -225,7 +225,19 @@ const styles = StyleSheet.create({
   tileValueRow: { flexDirection: "row", alignItems: "baseline", gap: 4 },
   tileValue: { fontSize: type.size.display, fontWeight: type.weight.heavy, ...type.mono },
   tileUnit: { color: "rgba(255,255,255,0.6)", fontSize: type.size.md, fontWeight: type.weight.bold },
-  healthNote: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingBottom: spacing.sm },
-  healthNoteText: { color: "rgba(255,255,255,0.5)", fontSize: type.size.xs },
+  healthNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    alignSelf: "center",
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255,255,255,0.14)",
+  },
+  healthNoteText: { color: colors.white, fontSize: type.size.sm, fontWeight: type.weight.bold },
   actions: { flexDirection: "row", gap: spacing.sm, padding: spacing.lg, paddingBottom: spacing.xxl },
 });

@@ -5,6 +5,7 @@ import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, Text
 import { CRAFT_TYPES, type CraftType } from "@/models";
 import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
 import { leaveClub, updateMemberDisplayName } from "@/services/clubService";
+import { requestAuthorization as requestHealthAuthorization } from "@/services/health";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
@@ -111,6 +112,14 @@ export default function Settings() {
         },
       },
     ]);
+  };
+
+  const onConnectHealth = async () => {
+    await requestHealthAuthorization();
+    Alert.alert(
+      "Apple Health",
+      "ImuaTrak saves finished paddling sessions to Apple Health as Paddle Sports workouts. You can manage access anytime in the Health app under Sharing › Apps.",
+    );
   };
 
   const onDeleteAccount = () => {
@@ -333,6 +342,12 @@ export default function Settings() {
                   </Text>
                 </View>
               </View>
+              <Button
+                title="Connect Apple Health"
+                gradient="aqua"
+                onPress={onConnectHealth}
+                style={{ marginTop: spacing.md }}
+              />
             </GradientCard>
           </Section>
         )}
