@@ -22,6 +22,14 @@ const BENEFITS = [
   { icon: "refresh-outline" as const, text: "Cancel anytime" },
 ];
 
+const FEATURES = [
+  { icon: "water-outline" as const, text: "GPS session tracking with pace, stroke rate & distance" },
+  { icon: "chatbubbles-outline" as const, text: "Club channels & team chat" },
+  { icon: "calendar-outline" as const, text: "Club events, lineups & RSVP" },
+  { icon: "people-outline" as const, text: "Club feed, polls & announcements" },
+  { icon: "heart-circle-outline" as const, text: "Apple Health workout sync" },
+];
+
 export default function Paywall() {
   const isAdFree = useSubscription((s) => s.isAdFree);
   const isLoading = useSubscription((s) => s.isLoading);
@@ -98,6 +106,18 @@ export default function Paywall() {
             </View>
           ))}
         </GradientCard>
+
+        <View>
+          <Text style={styles.featuresHeading}>Everything in ImuaTrak</Text>
+          <GradientCard style={styles.benefitsCard}>
+            {FEATURES.map((f) => (
+              <View key={f.text} style={styles.benefitRow}>
+                <Ionicons name={f.icon} size={20} color={colors.seafoam} />
+                <Text style={styles.benefitText}>{f.text}</Text>
+              </View>
+            ))}
+          </GradientCard>
+        </View>
 
         {packages.length > 0 && (
           <View style={styles.packages}>
@@ -180,6 +200,7 @@ const styles = StyleSheet.create({
   activeCard: { marginBottom: spacing.xs },
   activeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   activeText: { color: colors.white, fontWeight: type.weight.bold, fontSize: type.size.md, flex: 1 },
+  featuresHeading: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.muted, letterSpacing: 0.5, marginBottom: spacing.sm },
   benefitsCard: { gap: spacing.md },
   benefitRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   benefitText: { color: colors.ink, fontSize: type.size.md, flex: 1 },
