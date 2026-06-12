@@ -1,8 +1,10 @@
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import { requestTrackingPermissionsAsync } from "expo-tracking-transparency";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
+import MobileAds from "react-native-google-mobile-ads";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
@@ -41,6 +43,18 @@ export default function RootLayout() {
 
   // Keep the animated splash up for a beat so it can play, then cross-fade out.
   const [splashHidden, setSplashHidden] = useState(false);
+
+  // Request ATT permission (iOS 14+) then initialize AdMob.
+  // ATT must come before MobileAds.initialize() so the SDK knows whether to
+  // serve personalized or non-personalized ads.
+  useEffect(() => {
+    void (async () => {
+      if (Platform.OS === "ios") {
+        await requestTrackingPermissionsAsync();
+      }
+      await MobileAds().initialize();
+    })();
+  }, []);
 
   useEffect(() => {
     void loadSettings();
