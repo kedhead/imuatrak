@@ -1,7 +1,6 @@
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { requestTrackingPermissionsAsync } from "expo-tracking-transparency";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import MobileAds from "react-native-google-mobile-ads";
@@ -45,14 +44,25 @@ export default function RootLayout() {
   const [splashHidden, setSplashHidden] = useState(false);
 
   // Request ATT permission (iOS 14+) then initialize AdMob.
-  // ATT must come before MobileAds.initialize() so the SDK knows whether to
-  // serve personalized or non-personalized ads.
+  // Both calls are guarded: ATT uses a dynamic require so a build that was
+  // produced before expo-tracking-transparency was linked won't crash on OTA.
   useEffect(() => {
     void (async () => {
       if (Platform.OS === "ios") {
-        await requestTrackingPermissionsAsync();
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { requestTrackingPermissionsAsync } = require("expo-tracking-transparency") as typeof import("expo-tracking-transparency");
+          await requestTrackingPermissionsAsync();
+        } catch {
+          // Native module not linked in this build — skip ATT, AdMob will serve
+          // non-personalized ads automatically.
+        }
       }
-      await MobileAds().initialize();
+      try {
+        await MobileAds().initialize();
+      } catch {
+        // Gracefully skip if AdMob native module is somehow unavailable.
+      }
     })();
   }, []);
 
