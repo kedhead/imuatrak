@@ -35,6 +35,7 @@ export default function Paywall() {
   const isLoading = useSubscription((s) => s.isLoading);
   const packages = useSubscription((s) => s.packages);
   const offeringsStatus = useSubscription((s) => s.offeringsStatus);
+  const offeringsDiag = useSubscription((s) => s.offeringsDiag);
   const loadOfferings = useSubscription((s) => s.loadOfferings);
   const purchase = useSubscription((s) => s.purchase);
   const restore = useSubscription((s) => s.restore);
@@ -163,6 +164,9 @@ export default function Paywall() {
               <Text style={styles.unavailableText}>
                 Subscriptions are temporarily unavailable. Please check your connection and try again.
               </Text>
+              {offeringsDiag && (
+                <Text style={styles.diagText}>{offeringsDiag}</Text>
+              )}
               <Button
                 title="Retry"
                 gradient="aqua"
@@ -224,6 +228,7 @@ const styles = StyleSheet.create({
   loadingText: { color: colors.muted, fontSize: type.size.md },
   unavailableCard: { gap: spacing.xs },
   unavailableText: { color: colors.ink, fontSize: type.size.sm, textAlign: "center", lineHeight: 18 },
+  diagText: { color: colors.muted, fontSize: type.size.xs, textAlign: "center", lineHeight: 15, marginTop: spacing.xs },
   restoreBtn: { alignItems: "center", paddingVertical: spacing.sm },
   restoreText: { color: colors.muted, fontSize: type.size.sm },
   legalLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: spacing.sm },
