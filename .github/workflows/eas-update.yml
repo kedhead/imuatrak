@@ -47,4 +47,4 @@ jobs:
           CH="${{ inputs.channel }}"
           eas branch:create "$CH" --non-interactive || true
           eas channel:edit "$CH" --branch "$CH" --non-interactive || true
-          eas update --branch "$CH" --message "${{ inputs.message }}" --non-interactive
+          eas update --branch "$CH" --message "${{ inputs.message }}" --environment "$CH" --non-interactive
