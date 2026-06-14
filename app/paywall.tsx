@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { PurchasesPackage } from "react-native-purchases";
+import { PACKAGE_TYPE, type PurchasesPackage } from "react-native-purchases";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
 import { Button } from "@/ui/Button";
@@ -21,6 +21,19 @@ const BENEFITS = [
   { icon: "heart-outline" as const, text: "Support independent development" },
   { icon: "refresh-outline" as const, text: "Cancel anytime" },
 ];
+
+function periodLabel(pkg: PurchasesPackage): string {
+  switch (pkg.packageType) {
+    case PACKAGE_TYPE.WEEKLY:       return "/ week";
+    case PACKAGE_TYPE.MONTHLY:      return "/ month";
+    case PACKAGE_TYPE.TWO_MONTH:    return "/ 2 months";
+    case PACKAGE_TYPE.THREE_MONTH:  return "/ 3 months";
+    case PACKAGE_TYPE.SIX_MONTH:    return "/ 6 months";
+    case PACKAGE_TYPE.ANNUAL:       return "/ year";
+    case PACKAGE_TYPE.LIFETIME:     return "once";
+    default:                        return "";
+  }
+}
 
 const FEATURES = [
   { icon: "water-outline" as const, text: "GPS session tracking with pace, stroke rate & distance" },
@@ -136,6 +149,11 @@ export default function Paywall() {
                   <Text style={[styles.pkgPrice, selected && styles.pkgPriceSelected]}>
                     {pkg.product.priceString}
                   </Text>
+                  {periodLabel(pkg) ? (
+                    <Text style={[styles.pkgPeriod, selected && styles.pkgPeriodSelected]}>
+                      {periodLabel(pkg)}
+                    </Text>
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -164,7 +182,7 @@ export default function Paywall() {
               <Text style={styles.unavailableText}>
                 Subscriptions are temporarily unavailable. Please check your connection and try again.
               </Text>
-              {offeringsDiag && (
+              {__DEV__ && offeringsDiag && (
                 <Text style={styles.diagText}>{offeringsDiag}</Text>
               )}
               <Button
@@ -223,6 +241,8 @@ const styles = StyleSheet.create({
   pkgTitleSelected: { color: colors.ocean },
   pkgPrice: { fontSize: type.size.xl, fontWeight: type.weight.heavy, color: colors.ink, marginTop: spacing.xs },
   pkgPriceSelected: { color: colors.ocean },
+  pkgPeriod: { fontSize: type.size.xs, color: colors.muted, marginTop: 2 },
+  pkgPeriodSelected: { color: colors.ocean },
   subscribeBtn: { marginTop: spacing.xs },
   loadingRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingVertical: spacing.md },
   loadingText: { color: colors.muted, fontSize: type.size.md },
