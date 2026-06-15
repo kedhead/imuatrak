@@ -1,11 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CRAFT_TYPES, type CraftType } from "@/models";
 import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
 import { leaveClub, updateMemberDisplayName } from "@/services/clubService";
-import { requestAuthorization as requestHealthAuthorization, getWorkoutShareStatus, type HealthShareStatus } from "@/services/health";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
@@ -31,7 +30,6 @@ export default function Settings() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [savingName, setSavingName] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<HealthShareStatus>(() => getWorkoutShareStatus());
   const units = useSettings((s) => s.units);
   const defaultCraft = useSettings((s) => s.defaultCraft);
   const weightKg = useSettings((s) => s.weightKg);
@@ -113,23 +111,6 @@ export default function Settings() {
         },
       },
     ]);
-  };
-
-  const onConnectHealth = async () => {
-    await requestHealthAuthorization();
-    const status = getWorkoutShareStatus();
-    setHealthStatus(status);
-    if (status === "denied") {
-      Alert.alert(
-        "Apple Health",
-        "Access is currently turned off. Open the Health app › Sharing › Apps › ImuaTrak and allow it to save your paddling sessions.",
-      );
-    } else {
-      Alert.alert(
-        "Apple Health",
-        "ImuaTrak saves finished paddling sessions to Apple Health as Paddle Sports workouts. You can manage access anytime in the Health app under Sharing › Apps.",
-      );
-    }
   };
 
   const onDeleteAccount = () => {
@@ -340,35 +321,6 @@ export default function Settings() {
           </GradientCard>
         </Section>
 
-        {Platform.OS === "ios" && (
-          <Section title="Apple Health">
-            <GradientCard>
-              <View style={styles.healthRow}>
-                <Ionicons name="heart-circle" size={28} color="#FF2D55" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.body}>Saves to Apple Health</Text>
-                  <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs, marginTop: 2 }]}>
-                    Finished sessions are written to Apple Health as Paddle Sports workouts, including distance, calories, and heart rate.
-                  </Text>
-                </View>
-              </View>
-              {healthStatus === "authorized" ? (
-                <View style={[styles.clubRow, { marginTop: spacing.md }]}>
-                  <Text style={[styles.body, { color: colors.teal }]}>Connected to Apple Health</Text>
-                  <Ionicons name="checkmark-circle" size={18} color={colors.teal} />
-                </View>
-              ) : (
-                <Button
-                  title={healthStatus === "denied" ? "Enable Apple Health" : "Connect Apple Health"}
-                  gradient="aqua"
-                  onPress={onConnectHealth}
-                  style={{ marginTop: spacing.md }}
-                />
-              )}
-            </GradientCard>
-          </Section>
-        )}
-
         <Section title="Weekly Goals">
           <GradientCard>
             <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs, marginBottom: spacing.md }]}>
@@ -451,7 +403,6 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  healthRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   clubRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   settingsRow: {
     flexDirection: "row",

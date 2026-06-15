@@ -31,12 +31,11 @@ export default function PrivacyPolicy() {
         <li>Location data is stored on your device and synced to your private account</li>
       </ul>
 
-      <h3>Health &amp; fitness data</h3>
+      <h3>Fitness data</h3>
       <ul>
-        <li>Heart rate via Apple HealthKit or device sensors</li>
         <li>Motion data for stroke rate detection</li>
-        <li>Workout data written back to Apple Health upon session completion</li>
-        <li>Health data is never shared with third parties</li>
+        <li>Workout metrics (distance, pace, duration) recorded during your sessions</li>
+        <li>Fitness data is never shared with third parties</li>
       </ul>
 
       <h3>Club &amp; social data</h3>
@@ -65,7 +64,7 @@ export default function PrivacyPolicy() {
         <tbody>
           {[
             ["Account info", "Authentication and profile display"],
-            ["Location & health", "Recording and displaying your session history"],
+            ["Location & fitness", "Recording and displaying your session history"],
             ["Club content", "Sharing within your club"],
             ["Push tokens", "Delivering club chat notifications"],
             ["Ad data", "Showing relevant ads to free tier users"],
@@ -84,7 +83,6 @@ export default function PrivacyPolicy() {
         <li><strong>Firebase (Google)</strong> — authentication, database, and file storage</li>
         <li><strong>Google AdMob</strong> — advertising for free tier users</li>
         <li><strong>RevenueCat</strong> — subscription and purchase management</li>
-        <li><strong>Apple HealthKit</strong> — fitness data read/write (iOS only)</li>
       </ul>
       <p>Each service operates under its own privacy policy.</p>
 
@@ -101,7 +99,7 @@ export default function PrivacyPolicy() {
       <p>
         You may delete your account and all associated data at any time by contacting us at{" "}
         <a href="mailto:privacy@imuatrak.app">privacy@imuatrak.app</a>. Club content you authored will be removed.
-        Location and health data stored on your device is controlled by you through your device settings.
+        Location and fitness data stored on your device is controlled by you through your device settings.
       </p>
 
       <h2>Children&rsquo;s Privacy</h2>

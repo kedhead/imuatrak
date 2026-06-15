@@ -102,9 +102,9 @@ export default function Landing() {
           Kalman-smoothed track with accuracy-aware speed. Splits every 1 km,
           moving-time aware so a coffee break doesn&apos;t tank your pace.
         </Feature>
-        <Feature icon="❤️" title="Heart rate from your watch">
-          Apple Health on iOS, Health Connect on Android. Zone time for the
-          full session window — no second app to babysit.
+        <Feature icon="🏝️" title="Built for outrigger crews">
+          OC1 to OC6 and surfski. Track stroke rate, distance, and pace for
+          every paddle — solo or with the whole crew.
         </Feature>
         <Feature icon="🗺️" title="GPX + shareable links">
           Every session exports clean GPX. Flip a switch to publish a public

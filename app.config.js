@@ -35,10 +35,6 @@ const config = {
         "ImuaTrak uses your location to record your route, distance, and pace while you paddle.",
       NSMotionUsageDescription:
         "ImuaTrak uses motion sensors to count strokes and measure stroke rate.",
-      NSHealthShareUsageDescription:
-        "ImuaTrak reads your heart rate to show effort during paddling sessions.",
-      NSHealthUpdateUsageDescription:
-        "ImuaTrak writes finished paddling workouts to Apple Health.",
       NSMicrophoneUsageDescription:
         "ImuaTrak listens for the steerer's 'hut' call to detect side switches. Audio is processed on-device only and never recorded.",
       NSUserTrackingUsageDescription:
@@ -46,8 +42,6 @@ const config = {
       UIBackgroundModes: ["location", "fetch"],
     },
     entitlements: {
-      "com.apple.developer.healthkit": true,
-      "com.apple.developer.healthkit.access": [],
       "com.apple.developer.applesignin": ["Default"],
       "aps-environment": "production",
     },
@@ -73,7 +67,6 @@ const config = {
       "ACCESS_BACKGROUND_LOCATION",
       "FOREGROUND_SERVICE",
       "FOREGROUND_SERVICE_LOCATION",
-      "FOREGROUND_SERVICE_HEALTH",
       "WAKE_LOCK",
       "BODY_SENSORS",
       "HIGH_SAMPLING_RATE_SENSORS",
@@ -119,20 +112,6 @@ const config = {
         android: { compileSdkVersion: 36, targetSdkVersion: 35, minSdkVersion: 26 },
       },
     ],
-    // @kingstinct/react-native-healthkit is iOS-only; skip on Android
-    ...(process.env.EAS_BUILD_PLATFORM !== "android"
-      ? [
-          [
-            "@kingstinct/react-native-healthkit",
-            {
-              healthSharePermission:
-                "ImuaTrak reads your heart rate to show effort during paddling sessions.",
-              healthUpdatePermission:
-                "ImuaTrak writes finished paddling workouts to Apple Health.",
-            },
-          ],
-        ]
-      : []),
   ],
 
   extra: {

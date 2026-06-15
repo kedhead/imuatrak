@@ -76,9 +76,9 @@ export const useRecorder = create<RecorderState>((set, get) => ({
     const ok = await location.requestPermissions();
     if (!ok) throw new Error("Location permission denied");
 
-    // Request Apple Health / Health Connect access up front so finished sessions
-    // can be written to the Health app — and so the HealthKit permission sheet is
-    // surfaced in the core record flow. Best-effort: guarded internally, never blocks.
+    // Android only: request Health Connect access so finished sessions can be
+    // exported. No-op on iOS (ImuaTrak does not integrate with Apple Health).
+    // Best-effort: guarded internally, never blocks recording.
     await health.requestAuthorization();
 
     sessionId = nanoidLite();
@@ -193,7 +193,7 @@ export const useRecorder = create<RecorderState>((set, get) => ({
 
     await storage.save(session, track);
 
-    // Best-effort: write to Apple Health / Health Connect, then push to Firebase.
+    // Best-effort: export to Android Health Connect (no-op on iOS), then push to Firebase.
     void health
       .writePaddlingWorkout({
         startedAt: new Date(startedAt),

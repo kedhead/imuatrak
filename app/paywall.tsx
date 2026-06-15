@@ -37,10 +37,10 @@ function periodLabel(pkg: PurchasesPackage): string {
 
 const FEATURES = [
   { icon: "water-outline" as const, text: "GPS session tracking with pace, stroke rate & distance" },
+  { icon: "map-outline" as const, text: "Route maps, splits & session history" },
   { icon: "chatbubbles-outline" as const, text: "Club channels & team chat" },
   { icon: "calendar-outline" as const, text: "Club events, lineups & RSVP" },
   { icon: "people-outline" as const, text: "Club feed, polls & announcements" },
-  { icon: "heart-circle-outline" as const, text: "Apple Health workout sync" },
 ];
 
 export default function Paywall() {

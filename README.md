@@ -5,8 +5,8 @@
 Outrigger canoe paddling fitness app for iPhone and Android (with watch
 support arriving in Phase 2). Records GPS, heart rate, stroke rate, splits,
 weather, and audio-detected side switches ("huts") for OC1, OC2, OC6, V1,
-SUP, and surfski sessions. Sessions sync to Firebase, write to Apple Health
-/ Health Connect, and export to GPX/FIT for upload to Strava, Garmin
+SUP, and surfski sessions. Sessions sync to Firebase, export to Android
+Health Connect, and export to GPX/FIT for upload to Strava, Garmin
 Connect, etc.
 
 ## Stack
@@ -51,7 +51,7 @@ to `.env` as `EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY`. iOS uses Apple Maps and
 doesn't need any key.
 
 Most things you can run today on Android from Linux. Background location,
-HealthKit / Health Connect, and Sign in with Apple need a development
+Health Connect, and Sign in with Apple need a development
 build (not Expo Go):
 
 ```bash
