@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gradient } from "./Gradient";
@@ -8,6 +9,8 @@ interface Props {
   title: string;
   subtitle?: string;
   gradient?: GradientName;
+  /** Back button handler — renders a chevron on the left when provided. */
+  onBack?: () => void;
   /** Element rendered on the right (icon actions, button…). */
   right?: React.ReactNode;
   /** Extra content below the title row, inside the gradient. */
@@ -20,6 +23,7 @@ export function GradientHeader({
   title,
   subtitle,
   gradient = "ocean",
+  onBack,
   right,
   children,
   style,
@@ -31,6 +35,11 @@ export function GradientHeader({
       style={[styles.wrap, { paddingTop: insets.top + spacing.md }, style]}
     >
       <View style={styles.row}>
+        {onBack ? (
+          <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={26} color={colors.white} />
+          </Pressable>
+        ) : null}
         <Animated.View entering={FadeInDown.duration(450)} style={styles.titleCol}>
           <Text style={styles.title} numberOfLines={1}>
             {title}
@@ -57,6 +66,7 @@ const styles = StyleSheet.create({
     ...shadow.md,
   },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  backBtn: { marginRight: spacing.sm, marginLeft: -spacing.xs },
   titleCol: { flex: 1 },
   title: {
     color: colors.white,

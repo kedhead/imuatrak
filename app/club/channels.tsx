@@ -79,6 +79,7 @@ export default function ChannelsScreen() {
     <ScreenBackground>
       <GradientHeader
         title="Channels"
+        onBack={() => router.back()}
         right={
           isAdmin ? (
             <Pressable

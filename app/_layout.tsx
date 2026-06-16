@@ -121,6 +121,7 @@ export default function RootLayout() {
             headerTintColor: colors.white,
             headerTitleStyle: { fontWeight: "800" },
             headerShadowVisible: false,
+            headerBackTitle: "",
             contentStyle: { backgroundColor: colors.bgSoft },
           }}
         >
