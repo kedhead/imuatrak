@@ -43,21 +43,10 @@ export default function RootLayout() {
   // Keep the animated splash up for a beat so it can play, then cross-fade out.
   const [splashHidden, setSplashHidden] = useState(false);
 
-  // Request ATT permission (iOS 14+) then initialize AdMob.
-  // Both calls are guarded: ATT uses a dynamic require so a build that was
-  // produced before expo-tracking-transparency was linked won't crash on OTA.
+  // Initialize AdMob. Without ATT, the SDK automatically serves non-personalized
+  // ads — no permission prompt needed and no ATT framework linkage required.
   useEffect(() => {
     void (async () => {
-      if (Platform.OS === "ios") {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { requestTrackingPermissionsAsync } = require("expo-tracking-transparency") as typeof import("expo-tracking-transparency");
-          await requestTrackingPermissionsAsync();
-        } catch {
-          // Native module not linked in this build — skip ATT, AdMob will serve
-          // non-personalized ads automatically.
-        }
-      }
       try {
         await MobileAds().initialize();
       } catch {

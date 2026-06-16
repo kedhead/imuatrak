@@ -376,6 +376,16 @@ export default function Settings() {
             </View>
           </GradientCard>
         </Section>
+
+        <View style={styles.legalRow}>
+          <Pressable onPress={() => void Linking.openURL("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")}>
+            <Text style={styles.legalLink}>Terms of Use (EULA)</Text>
+          </Pressable>
+          <Text style={styles.legalDot}>•</Text>
+          <Pressable onPress={() => void Linking.openURL("https://imuatrak.app/privacy")}>
+            <Text style={styles.legalLink}>Privacy Policy</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </ScreenBackground>
   );
@@ -402,6 +412,9 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginLeft: spacing.xs,
   },
+  legalRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md },
+  legalLink: { color: colors.ocean, fontSize: type.size.xs, fontWeight: type.weight.bold },
+  legalDot: { color: colors.muted, fontSize: type.size.xs },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   clubRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   settingsRow: {

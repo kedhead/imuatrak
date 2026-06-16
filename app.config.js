@@ -37,8 +37,6 @@ const config = {
         "ImuaTrak uses motion sensors to count strokes and measure stroke rate.",
       NSMicrophoneUsageDescription:
         "ImuaTrak listens for the steerer's 'hut' call to detect side switches. Audio is processed on-device only and never recorded.",
-      NSUserTrackingUsageDescription:
-        "ImuaTrak uses this to show relevant ads. You can remove ads entirely by subscribing to ImuaTrak+ or joining a paying club.",
       UIBackgroundModes: ["location", "fetch"],
     },
     entitlements: {
