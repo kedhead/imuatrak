@@ -127,7 +127,7 @@ export default function RootLayout() {
         >
           <Stack.Screen name="index" />
           <Stack.Screen name="onboarding" />
-          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="(tabs)" options={{ headerBackTitle: "" }} />
           <Stack.Screen name="record" options={{ presentation: "modal" }} />
           <Stack.Screen name="session/[id]" options={{ headerShown: true, title: "Session" }} />
           <Stack.Screen name="club/create" options={{ headerShown: true, title: "Create Club" }} />
