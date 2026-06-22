@@ -30,6 +30,24 @@ const withWatchBridge = (config) => {
         fs.writeFileSync(podfilePath, podfile);
       }
 
+      // Inject the Firebase project ID into WeatherService.swift so the watch
+      // can call the fetchWeather Cloud Function without a hardcoded placeholder.
+      const weatherPath = path.join(
+        cfg.modRequest.projectRoot,
+        "apple-watch/Sources/Services/WeatherService.swift"
+      );
+      if (fs.existsSync(weatherPath)) {
+        const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? "";
+        if (projectId) {
+          let src = fs.readFileSync(weatherPath, "utf8");
+          src = src.replace(
+            /static let projectId = ".*?"/,
+            `static let projectId = "${projectId}"`
+          );
+          fs.writeFileSync(weatherPath, src);
+        }
+      }
+
       return cfg;
     },
   ]);

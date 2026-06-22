@@ -30,6 +30,7 @@ enum Aggregator {
         let avgSpeedMps = durationSec > 0 ? distanceM / durationSec : 0
         let avgPace = distanceM > 0 ? (durationSec / (distanceM / 1000)) : 0
         let avgStrokeRate = durationSec > 0 ? Double(strokeCount) / (durationSec / 60) : 0
+        let calories = 5.0 * 70.0 * (durationSec / 3600.0)  // MET 5.0, default 70 kg
 
         return WatchTotals(
             distanceMeters: distanceM,
@@ -40,7 +41,7 @@ enum Aggregator {
             maxSpeedMps: maxSpeedMps,
             strokeCount: strokeCount,
             avgStrokeRate: avgStrokeRate,
-            calories: 0,
+            calories: calories,
             elevationGainM: elevGain
         )
     }
