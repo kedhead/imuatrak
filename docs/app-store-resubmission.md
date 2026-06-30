@@ -88,3 +88,40 @@ an app screenshot.
 4. Upload, update the App Store Connect metadata items above (3 & 4)
 5. Add the two screen recordings (1 & 2) to *App Review Information → Notes*
 6. Submit
+
+---
+
+## Reviewer notes (copy-paste into App Review Information → Notes)
+
+> **ImuaTrak** records outrigger-paddling workouts — GPS route, distance, pace,
+> and stroke rate — **including while the screen is locked or the app is
+> backgrounded**, which is the app's core purpose.
+>
+> **Signing in:** On the first screen tap **"Continue with Apple"** and use your
+> reviewer Apple ID — no demo account is required.
+>
+> **A. App Tracking Transparency (Guideline 2.1)**
+> The ATT prompt appears once, on first launch of a fresh install, before any
+> ad is requested.
+> To reproduce: delete the app (or Settings → Privacy & Security → Tracking →
+> turn off/on to reset), reinstall, and launch — the "Allow ImuaTrak to
+> track…" prompt appears immediately. A device screen recording is attached.
+>
+> **B. Persistent background location (Guideline 2.1)**
+> The `location` background mode powers session recording while the app is
+> backgrounded / the screen is locked.
+> To reproduce on a physical device:
+> 1. Sign in, then on the **Home** tab tap **Record**.
+> 2. Grant location **"Allow While Using"** and start the session.
+> 3. **Lock the device or switch to another app** — a persistent
+>    "ImuaTrak is recording — Tracking your route in the background"
+>    notification stays in the status bar and GPS keeps updating.
+> 4. Move ~50 m or more. (Route and distance only advance with real movement;
+>    if testing stationary/indoors, use **Xcode → Debug → Simulate Location**,
+>    or note that physical movement is required to see distance change.)
+> 5. Reopen the app — the session has continued accumulating route, distance,
+>    and time the entire time it was backgrounded.
+> A device screen recording demonstrating this is attached.
+>
+> **Note:** there is no microphone/audio functionality in this build (the
+> permission was removed); the only background mode used is `location`.
