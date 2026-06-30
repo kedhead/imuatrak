@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Platform, Text, View } from "react-native";
 import { BannerAd, BannerAdSize, TestIds } from "react-native-google-mobile-ads";
+import { useAds } from "@/services/ads";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
 
@@ -16,6 +17,7 @@ export function AdBanner() {
   const isAdFree = useSubscription((s) => s.isAdFree);
   const clubStatus = useClub((s) => s.club?.subscriptionStatus);
   const clubAdFree = clubStatus === "active" || clubStatus === "trial";
+  const personalizedAds = useAds((s) => s.personalizedAds);
   const [error, setError] = useState<string | null>(null);
 
   if (isAdFree || clubAdFree) return null;
@@ -30,6 +32,7 @@ export function AdBanner() {
       <BannerAd
         unitId={UNIT_ID}
         size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+        requestOptions={{ requestNonPersonalizedAdsOnly: !personalizedAds }}
         onAdFailedToLoad={(e) => setError(e.message)}
         onAdLoaded={() => setError(null)}
       />
