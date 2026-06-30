@@ -35,9 +35,15 @@ const config = {
         "ImuaTrak uses your location to record your route, distance, and pace while you paddle.",
       NSMotionUsageDescription:
         "ImuaTrak uses motion sensors to count strokes and measure stroke rate.",
-      NSMicrophoneUsageDescription:
-        "ImuaTrak listens for the steerer's 'hut' call to detect side switches. Audio is processed on-device only and never recorded.",
-      UIBackgroundModes: ["location", "fetch"],
+      // NSMicrophoneUsageDescription intentionally omitted: the audio "hut"
+      // detection feature (Phase 3) is not implemented yet, so declaring the
+      // microphone permission would request access for an absent feature
+      // (App Store Guideline 5.1.1 / 2.5.1). Restore it when Phase 3 ships.
+      // Only "location" is declared — the app records GPS in the background
+      // while a session is active. "fetch" was removed: no Background Fetch /
+      // BGTaskScheduler feature exists, and declaring it triggered the
+      // "no feature requires this background mode" rejection (Guideline 2.1).
+      UIBackgroundModes: ["location"],
     },
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],
@@ -69,7 +75,9 @@ const config = {
       "BODY_SENSORS",
       "HIGH_SAMPLING_RATE_SENSORS",
       "ACTIVITY_RECOGNITION",
-      "RECORD_AUDIO",
+      // RECORD_AUDIO removed alongside iOS NSMicrophoneUsageDescription — the
+      // audio "hut" detection feature (Phase 3) is not built yet. Restore when
+      // it ships.
       "POST_NOTIFICATIONS",
       "com.google.android.wearable.permission.RECEIVE_COMPLICATION_DATA",
     ],
@@ -92,6 +100,13 @@ const config = {
     ],
     "expo-apple-authentication",
     "expo-secure-store",
+    [
+      "expo-tracking-transparency",
+      {
+        userTrackingPermission:
+          "ImuaTrak asks so it can show ads that are more relevant to you. Decline and you'll still see ads — just non-personalized ones.",
+      },
+    ],
     "./plugins/withFixGradle",
     "./plugins/withWatchBridge",
     [

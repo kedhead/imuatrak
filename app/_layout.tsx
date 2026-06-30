@@ -10,6 +10,7 @@ import "react-native-reanimated";
 import * as Notifications from "expo-notifications";
 import { useSettings } from "@/services/settings";
 import { useRecorder } from "@/services/recorder";
+import { useAds } from "@/services/ads";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
 import { watchAuth } from "@/services/auth";
@@ -43,8 +44,10 @@ export default function RootLayout() {
   // Keep the animated splash up for a beat so it can play, then cross-fade out.
   const [splashHidden, setSplashHidden] = useState(false);
 
-  // Initialize AdMob. Without ATT, the SDK automatically serves non-personalized
-  // ads — no permission prompt needed and no ATT framework linkage required.
+  // Initialize AdMob, then present the App Tracking Transparency prompt before
+  // the first ad request. Apple requires the ATT prompt to appear (the AdMob
+  // SDK links the framework); personalized ads are served only on consent,
+  // otherwise non-personalized ads — which need no permission.
   useEffect(() => {
     void (async () => {
       try {
@@ -52,6 +55,7 @@ export default function RootLayout() {
       } catch {
         // Gracefully skip if AdMob native module is somehow unavailable.
       }
+      await useAds.getState().requestTracking();
     })();
   }, []);
 

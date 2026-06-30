@@ -106,7 +106,9 @@ export async function createClub(
     subscriptionStatus: "trial",
     subscriptionTier: "basic",
     trialEndsAt,
-    memberCount: 1,
+    // Starts at 0; the onMemberJoin trigger increments to 1 when the owner's
+    // member doc is created below. Counting it here too would double it.
+    memberCount: 0,
     createdAt: now,
   };
 
@@ -178,11 +180,9 @@ export async function joinClub(
   };
   await setDoc(memberRef, member);
   await addClubToIndex(uid, clubId);
-  // memberCount is a non-critical display counter; never fail the join if the
-  // increment is rejected (e.g. stricter rules on the club doc).
-  await updateDoc(doc(db, "clubs", clubId), { memberCount: increment(1) }).catch(
-    () => undefined,
-  );
+  // memberCount is incremented server-side by the onMemberJoin trigger when the
+  // member doc is created above. Do not also increment here — increment() is
+  // additive, not idempotent, so a client increment would double-count joins.
 }
 
 export async function leaveClub(clubId: string, uid: string): Promise<void> {
@@ -586,14 +586,17 @@ export function subscribeChannelMessages(
 ): () => void {
   const q = query(
     collection(db, "clubs", clubId, "channels", channelId, "messages"),
-    orderBy("createdAt", "asc"),
+    orderBy("createdAt", "desc"),
     limit(msgLimit),
   );
   return onSnapshot(q, (snap) => {
+    // Fetch the most recent `msgLimit` messages (descending), then reverse to
+    // oldest→newest for the caller. An ascending order + limit would pin the
+    // listener to the first messages ever sent and never surface new ones.
     const msgs = snap.docs.map(
       (d) => ({ ...(d.data() as Omit<ClubMessage, "id">), id: d.id }),
     );
-    onUpdate(msgs);
+    onUpdate(msgs.reverse());
   });
 }
 

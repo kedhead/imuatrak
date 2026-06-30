@@ -128,14 +128,20 @@ export const linkSessionsToEvent = onDocumentCreated(
     for (const clubId of clubIds) {
       // Query events that overlap the session's time window.
       // Overlap: event.startAt <= session.endedAt AND event.endAt >= session.startedAt
+      // Firestore permits a range/inequality filter on only ONE field per
+      // query, so we cannot filter both startAt and endAt server-side.
+      // Constrain on startAt (<= session end), order/limit by the same field,
+      // then apply the second overlap bound (endAt >= session start) in memory.
       const eventsSnap = await db
         .collection(`clubs/${clubId}/events`)
         .where("startAt", "<=", endedAt)
-        .where("endAt", ">=", startedAt)
-        .limit(5)
+        .orderBy("startAt", "desc")
+        .limit(20)
         .get();
 
       for (const eventDoc of eventsSnap.docs) {
+        const evEndAt = (eventDoc.data() as { endAt?: string }).endAt;
+        if (typeof evEndAt !== "string" || evEndAt < startedAt) continue;
         updates.push(
           eventDoc.ref.update({
             linkedSessionIds: FieldValue.arrayUnion(sessionId),
@@ -521,6 +527,14 @@ export const migrateMessagesToGeneralChannel = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Owner only");
   }
 
+  // Idempotency guard: this is a destructive one-time copy. A marker doc makes
+  // re-invocation a no-op so the migration can't re-run and clobber messages
+  // that have since been edited/deleted in the General channel.
+  const markerRef = db.doc(`clubs/${clubId}/migrations/messagesToGeneralChannel`);
+  if ((await markerRef.get()).exists) {
+    return { migrated: 0, alreadyMigrated: true };
+  }
+
   const generalChannelRef = db.doc(`clubs/${clubId}/channels/general`);
   const generalSnap = await generalChannelRef.get();
   if (!generalSnap.exists) {
@@ -554,5 +568,6 @@ export const migrateMessagesToGeneralChannel = onCall(async (request) => {
     migrated += Math.min(499, docs.length - i);
   }
 
+  await markerRef.set({ migratedAt: new Date().toISOString(), by: uid, count: migrated });
   return { migrated };
 });
