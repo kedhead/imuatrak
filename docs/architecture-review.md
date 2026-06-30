@@ -286,9 +286,11 @@ three-way type drift and the format-util copies.
 
 ## 9. Refactoring strategy (incremental, low-risk first)
 
-**Phase 0 — correctness (ship behind review, these change behaviour):**
+**Phase 0 — correctness (✅ applied in this PR; these change behaviour):**
 C1 query fix, C2 chat ordering, C3 single memberCount writer, C5 storage rule,
-C6 migration guard. Each is a few lines and independently testable.
+C6 migration guard. Each is a few lines and independently testable. **C4 (HR)
+is deliberately not in this PR** — it needs a native HR source or a UI-hide
+decision, so it's left documented for a product call.
 
 **Phase 1 — kill duplication (zero behaviour change):**
 Create `packages/schema` (or a `shared/` dir with a tsconfig path alias),
@@ -421,6 +423,7 @@ export const logger = {
 
 ---
 
-*Scope note: this review changes no runtime behaviour. The Phase-0 items in
-§9 are real defects but altering them changes functionality, so they're
-documented for an explicit go/no-go rather than applied here.*
+*Scope note: the original review (commit 1) changed no runtime behaviour. The
+Phase-0 correctness fixes (C1, C2, C3, C5, C6) are applied in a follow-up
+commit on this branch — see the PR diff. C4 (heart rate) remains documented
+only, pending a product decision.*
