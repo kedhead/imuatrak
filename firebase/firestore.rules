@@ -72,9 +72,14 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
 
-    // ── Invite tokens (created by Cloud Functions, read by any signed-in user)
+    // ── Invite tokens (created by Cloud Functions) ───────────────────────────
+    // Tokens are secret capabilities: a signed-in user who KNOWS a token may
+    // fetch it (join flow does a direct doc get), but nobody may list the
+    // collection — otherwise any user could enumerate tokens and self-join
+    // every club.
     match /clubInvites/{token} {
-      allow read: if isSignedIn();
+      allow get: if isSignedIn();
+      allow list: if false;
       allow write: if false; // Cloud Functions only
     }
 
@@ -85,12 +90,11 @@ service cloud.firestore {
       // the imuatrak.app/join landing page can show which club you're joining
       // before sign-in. All sub-collections below keep their stricter rules.
       allow read: if true;
-      // Owners/admins can edit the club. Any signed-in user may update the
-      // memberCount counter only (and nothing else) so joining/leaving keeps
-      // the count accurate without granting broader write access.
-      allow update: if hasClubRole(clubId, ["owner", "admin"])
-        || (isSignedIn()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["memberCount"]));
+      // Owners/admins can edit the club. memberCount is maintained solely by
+      // the onMemberJoin/onMemberLeave Cloud Function triggers (Admin SDK
+      // bypasses rules), so clients get no counter carve-out — it allowed any
+      // signed-in user to set an arbitrary count on any club.
+      allow update: if hasClubRole(clubId, ["owner", "admin"]);
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid;
       allow delete: if hasClubRole(clubId, ["owner"]);

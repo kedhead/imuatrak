@@ -188,9 +188,8 @@ export async function joinClub(
 export async function leaveClub(clubId: string, uid: string): Promise<void> {
   await deleteDoc(doc(db, "clubs", clubId, "members", uid));
   await removeClubFromIndex(uid, clubId);
-  await updateDoc(doc(db, "clubs", clubId), { memberCount: increment(-1) }).catch(
-    () => undefined,
-  );
+  // memberCount is decremented server-side by the onMemberLeave trigger when
+  // the member doc is deleted above — same single-writer pattern as joins.
 }
 
 export async function updateMemberRole(
@@ -203,7 +202,7 @@ export async function updateMemberRole(
 
 export async function removeMember(clubId: string, uid: string): Promise<void> {
   await deleteDoc(doc(db, "clubs", clubId, "members", uid));
-  await updateDoc(doc(db, "clubs", clubId), { memberCount: increment(-1) });
+  // memberCount handled by the onMemberLeave trigger.
 }
 
 // ── Invite links ─────────────────────────────────────────────────────────────

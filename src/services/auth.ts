@@ -59,11 +59,13 @@ export async function signInWithApple(): Promise<AuthUser> {
   // ("app.imuatrak.web") because web Apple Sign-In is also configured.
   // We proxy through a Cloud Function that validates the native token against
   // the bundle ID and returns a Firebase custom token instead.
-  const fn = httpsCallable<{ idToken: string }, { customToken: string }>(
+  const fn = httpsCallable<{ idToken: string; rawNonce: string }, { customToken: string }>(
     functions,
     "mobileAppleSignIn",
   );
-  const { data } = await fn({ idToken: credential.identityToken });
+  // rawNonce lets the function verify the token's nonce claim (anti-replay):
+  // it hashes rawNonce with SHA-256 and compares against payload.nonce.
+  const { data } = await fn({ idToken: credential.identityToken, rawNonce });
   const { user } = await signInWithCustomToken(auth, data.customToken);
   return user;
 }
