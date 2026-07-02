@@ -65,12 +65,13 @@ gets you the iOS dev build. No project config changes required.
 
 ## Watch path
 
-Phase 2 will add `apple-watch/` and `wear/` directories holding native
-Swift / Kotlin watch projects that pair with this Expo app via
-WatchConnectivity (iOS) and the Wearable Data Layer (Android). The phone
-remains the source of truth — the watches ship live stats and start/stop
-controls in v1, then go fully standalone (their own GPS) in v2. See
-`docs/architecture.md`.
+The Apple Watch app lives in `targets/watch/` (SwiftUI, standalone GPS +
+heart rate) and is embedded into every iOS build automatically by
+`@bacons/apple-targets` — see `targets/watch/README.md` for the one-time
+EAS credentials setup. Finished watch sessions transfer to the phone via
+WatchConnectivity and sync through the normal pipeline. `wear/` holds a
+Wear OS (Kotlin) skeleton that is not yet buildable or shipped. The phone
+remains the source of truth. See `docs/architecture.md`.
 
 ## Roadmap
 

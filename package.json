@@ -15,6 +15,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@bacons/apple-targets": "^4.0.7",
     "@expo/vector-icons": "^14.0.4",
     "@imuatrak/watch-bridge": "file:./modules/watch-bridge",
     "@imuatrak/wear-bridge": "file:./modules/wear-bridge",

@@ -14,11 +14,41 @@ export interface StoredSession {
   synced: boolean;
 }
 
+export interface SessionSummary {
+  session: Session;
+  synced: boolean;
+}
+
 async function ensureRoot(): Promise<string> {
   const root = getRoot();
   const info = await FileSystem.getInfoAsync(root);
   if (!info.exists) await FileSystem.makeDirectoryAsync(root, { intermediates: true });
   return root;
+}
+
+// ── Sync index ──────────────────────────────────────────────────────────────
+// Small `{ [sessionId]: true }` file recording which sessions have reached
+// Firestore, so sign-in re-sync skips already-uploaded sessions.
+
+function syncIndexUri(): string {
+  return `${getRoot()}sync-index.json`;
+}
+
+async function readSyncIndex(): Promise<Record<string, true>> {
+  try {
+    const raw = await FileSystem.readAsStringAsync(syncIndexUri());
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, true>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function markSynced(id: string): Promise<void> {
+  await ensureRoot();
+  const index = await readSyncIndex();
+  index[id] = true;
+  await FileSystem.writeAsStringAsync(syncIndexUri(), JSON.stringify(index));
 }
 
 export async function save(session: Session, track: TrackPoint[]): Promise<void> {
@@ -30,22 +60,22 @@ export async function save(session: Session, track: TrackPoint[]): Promise<void>
   await FileSystem.writeAsStringAsync(`${dir}track.gpx`, toGpx(session, track));
 }
 
-export async function list(): Promise<StoredSession[]> {
+/**
+ * List all stored sessions reading only session.json — not the (potentially
+ * large) GPS track — so summary screens don't parse megabytes of points per
+ * focus. Use load(id) when the full track is needed.
+ */
+export async function listSummaries(): Promise<SessionSummary[]> {
   const root = await ensureRoot();
   const ids = await FileSystem.readDirectoryAsync(root).catch(() => [] as string[]);
-  const out: StoredSession[] = [];
+  const index = await readSyncIndex();
+  const out: SessionSummary[] = [];
   for (const id of ids) {
-    const dir = `${root}${id}/`;
     try {
-      const sj = await FileSystem.readAsStringAsync(`${dir}session.json`);
-      const tj = await FileSystem.readAsStringAsync(`${dir}track.json`);
-      out.push({
-        session: JSON.parse(sj) as Session,
-        track: JSON.parse(tj) as TrackPoint[],
-        synced: false, // sync state will live in a small index file once we wire sync
-      });
+      const sj = await FileSystem.readAsStringAsync(`${root}${id}/session.json`);
+      out.push({ session: JSON.parse(sj) as Session, synced: index[id] === true });
     } catch {
-      // skip malformed dirs
+      // skip malformed dirs (and the sync-index file itself)
     }
   }
   return out.sort((a, b) =>
@@ -58,10 +88,11 @@ export async function load(id: string): Promise<StoredSession | null> {
     const dir = `${getRoot()}${id}/`;
     const sj = await FileSystem.readAsStringAsync(`${dir}session.json`);
     const tj = await FileSystem.readAsStringAsync(`${dir}track.json`);
+    const index = await readSyncIndex();
     return {
       session: JSON.parse(sj) as Session,
       track: JSON.parse(tj) as TrackPoint[],
-      synced: false,
+      synced: index[id] === true,
     };
   } catch {
     return null;
@@ -74,4 +105,11 @@ export function gpxUriFor(id: string): string {
 
 export async function remove(id: string): Promise<void> {
   await FileSystem.deleteAsync(`${getRoot()}${id}/`, { idempotent: true });
+  const index = await readSyncIndex();
+  if (index[id]) {
+    delete index[id];
+    await FileSystem.writeAsStringAsync(syncIndexUri(), JSON.stringify(index)).catch(
+      () => undefined,
+    );
+  }
 }

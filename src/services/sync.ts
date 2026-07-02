@@ -3,7 +3,7 @@ import { deleteDoc, doc, setDoc } from "firebase/firestore";
 import { deleteObject, ref, uploadBytes } from "firebase/storage";
 import type { Session } from "@/models";
 import { auth, db, storage } from "./firebase";
-import { gpxUriFor, remove as removeLocal } from "./storage";
+import { gpxUriFor, markSynced, remove as removeLocal } from "./storage";
 
 /**
  * Upload a finished session document and its GPX track. Idempotent — safe
@@ -19,6 +19,10 @@ export async function syncSession(session: Session): Promise<void> {
 
   const docRef = doc(db, "users", user.uid, "sessions", session.id);
   await setDoc(docRef, { ...session, userId: user.uid });
+
+  // The session is durably in Firestore — record that so sign-in re-sync
+  // skips it. The GPX upload below stays best-effort and doesn't gate this.
+  await markSynced(session.id).catch(() => undefined);
 
   try {
     const path = `users/${user.uid}/tracks/${session.id}.gpx`;

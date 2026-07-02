@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>WKApplication</key>
+	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>ImuaTrak reads your heart rate during a paddling workout to show live effort and heart-rate zones.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>ImuaTrak saves your paddling workouts, distance, and calories to Health so they count toward your rings and activity history.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ImuaTrak uses your location to record your route, distance, and pace while you paddle.</string>
+</dict>
+</plist>

@@ -1,7 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { list, type StoredSession } from "@/services/storage";
+import { listSummaries, type SessionSummary } from "@/services/storage";
 import { useSettings } from "@/services/settings";
 import { AdBanner } from "@/ui/AdBanner";
 import { GradientCard } from "@/ui/GradientCard";
@@ -24,7 +24,7 @@ interface Stats {
   topCraft: string;
 }
 
-function computeStats(sessions: StoredSession[]): Stats {
+function computeStats(sessions: SessionSummary[]): Stats {
   const empty: Stats = {
     totalSessions: 0, totalDistanceM: 0, totalDurationSec: 0, totalCalories: 0,
     longestDistanceM: 0, longestDurationSec: 0, fastestPaceSecPerKm: 0,
@@ -104,7 +104,7 @@ export default function StatsTab() {
 
   useFocusEffect(
     useCallback(() => {
-      void list().then((sessions) => setStats(computeStats(sessions)));
+      void listSummaries().then((sessions) => setStats(computeStats(sessions)));
     }, []),
   );
 

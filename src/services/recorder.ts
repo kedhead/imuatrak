@@ -87,41 +87,16 @@ export const useRecorder = create<RecorderState>((set, get) => ({
     lastStrokeRate = 0;
     set({ ...empty, isRecording: true, startedAtMs: Date.now(), craftType: get().craftType });
 
-    unsubLocation = location.subscribe((s) => {
-      const startedAtMs = get().startedAtMs;
-      const tSec = (s.tEpochMs - startedAtMs) / 1000;
-      const point: TrackPoint = {
-        t: tSec,
-        lat: s.lat,
-        lon: s.lon,
-        altM: s.altM,
-        speedMps: s.speedMps,
-        ...(lastStrokeRate > 0 ? { strokeRate: lastStrokeRate } : {}),
-      };
-      track.push(point);
-      const totals = aggregator.totals(track, strokeCount);
-      set({
-        durationSec: tSec,
-        distanceMeters: totals.distanceMeters,
-        currentSpeedMps: s.speedMps,
-        strokeCount,
-      });
-    });
-
-    unsubMotion = motion.subscribe((stroke) => {
-      strokeCount += 1;
-      lastStrokeRate = stroke.rateSpm;
-      set({ currentStrokeRate: stroke.rateSpm, strokeCount });
-    });
-
-    await location.startBackgroundUpdates();
-
-    // Tick every second so the timer advances even when no GPS sample lands.
-    tickHandle = setInterval(() => {
-      const startedAtMs = get().startedAtMs;
-      if (!startedAtMs) return;
-      set({ durationSec: (Date.now() - startedAtMs) / 1000 });
-    }, 1000);
+    try {
+      subscribeAndStart(set, get);
+      await location.startBackgroundUpdates();
+    } catch (e) {
+      // A failed start (e.g. background updates rejected because the user only
+      // granted "While Using") must not leave a half-started recording behind:
+      // tear down subscriptions and reset state before surfacing the error.
+      get().discard();
+      throw e;
+    }
   },
 
   async stopAndSave() {
@@ -223,6 +198,45 @@ export const useRecorder = create<RecorderState>((set, get) => ({
     set({ ...empty, craftType: get().craftType });
   },
 }));
+
+function subscribeAndStart(
+  set: (partial: Partial<RecorderState>) => void,
+  get: () => RecorderState,
+): void {
+  unsubLocation = location.subscribe((s) => {
+    const startedAtMs = get().startedAtMs;
+    const tSec = (s.tEpochMs - startedAtMs) / 1000;
+    const point: TrackPoint = {
+      t: tSec,
+      lat: s.lat,
+      lon: s.lon,
+      altM: s.altM,
+      speedMps: s.speedMps,
+      ...(lastStrokeRate > 0 ? { strokeRate: lastStrokeRate } : {}),
+    };
+    track.push(point);
+    const totals = aggregator.totals(track, strokeCount);
+    set({
+      durationSec: tSec,
+      distanceMeters: totals.distanceMeters,
+      currentSpeedMps: s.speedMps,
+      strokeCount,
+    });
+  });
+
+  unsubMotion = motion.subscribe((stroke) => {
+    strokeCount += 1;
+    lastStrokeRate = stroke.rateSpm;
+    set({ currentStrokeRate: stroke.rateSpm, strokeCount });
+  });
+
+  // Tick every second so the timer advances even when no GPS sample lands.
+  tickHandle = setInterval(() => {
+    const startedAtMs = get().startedAtMs;
+    if (!startedAtMs) return;
+    set({ durationSec: (Date.now() - startedAtMs) / 1000 });
+  }, 1000);
+}
 
 function cleanup(): void {
   unsubLocation?.();

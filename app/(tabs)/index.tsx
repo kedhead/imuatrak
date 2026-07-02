@@ -11,7 +11,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { list, type StoredSession } from "@/services/storage";
+import { listSummaries, type SessionSummary } from "@/services/storage";
 import { syncSession } from "@/services/sync";
 import { watchAuth } from "@/services/auth";
 import { useSettings } from "@/services/settings";
@@ -39,23 +39,24 @@ function thisWeekMonday(): Date {
 }
 
 export default function HomeTab() {
-  const [sessions, setSessions] = useState<StoredSession[]>([]);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const units = useSettings((s) => s.units);
   const weeklyGoalDistanceKm = useSettings((s) => s.weeklyGoalDistanceKm);
   const weeklyGoalDurationMin = useSettings((s) => s.weeklyGoalDurationMin);
 
-  const reload = useCallback(() => { void list().then(setSessions); }, []);
+  const reload = useCallback(() => { void listSummaries().then(setSessions); }, []);
 
   useFocusEffect(reload);
 
   // When the user signs in, push any locally-stored sessions that never made
   // it to Firestore (recorded offline, before sign-in, or before sync existed).
-  // syncSession is idempotent so re-syncing already-uploaded sessions is safe.
+  // Already-synced sessions are skipped via the sync index.
   useEffect(() => {
     return watchAuth((user) => {
       if (!user) return;
-      list().then((stored) => {
-        for (const { session } of stored) {
+      listSummaries().then((stored) => {
+        for (const { session, synced } of stored) {
+          if (synced) continue;
           void syncSession(session).catch(() => undefined);
         }
       }).catch(() => undefined);
@@ -206,7 +207,7 @@ function SessionRow({
   units,
   index,
 }: {
-  stored: StoredSession;
+  stored: SessionSummary;
   units: "metric" | "imperial";
   index: number;
 }) {

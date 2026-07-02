@@ -71,6 +71,9 @@ enum Aggregator {
     }
 
     static func splits(_ track: [WatchTrackPoint], imperial: Bool = false) -> [WatchSplit] {
+        // Without this guard an empty track (session stopped before any GPS
+        // fix) makes the 1..<count range below trap at runtime.
+        guard track.count >= 2 else { return [] }
         let unitM: Double = imperial ? 1609.344 : 1000.0
         var splits: [WatchSplit] = []
         var splitStart = 0
@@ -104,7 +107,8 @@ enum Aggregator {
         return splits
     }
 
-    /// Ramer-Douglas-Peucker downsampling to ≤maxPoints track summary points.
+    /// Fixed-stride downsampling to ≤maxPoints track summary points
+    /// (mirrors downsample() in src/services/geo.ts).
     static func downsample(_ track: [WatchTrackPoint], maxPoints: Int = 200) -> [WatchTrackPoint] {
         guard track.count > maxPoints else { return track }
         let step = Double(track.count) / Double(maxPoints)

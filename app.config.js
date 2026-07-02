@@ -27,8 +27,19 @@ const config = {
 
   ios: {
     bundleIdentifier: "app.imuatrak",
+    // Apple Developer Team ID — required by @bacons/apple-targets to sign the
+    // watch target. Set APPLE_TEAM_ID in EAS project env (and locally in .env
+    // when running prebuild); find it at developer.apple.com → Membership.
+    appleTeamId: process.env.APPLE_TEAM_ID,
     supportsTablet: false,
     infoPlist: {
+      // Required on the companion iOS app because the bundled watch app uses
+      // HealthKit (workout session + heart rate). The phone app itself does
+      // not read or write HealthKit data.
+      NSHealthShareUsageDescription:
+        "The ImuaTrak Apple Watch app reads your heart rate during a paddling workout to show live effort and heart-rate zones.",
+      NSHealthUpdateUsageDescription:
+        "The ImuaTrak Apple Watch app saves your paddling workouts, distance, and calories to Health.",
       NSLocationAlwaysAndWhenInUseUsageDescription:
         "ImuaTrak uses your location to record your route, distance, and pace while you paddle.",
       NSLocationWhenInUseUsageDescription:
@@ -109,6 +120,12 @@ const config = {
     ],
     "./plugins/withFixGradle",
     "./plugins/withWatchBridge",
+    // Must stay BEFORE @bacons/apple-targets: mods run in reverse registration
+    // order, and the targets plugin registers the pbxproj provider last.
+    "./plugins/withWatchVersionSync",
+    // Embeds targets/watch (the ImuaTrakWatch watchOS app) into the Xcode
+    // project on every prebuild, so EAS builds ship the watch app.
+    "@bacons/apple-targets",
     [
       "expo-location",
       {

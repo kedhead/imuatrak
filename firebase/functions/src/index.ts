@@ -5,7 +5,7 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 
 initializeApp();
 
@@ -78,10 +78,10 @@ export const fetchWeather = onCall(async (request) => {
 );
 
 // ---------------------------------------------------------------------------
-// onMemberJoin — increments memberCount on the parent club document whenever
-// a new member document is created in clubs/{clubId}/members/{uid}.
-// This is the authoritative server-side counter; the client also increments
-// optimistically on join, so using FieldValue.increment keeps it idempotent.
+// onMemberJoin / onMemberLeave — maintain memberCount on the parent club
+// document from member-doc lifecycle events. These triggers are the ONLY
+// writers of memberCount (clients have no rules carve-out for it), so the
+// counter can't be spoofed or double-counted.
 // ---------------------------------------------------------------------------
 export const onMemberJoin = onDocumentCreated(
   "clubs/{clubId}/members/{uid}",
@@ -90,6 +90,18 @@ export const onMemberJoin = onDocumentCreated(
     await getFirestore()
       .doc(`clubs/${clubId}`)
       .update({ memberCount: FieldValue.increment(1) });
+  },
+);
+
+export const onMemberLeave = onDocumentDeleted(
+  "clubs/{clubId}/members/{uid}",
+  async (event) => {
+    const { clubId } = event.params;
+    // The club doc may already be gone when a club is deleted outright.
+    await getFirestore()
+      .doc(`clubs/${clubId}`)
+      .update({ memberCount: FieldValue.increment(-1) })
+      .catch(() => undefined);
   },
 );
 
@@ -171,9 +183,15 @@ export const linkSessionsToEvent = onDocumentCreated(
 // expects Services-ID audience, not bundle-ID audience.
 // ---------------------------------------------------------------------------
 export const mobileAppleSignIn = onCall(async (request) => {
-  const { idToken } = (request.data ?? {}) as { idToken?: unknown };
+  const { idToken, rawNonce } = (request.data ?? {}) as {
+    idToken?: unknown;
+    rawNonce?: unknown;
+  };
   if (typeof idToken !== "string" || !idToken) {
     throw new HttpsError("invalid-argument", "idToken is required");
+  }
+  if (typeof rawNonce !== "string" || !rawNonce) {
+    throw new HttpsError("invalid-argument", "rawNonce is required");
   }
 
   const parts = idToken.split(".");
@@ -181,7 +199,14 @@ export const mobileAppleSignIn = onCall(async (request) => {
   const [headerB64, payloadB64, sigB64] = parts as [string, string, string];
 
   let header: { kid: string; alg: string };
-  let payload: { iss: string; aud: string | string[]; exp: number; sub: string; email?: string };
+  let payload: {
+    iss: string;
+    aud: string | string[];
+    exp: number;
+    sub: string;
+    email?: string;
+    nonce?: string;
+  };
   try {
     header = JSON.parse(Buffer.from(headerB64, "base64url").toString());
     payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString());
@@ -199,6 +224,14 @@ export const mobileAppleSignIn = onCall(async (request) => {
   }
   if (payload.exp < Date.now() / 1000) {
     throw new HttpsError("invalid-argument", "Apple token has expired");
+  }
+  // Anti-replay: the client hashed rawNonce (SHA-256, lowercase hex) and sent
+  // it to Apple, which echoes it back in the token's nonce claim. Requiring
+  // the caller to present the matching raw nonce ties this call to the
+  // sign-in ceremony that produced the token.
+  const expectedNonce = crypto.createHash("sha256").update(rawNonce).digest("hex");
+  if (payload.nonce !== expectedNonce) {
+    throw new HttpsError("invalid-argument", "Apple token nonce mismatch");
   }
 
   // Verify signature against Apple's public keys
@@ -474,13 +507,33 @@ export const deleteAccount = onCall(async (request) => {
     sessionsSnap = await sessionsRef.limit(500).get();
   }
 
-  // Delete FCM tokens subcollection.
-  const tokensSnap = await db.collection(`users/${uid}/fcmTokens`).limit(500).get();
-  if (!tokensSnap.empty) {
+  // Delete public session copies — these are world-readable denormalized
+  // docs and MUST NOT survive account deletion.
+  const publicRef = db.collection("publicSessions").where("userId", "==", uid);
+  let publicSnap = await publicRef.limit(500).get();
+  while (!publicSnap.empty) {
     const batch = db.batch();
-    for (const d of tokensSnap.docs) batch.delete(d.ref);
+    for (const d of publicSnap.docs) batch.delete(d.ref);
     await batch.commit();
+    publicSnap = await publicRef.limit(500).get();
   }
+
+  // Delete FCM tokens and channel notification preferences subcollections.
+  for (const coll of ["fcmTokens", "channelPreferences"]) {
+    const snap = await db.collection(`users/${uid}/${coll}`).limit(500).get();
+    if (!snap.empty) {
+      const batch = db.batch();
+      for (const d of snap.docs) batch.delete(d.ref);
+      await batch.commit();
+    }
+  }
+
+  // Delete Storage objects (GPX tracks, share cards). Best-effort — Storage
+  // cleanup must not block the auth-account deletion below.
+  await getStorage()
+    .bucket()
+    .deleteFiles({ prefix: `users/${uid}/` })
+    .catch(() => undefined);
 
   // Remove from all clubs the user belongs to.
   const userClubsSnap = await db.doc(`userClubs/${uid}`).get();
