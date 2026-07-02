@@ -197,12 +197,14 @@ export default function SessionDetail() {
               icon="repeat"
               accent={accent}
             />
-            <Metric
-              label="Avg heart rate"
-              value={hr.avg > 0 ? `${hr.avg} bpm` : "—"}
-              icon="heart"
-              accent={colors.coral}
-            />
+            {hr.avg > 0 && (
+              <Metric
+                label="Avg heart rate"
+                value={`${hr.avg} bpm`}
+                icon="heart"
+                accent={colors.coral}
+              />
+            )}
             <Metric
               label="Calories"
               value={totals.calories > 0 ? `${Math.round(totals.calories)} kcal` : "—"}

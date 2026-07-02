@@ -21,12 +21,6 @@ export const WatchBridge = {
     const sub = emitter.addListener(event, handler);
     return { remove: () => sub.remove() };
   },
-
-  /** Returns true if WatchConnectivity is available and a watch is paired. */
-  isSupported(): boolean {
-    if (Platform.OS !== "ios" || !WatchBridgeModule) return false;
-    return WatchBridgeModule.isSupported?.() ?? false;
-  },
 };
 
 export type { SessionReceivedPayload };

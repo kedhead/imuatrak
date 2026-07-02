@@ -60,6 +60,8 @@ export function splits(points: TrackPoint[], imperial = false): Split[] {
   let splitStartT = points[0]!.t;
   let splitHrSum = 0;
   let splitHrSamples = 0;
+  let splitSrSum = 0;
+  let splitSrSamples = 0;
   let idx = 1;
 
   for (let i = 1; i < points.length; i++) {
@@ -70,6 +72,10 @@ export function splits(points: TrackPoint[], imperial = false): Split[] {
       splitHrSum += b.hr;
       splitHrSamples += 1;
     }
+    if (b.strokeRate != null) {
+      splitSrSum += b.strokeRate;
+      splitSrSamples += 1;
+    }
     if (splitDist >= unit) {
       const dur = b.t - splitStartT;
       out.push({
@@ -77,13 +83,15 @@ export function splits(points: TrackPoint[], imperial = false): Split[] {
         distanceM: unit,
         durationSec: dur,
         avgHr: splitHrSamples > 0 ? Math.round(splitHrSum / splitHrSamples) : 0,
-        avgStrokeRate: 0,
+        avgStrokeRate: splitSrSamples > 0 ? Math.round(splitSrSum / splitSrSamples) : 0,
         avgSpeedMps: dur > 0 ? unit / dur : 0,
       });
       splitDist = 0;
       splitStartT = b.t;
       splitHrSum = 0;
       splitHrSamples = 0;
+      splitSrSum = 0;
+      splitSrSamples = 0;
     }
   }
   return out;
