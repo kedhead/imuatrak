@@ -56,12 +56,16 @@ final class WorkoutManager: NSObject, ObservableObject {
     // ── Authorization ─────────────────────────────────────────────────────────
 
     func requestAuthorization() async {
-        let types: Set<HKSampleType> = [
+        var types: Set<HKSampleType> = [
             HKQuantityType(.heartRate),
-            HKQuantityType(.distancePaddleSports),
             HKQuantityType(.activeEnergyBurned),
             .workoutType(),
         ]
+        // distancePaddleSports is watchOS 11+; older watches still record the
+        // workout itself, just without the paddling-distance quantity.
+        if #available(watchOS 11.0, *) {
+            types.insert(HKQuantityType(.distancePaddleSports))
+        }
         try? await healthStore.requestAuthorization(toShare: types, read: [HKQuantityType(.heartRate)])
     }
 

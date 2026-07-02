@@ -89,8 +89,10 @@ private struct LiveMapPage: View {
             MapMarker(coordinate: pin.coord, tint: .cyan)
         }
         .overlay(MapPolylineOverlay(coords: wm.coordinates))
-        .onChange(of: wm.coordinates.last) { coord in
-            guard let coord else { return }
+        // CLLocationCoordinate2D isn't Equatable, so observe the array count
+        // and re-center on the latest fix whenever a new point lands.
+        .onChange(of: wm.coordinates.count) { _ in
+            guard let coord = wm.coordinates.last else { return }
             region.center = coord
         }
     }

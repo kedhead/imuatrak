@@ -34,7 +34,7 @@ const withWatchBridge = (config) => {
       // can call the fetchWeather Cloud Function without a hardcoded placeholder.
       const weatherPath = path.join(
         cfg.modRequest.projectRoot,
-        "apple-watch/Sources/Services/WeatherService.swift"
+        "targets/watch/Services/WeatherService.swift"
       );
       if (fs.existsSync(weatherPath)) {
         const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? "";

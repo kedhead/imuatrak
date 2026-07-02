@@ -40,20 +40,22 @@ Implemented in `src/services/`:
 
 ## Watch ↔ phone handoff (Phase 2)
 
-The watch sub-projects live outside the Expo source tree because they're
-native (Apple Watch is Swift-only, Wear OS works best in Kotlin):
+The watch sub-projects are native (Apple Watch is Swift-only, Wear OS works
+best in Kotlin):
 
-- **Apple Watch** (`apple-watch/ImuaTrakWatch.xcodeproj`): SwiftUI app using
-  `HKWorkoutSession`. After Stop, sends a session JSON + GPX file to the
-  phone via `WCSession.transferFile`. The Expo app installs a native
-  WatchConnectivity bridge that surfaces those files to JS via an event
-  emitter, then routes them through the same `sync.ts` path.
-- **Wear OS** (`wear/`): Compose for Wear app using `HealthServicesClient`.
-  Sends finished sessions through `Wearable.DataClient`; the Android
-  side of the Expo bridge picks them up.
+- **Apple Watch** (`targets/watch/`): SwiftUI app using `HKWorkoutSession`,
+  embedded into the Xcode project automatically by `@bacons/apple-targets`
+  on every prebuild (see `targets/watch/README.md`). After Stop, it sends
+  session JSON + track JSON to the phone via `WCSession.transferFile`. The
+  Expo app installs a native WatchConnectivity bridge
+  (`modules/watch-bridge`, wired by `plugins/withWatchBridge.js`) that
+  surfaces those files to JS via an event emitter, then routes them through
+  the same `sync.ts` path.
+- **Wear OS** (`wear/`): Compose for Wear skeleton using
+  `HealthServicesClient` — not yet buildable or shipped (no UI/manifest, no
+  Android bridge module).
 
-The Expo app remains the source of truth on the phone. The bridge lives
-in a small Expo config plugin (`plugins/with-watch-bridge`).
+The Expo app remains the source of truth on the phone.
 
 ## Audio "hut" detection (Phase 3)
 
