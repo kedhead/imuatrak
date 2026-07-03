@@ -28,9 +28,16 @@ struct PreRecordView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
+            // Craft badge in its brand color
             Text(workoutManager.currentCraft)
-                .font(.headline)
-                .padding(.top, 4)
+                .font(.system(.headline, design: .rounded).bold())
+                .foregroundStyle(craftColor(workoutManager.currentCraft))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule().fill(craftColor(workoutManager.currentCraft).opacity(0.18))
+                )
+                .padding(.top, 2)
 
             Button {
                 // Navigation to the recording screen is driven by
@@ -38,10 +45,10 @@ struct PreRecordView: View {
                 Task { await workoutManager.start() }
             } label: {
                 Label("Start", systemImage: "play.fill")
-                    .font(.headline)
+                    .font(.system(.headline, design: .rounded).bold())
             }
             .buttonStyle(.borderedProminent)
-            .tint(.green)
+            .tint(.imuaAqua)
             .disabled(!locHelper.isReady)
         }
         .padding()
@@ -64,7 +71,7 @@ final class LocationAccuracyHelper: NSObject, ObservableObject, CLLocationManage
     func stop() { lm.stopUpdatingLocation() }
 
     var accuracyColor: Color {
-        accuracyFraction > 0.7 ? .green : accuracyFraction > 0.4 ? .yellow : .orange
+        accuracyFraction > 0.7 ? .imuaSeafoam : accuracyFraction > 0.4 ? .imuaGold : .imuaSunset
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager,

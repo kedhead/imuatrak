@@ -21,7 +21,7 @@ struct RecordingView: View {
                 Button {
                     showStopAlert = true
                 } label: {
-                    Image(systemName: "stop.fill").foregroundStyle(.red)
+                    Image(systemName: "stop.fill").foregroundStyle(Color.imuaCoral)
                 }
             }
         }
@@ -41,19 +41,51 @@ struct RecordingView: View {
     }
 }
 
-// ── Page 1: Distance / Time / Pace ───────────────────────────────────────────
+// ── Page 1: Distance hero / Time / Pace ──────────────────────────────────────
 
 private struct MetricsPage1: View {
     @EnvironmentObject var wm: WorkoutManager
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            MetricRow(label: "KM", value: String(format: "%.2f", wm.distanceM / 1000))
+        VStack(alignment: .leading, spacing: 6) {
+            // Hero distance
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(Fmt.distanceValue(wm.distanceM))
+                        .font(.system(size: 40, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.imuaAqua)
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                    Text(Fmt.distanceUnit)
+                        .font(.system(.footnote, design: .rounded).bold())
+                        .foregroundStyle(.secondary)
+                }
+                RecordingDot(craft: wm.currentCraft)
+            }
+
             Divider()
-            MetricRow(label: "TIME", value: formatDuration(wm.durationSec))
+            MetricRow(icon: "timer", label: "TIME",
+                      value: Fmt.duration(wm.durationSec), color: .white)
             Divider()
-            MetricRow(label: "PACE", value: formatPace(wm.distanceM, wm.durationSec))
+            MetricRow(icon: "speedometer", label: "PACE",
+                      value: Fmt.pace(distanceM: wm.distanceM, durationSec: wm.durationSec),
+                      color: .imuaSeafoam)
         }
         .padding(.horizontal)
+    }
+}
+
+// Small "recording" indicator with the craft badge under the hero number.
+private struct RecordingDot: View {
+    let craft: String
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle().fill(Color.imuaCoral).frame(width: 6, height: 6)
+            Text(craft)
+                .font(.system(.caption2, design: .rounded).bold())
+                .foregroundStyle(craftColor(craft))
+        }
     }
 }
 
@@ -62,14 +94,17 @@ private struct MetricsPage1: View {
 private struct MetricsPage2: View {
     @EnvironmentObject var wm: WorkoutManager
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            MetricRow(label: "HR", value: wm.heartRate > 0 ? "\(wm.heartRate) bpm" : "—",
-                      color: .red)
+        VStack(alignment: .leading, spacing: 6) {
+            MetricRow(icon: "heart.fill", label: "HEART RATE",
+                      value: wm.heartRate > 0 ? "\(wm.heartRate) bpm" : "—",
+                      color: .imuaCoral)
             Divider()
-            MetricRow(label: "SPM", value: wm.strokeRate > 0 ? String(format: "%.0f", wm.strokeRate) : "—",
-                      color: .cyan)
+            MetricRow(icon: "water.waves", label: "STROKE RATE",
+                      value: wm.strokeRate > 0 ? String(format: "%.0f spm", wm.strokeRate) : "—",
+                      color: .imuaAqua)
             Divider()
-            MetricRow(label: "STROKES", value: "\(wm.strokeCount)")
+            MetricRow(icon: "repeat", label: "STROKES",
+                      value: "\(wm.strokeCount)", color: .imuaGold)
         }
         .padding(.horizontal)
     }
@@ -86,7 +121,7 @@ private struct LiveMapPage: View {
 
     var body: some View {
         Map(coordinateRegion: $region, annotationItems: wm.coordinates.last.map { [MapPin(coord: $0)] } ?? []) { pin in
-            MapMarker(coordinate: pin.coord, tint: .cyan)
+            MapMarker(coordinate: pin.coord, tint: .imuaAqua)
         }
         .overlay(MapPolylineOverlay(coords: wm.coordinates))
         // CLLocationCoordinate2D isn't Equatable, so observe the array count
@@ -114,37 +149,27 @@ struct MapPolylineOverlay: View {
 // ── Shared metric row ─────────────────────────────────────────────────────────
 
 private struct MetricRow: View {
+    let icon: String
     let label: String
     let value: String
     var color: Color = .white
 
     var body: some View {
-        HStack {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(color.opacity(0.8))
+                .frame(width: 16)
             Text(label)
                 .font(.system(.caption2, design: .rounded))
                 .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .leading)
             Spacer()
             Text(value)
                 .font(.system(.title3, design: .rounded).bold())
                 .foregroundStyle(color)
                 .monospacedDigit()
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
         }
     }
-}
-
-// ── Format helpers ────────────────────────────────────────────────────────────
-
-private func formatDuration(_ sec: Double) -> String {
-    let s = Int(sec)
-    let h = s / 3600, m = (s % 3600) / 60, r = s % 60
-    if h > 0 { return String(format: "%d:%02d:%02d", h, m, r) }
-    return String(format: "%d:%02d", m, r)
-}
-
-private func formatPace(_ distM: Double, _ durSec: Double) -> String {
-    guard distM > 50 else { return "—" }
-    let secPerKm = durSec / (distM / 1000)
-    let m = Int(secPerKm) / 60, s = Int(secPerKm) % 60
-    return String(format: "%d:%02d /km", m, s)
 }
