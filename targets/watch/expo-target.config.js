@@ -16,6 +16,7 @@ module.exports = {
     "CoreLocation",
     "WatchConnectivity",
     "MapKit",
+    "AppIntents",
   ],
   entitlements: {
     "com.apple.developer.healthkit": true,

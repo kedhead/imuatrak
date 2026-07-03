@@ -33,10 +33,9 @@ struct PreRecordView: View {
                 .padding(.top, 4)
 
             Button {
-                Task {
-                    await workoutManager.start()
-                    path.append("recording")
-                }
+                // Navigation to the recording screen is driven by
+                // isRecording in ContentView (shared with the Siri intent).
+                Task { await workoutManager.start() }
             } label: {
                 Label("Start", systemImage: "play.fill")
                     .font(.headline)

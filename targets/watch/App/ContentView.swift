@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var workoutManager: WorkoutManager
     @State private var path = NavigationPath()
 
     var body: some View {
@@ -18,6 +19,14 @@ struct ContentView: View {
                         CraftPickerView(path: $path)
                     }
                 }
+        }
+        // Navigation is driven by recording state so a workout started from
+        // ANY entry point — the in-app Start button or the Siri
+        // StartPaddlingIntent — lands on the live recording screen.
+        .onChange(of: workoutManager.isRecording) { recording in
+            if recording {
+                path = NavigationPath(["recording"])
+            }
         }
     }
 }
