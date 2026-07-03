@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
+import { WatchBridge } from "@imuatrak/watch-bridge";
 import type { CraftType } from "@/models";
 
 const KEY_UNITS = "imuatrak.units";
@@ -41,18 +42,22 @@ export const useSettings = create<SettingsState>((set) => ({
       AsyncStorage.getItem(KEY_GOAL_DIST_KM),
       AsyncStorage.getItem(KEY_GOAL_DUR_MIN),
     ]);
+    const units = (u as Units | null) ?? "metric";
     set({
-      units: (u as Units | null) ?? "metric",
+      units,
       defaultCraft: (c as CraftType | null) ?? "OC1",
       weightKg: w != null ? parseFloat(w) : 75,
       weeklyGoalDistanceKm: gd != null ? parseFloat(gd) : 0,
       weeklyGoalDurationMin: gt != null ? parseFloat(gt) : 0,
       loaded: true,
     });
+    // Keep the paired Apple Watch showing the same units (no-op elsewhere).
+    WatchBridge.setUnits(units);
   },
 
   async setUnits(u) {
     set({ units: u });
+    WatchBridge.setUnits(u);
     await AsyncStorage.setItem(KEY_UNITS, u);
   },
 

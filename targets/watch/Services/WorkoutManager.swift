@@ -16,6 +16,10 @@ import WatchKit
 @MainActor
 final class WorkoutManager: NSObject, ObservableObject {
 
+    // Single shared instance: the SwiftUI app and the Siri StartPaddlingIntent
+    // must drive the same workout state.
+    static let shared = WorkoutManager()
+
     // ── Published state ───────────────────────────────────────────────────────
     @Published var isRecording = false
     @Published var distanceM = 0.0
@@ -25,7 +29,11 @@ final class WorkoutManager: NSObject, ObservableObject {
     @Published var strokeCount = 0
     @Published var coordinates: [CLLocationCoordinate2D] = []
 
-    var currentCraft = "OC1"
+    // Remembered across launches so "Hey Siri" starts (without an explicit
+    // craft parameter) use the last craft picked in the app.
+    var currentCraft = UserDefaults.standard.string(forKey: "lastCraftType") ?? "OC1" {
+        didSet { UserDefaults.standard.set(currentCraft, forKey: "lastCraftType") }
+    }
 
     // ── Private ───────────────────────────────────────────────────────────────
     private let healthStore = HKHealthStore()
@@ -45,7 +53,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var durationTimer: Timer?
     private var sessionStartEpoch = 0.0
 
-    override init() {
+    private override init() {
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation

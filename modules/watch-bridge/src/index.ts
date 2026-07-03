@@ -21,6 +21,12 @@ export const WatchBridge = {
     const sub = emitter.addListener(event, handler);
     return { remove: () => sub.remove() };
   },
+
+  /** Push the units preference to the paired watch. No-op off iOS. */
+  setUnits(units: "metric" | "imperial") {
+    if (Platform.OS !== "ios" || !WatchBridgeModule) return;
+    WatchBridgeModule.setUnits?.(units);
+  },
 };
 
 export type { SessionReceivedPayload };

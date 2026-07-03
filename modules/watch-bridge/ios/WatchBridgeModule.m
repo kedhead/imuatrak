@@ -3,11 +3,33 @@
 #import <WatchConnectivity/WatchConnectivity.h>
 
 @interface WatchBridgeModule : RCTEventEmitter <RCTBridgeModule, WCSessionDelegate>
+@property (nonatomic, copy, nullable) NSString *pendingUnits;
 @end
 
 @implementation WatchBridgeModule
 
 RCT_EXPORT_MODULE()
+
+// Pushes the user's units preference ("metric" | "imperial") to the watch via
+// application context — delivered even if the watch app is closed, and
+// re-delivered after reboots. Safe no-op when no watch is paired.
+RCT_EXPORT_METHOD(setUnits:(NSString *)units) {
+  if (![WCSession isSupported]) return;
+  self.pendingUnits = units;
+  [self pushUnits];
+}
+
+- (void)pushUnits {
+  WCSession *session = WCSession.defaultSession;
+  if (self.pendingUnits == nil ||
+      session.activationState != WCSessionActivationStateActivated) {
+    return;
+  }
+  NSMutableDictionary *ctx =
+      [session.applicationContext mutableCopy] ?: [NSMutableDictionary new];
+  ctx[@"units"] = self.pendingUnits;
+  [session updateApplicationContext:ctx error:nil];
+}
 
 - (NSArray<NSString *> *)supportedEvents {
   return @[@"sessionReceived"];
@@ -30,7 +52,11 @@ RCT_EXPORT_MODULE()
 
 - (void)session:(WCSession *)session
     activationDidCompleteWithState:(WCSessionActivationState)activationState
-                             error:(nullable NSError *)error {}
+                             error:(nullable NSError *)error {
+  // Units set from JS before the session finished activating are queued in
+  // pendingUnits — deliver them now.
+  [self pushUnits];
+}
 
 - (void)sessionDidBecomeInactive:(WCSession *)session {}
 

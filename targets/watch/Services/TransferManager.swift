@@ -70,6 +70,20 @@ extension TransferManager: WCSessionDelegate {
                               activationDidCompleteWith activationState: WCSessionActivationState,
                               error: Error?) {
         if let error { print("[TransferManager] WCSession activation error: \(error)") }
+        // Application context (e.g. units preference) may have been delivered
+        // while the watch app wasn't running — pick it up on activation.
+        Self.applyApplicationContext(session.receivedApplicationContext)
+    }
+
+    nonisolated func session(_ session: WCSession,
+                              didReceiveApplicationContext applicationContext: [String: Any]) {
+        Self.applyApplicationContext(applicationContext)
+    }
+
+    private nonisolated static func applyApplicationContext(_ context: [String: Any]) {
+        if let units = context["units"] as? String {
+            UserDefaults.standard.set(units, forKey: "units")
+        }
     }
 
     nonisolated func session(_ session: WCSession,

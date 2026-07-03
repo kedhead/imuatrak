@@ -36,18 +36,18 @@ struct SummaryView: View {
                 } else {
                     Label("Synced", systemImage: "checkmark.circle.fill")
                         .font(.caption2)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.imuaSeafoam)
                 }
 
                 Button("Done") {
                     path = NavigationPath()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.cyan)
+                .tint(.imuaAqua)
             }
             .padding()
         }
-        .navigationTitle("Session Done")
+        .navigationTitle("Nice paddle!")
     }
 }
 
@@ -85,40 +85,46 @@ private struct StatsGrid: View {
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-            StatCell(label: "DISTANCE",
-                     value: String(format: "%.2f km", distance / 1000))
-            StatCell(label: "TIME",
-                     value: formatDuration(duration))
-            StatCell(label: "STROKES",
-                     value: "\(strokeCount)")
-            StatCell(label: "AVG HR",
-                     value: heartRate > 0 ? "\(heartRate) bpm" : "—")
+            StatCell(icon: "map.fill", label: "DISTANCE",
+                     value: "\(Fmt.distanceValue(distance)) \(Fmt.distanceUnit.lowercased())",
+                     color: .imuaAqua)
+            StatCell(icon: "timer", label: "TIME",
+                     value: Fmt.duration(duration), color: .white)
+            StatCell(icon: "repeat", label: "STROKES",
+                     value: "\(strokeCount)", color: .imuaGold)
+            StatCell(icon: "heart.fill", label: "AVG HR",
+                     value: heartRate > 0 ? "\(heartRate) bpm" : "—",
+                     color: .imuaCoral)
         }
     }
 }
 
 private struct StatCell: View {
+    let icon: String
     let label: String
     let value: String
+    var color: Color = .white
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.system(.caption2, design: .rounded))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: 9))
+                    .foregroundStyle(color.opacity(0.8))
+                Text(label)
+                    .font(.system(.caption2, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
             Text(value)
                 .font(.system(.callout, design: .rounded).bold())
+                .foregroundStyle(color)
                 .monospacedDigit()
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(8)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
-}
-
-private func formatDuration(_ sec: Double) -> String {
-    let s = Int(sec)
-    let h = s/3600, m = (s%3600)/60, r = s%60
-    if h > 0 { return String(format: "%d:%02d:%02d", h, m, r) }
-    return String(format: "%d:%02d", m, r)
 }
