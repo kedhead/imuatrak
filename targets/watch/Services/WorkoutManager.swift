@@ -22,6 +22,7 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     // ── Published state ───────────────────────────────────────────────────────
     @Published var isRecording = false
+    @Published var isPaused = false
     @Published var distanceM = 0.0
     @Published var durationSec = 0.0
     @Published var heartRate = 0
@@ -52,6 +53,19 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     private var durationTimer: Timer?
     private var sessionStartEpoch = 0.0
+
+    // Pause bookkeeping: track timestamps use ACTIVE time (wall time minus
+    // paused time) so paused stretches don't inflate duration, pace, or splits.
+    private var pausedAccumSec = 0.0
+    private var pauseStartedAt: Date?
+
+    private var activeElapsedSec: Double {
+        var elapsed = Date().timeIntervalSince1970 - sessionStartEpoch - pausedAccumSec
+        if let pauseStartedAt {
+            elapsed -= Date().timeIntervalSince(pauseStartedAt)
+        }
+        return max(0, elapsed)
+    }
 
     private override init() {
         super.init()
@@ -93,6 +107,9 @@ final class WorkoutManager: NSObject, ObservableObject {
         strokeRate = 0
         heartRate = 0
         coordinates = []
+        isPaused = false
+        pausedAccumSec = 0
+        pauseStartedAt = nil
 
         // Start HKWorkoutSession (powers GPS chip and HR sensor)
         let config = HKWorkoutConfiguration()
@@ -120,24 +137,12 @@ final class WorkoutManager: NSObject, ObservableObject {
         locationManager.startUpdatingLocation()
 
         // Start accelerometer for stroke detection
-        if motionManager.isAccelerometerAvailable {
-            motionManager.accelerometerUpdateInterval = 1.0 / 50.0
-            motionManager.startAccelerometerUpdates(to: .main) { [weak self] data, _ in
-                guard let self, let data else { return }
-                let a = data.acceleration
-                let t = Date().timeIntervalSince1970 - self.sessionStartEpoch
-                if let stroke = self.strokeDetector.onSample(tSec: t, ax: a.x, ay: a.y, az: a.z) {
-                    self.strokeCount += 1
-                    self.strokeRate = stroke.rateSpm
-                    self.currentStrokeRate = stroke.rateSpm
-                }
-            }
-        }
+        startAccelerometer()
 
-        // Duration ticker
+        // Duration ticker (active time only — frozen while paused)
         durationTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            self.durationSec += 1
+            guard let self, !self.isPaused else { return }
+            self.durationSec = self.activeElapsedSec
         }
 
         isRecording = true
@@ -151,8 +156,53 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
+    /// Suspend the workout: freezes the HK session (rings/calories), GPS,
+    /// stroke detection, and the duration clock. distance/pace/splits all
+    /// exclude paused time because track timestamps use active time.
+    func pause() {
+        guard isRecording, !isPaused else { return }
+        isPaused = true
+        pauseStartedAt = Date()
+        workoutSession?.pause()
+        locationManager.stopUpdatingLocation()
+        motionManager.stopAccelerometerUpdates()
+    }
+
+    func resume() {
+        guard isRecording, isPaused else { return }
+        if let pauseStartedAt {
+            pausedAccumSec += Date().timeIntervalSince(pauseStartedAt)
+        }
+        pauseStartedAt = nil
+        isPaused = false
+        workoutSession?.resume()
+        locationManager.startUpdatingLocation()
+        startAccelerometer()
+    }
+
+    private func startAccelerometer() {
+        guard motionManager.isAccelerometerAvailable else { return }
+        motionManager.accelerometerUpdateInterval = 1.0 / 50.0
+        motionManager.startAccelerometerUpdates(to: .main) { [weak self] data, _ in
+            guard let self, let data else { return }
+            let a = data.acceleration
+            let t = self.activeElapsedSec
+            if let stroke = self.strokeDetector.onSample(tSec: t, ax: a.x, ay: a.y, az: a.z) {
+                self.strokeCount += 1
+                self.strokeRate = stroke.rateSpm
+                self.currentStrokeRate = stroke.rateSpm
+            }
+        }
+    }
+
     func stopAndSave() async {
         guard isRecording, let startDate = sessionStartDate else { return }
+        // Close out any in-progress pause so post-stop math is consistent.
+        if let pauseStartedAt {
+            pausedAccumSec += Date().timeIntervalSince(pauseStartedAt)
+            self.pauseStartedAt = nil
+        }
+        isPaused = false
         isRecording = false
         durationTimer?.invalidate()
         durationTimer = nil
@@ -205,6 +255,9 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     func discard() {
         isRecording = false
+        isPaused = false
+        pauseStartedAt = nil
+        pausedAccumSec = 0
         durationTimer?.invalidate()
         locationManager.stopUpdatingLocation()
         motionManager.stopAccelerometerUpdates()
@@ -227,7 +280,10 @@ extension WorkoutManager: CLLocationManagerDelegate {
                                      didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.last else { return }
         Task { @MainActor in
-            let t = Date().timeIntervalSince1970 - self.sessionStartEpoch
+            // Ignore fixes that land while paused (updates are stopped on
+            // pause, but one can already be in flight).
+            guard self.isRecording, !self.isPaused else { return }
+            let t = self.activeElapsedSec
             let pt = WatchTrackPoint(
                 t: t,
                 lat: loc.coordinate.latitude,

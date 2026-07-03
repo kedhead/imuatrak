@@ -49,7 +49,9 @@ struct PreRecordView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.imuaAqua)
-            .disabled(!locHelper.isReady)
+            // Deliberately NOT gated on GPS accuracy: a cold GPS start (or a
+            // slow fix) used to leave this button disabled indefinitely. The
+            // ring shows signal quality; GPS locks on during the paddle.
         }
         .padding()
         .navigationTitle("Ready?")
@@ -72,6 +74,15 @@ final class LocationAccuracyHelper: NSObject, ObservableObject, CLLocationManage
 
     var accuracyColor: Color {
         accuracyFraction > 0.7 ? .imuaSeafoam : accuracyFraction > 0.4 ? .imuaGold : .imuaSunset
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        Task { @MainActor in
+            if status == .denied || status == .restricted {
+                self.statusLabel = "Location off — enable in Settings"
+            }
+        }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager,

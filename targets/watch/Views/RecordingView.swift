@@ -8,23 +8,16 @@ struct RecordingView: View {
 
     var body: some View {
         TabView {
-            // Page 1 — Pace metrics
+            // Page 1 — Controls (pause/resume, end) — like the Workout app
+            ControlsPage(showStopAlert: $showStopAlert)
+            // Page 2 — Pace metrics
             MetricsPage1()
-            // Page 2 — Heart rate & strokes
+            // Page 3 — Heart rate & strokes
             MetricsPage2()
-            // Page 3 — Live map
+            // Page 4 — Live map
             LiveMapPage()
         }
         .tabViewStyle(.carousel)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showStopAlert = true
-                } label: {
-                    Image(systemName: "stop.fill").foregroundStyle(Color.imuaCoral)
-                }
-            }
-        }
         .alert("Stop Session?", isPresented: $showStopAlert) {
             Button("Stop & Save", role: .destructive) {
                 Task {
@@ -41,7 +34,64 @@ struct RecordingView: View {
     }
 }
 
-// ── Page 1: Distance hero / Time / Pace ──────────────────────────────────────
+// ── Page 1: Controls ──────────────────────────────────────────────────────────
+
+private struct ControlsPage: View {
+    @EnvironmentObject var wm: WorkoutManager
+    @Binding var showStopAlert: Bool
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                ControlButton(
+                    icon: wm.isPaused ? "play.fill" : "pause.fill",
+                    label: wm.isPaused ? "Resume" : "Pause",
+                    color: wm.isPaused ? .imuaSeafoam : .imuaGold
+                ) {
+                    wm.isPaused ? wm.resume() : wm.pause()
+                }
+                ControlButton(icon: "stop.fill", label: "End", color: .imuaCoral) {
+                    showStopAlert = true
+                }
+            }
+            if wm.isPaused {
+                Text("PAUSED")
+                    .font(.system(.caption2, design: .rounded).bold())
+                    .foregroundStyle(Color.imuaGold)
+            } else {
+                Text(Fmt.duration(wm.durationSec))
+                    .font(.system(.caption2, design: .rounded).bold())
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+        }
+    }
+}
+
+private struct ControlButton: View {
+    let icon: String
+    let label: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Button(action: action) {
+                Image(systemName: icon)
+                    .font(.title3.bold())
+                    .foregroundStyle(color)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(color.opacity(0.2)))
+            }
+            .buttonStyle(.plain)
+            Text(label)
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// ── Page 2: Distance hero / Time / Pace ──────────────────────────────────────
 
 private struct MetricsPage1: View {
     @EnvironmentObject var wm: WorkoutManager
@@ -76,15 +126,18 @@ private struct MetricsPage1: View {
     }
 }
 
-// Small "recording" indicator with the craft badge under the hero number.
+// Small "recording"/"paused" indicator with the craft badge under the hero number.
 private struct RecordingDot: View {
+    @EnvironmentObject var wm: WorkoutManager
     let craft: String
     var body: some View {
         HStack(spacing: 6) {
-            Circle().fill(Color.imuaCoral).frame(width: 6, height: 6)
-            Text(craft)
+            Circle()
+                .fill(wm.isPaused ? Color.imuaGold : Color.imuaCoral)
+                .frame(width: 6, height: 6)
+            Text(wm.isPaused ? "PAUSED · \(craft)" : craft)
                 .font(.system(.caption2, design: .rounded).bold())
-                .foregroundStyle(craftColor(craft))
+                .foregroundStyle(wm.isPaused ? Color.imuaGold : craftColor(craft))
         }
     }
 }
