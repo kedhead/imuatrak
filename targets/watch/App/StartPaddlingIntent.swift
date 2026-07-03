@@ -30,8 +30,10 @@ enum CraftChoice: String, AppEnum {
 
 struct StartPaddlingIntent: AppIntent {
     static var title: LocalizedStringResource = "Start Paddling"
+    // NOTE: App Store validation (ITMS-90626) forbids the word "apple" —
+    // including "Apple Watch" — anywhere in an App Intent description.
     static var description = IntentDescription(
-        "Starts recording a paddling workout on your Apple Watch."
+        "Starts recording a paddling workout on your watch."
     )
     // Launch the watch app so the workout UI (and its HealthKit/GPS session)
     // runs in the foreground.
