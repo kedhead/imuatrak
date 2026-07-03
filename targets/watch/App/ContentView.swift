@@ -28,5 +28,13 @@ struct ContentView: View {
                 path = NavigationPath(["recording"])
             }
         }
+        // Cold launches via Siri can start the workout BEFORE this view
+        // exists — onChange never fires then, leaving the user stuck on the
+        // craft picker while recording runs. Catch up on appearance.
+        .onAppear {
+            if workoutManager.isRecording {
+                path = NavigationPath(["recording"])
+            }
+        }
     }
 }
