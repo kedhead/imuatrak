@@ -55,7 +55,12 @@ struct PreRecordView: View {
         }
         .padding()
         .navigationTitle("Ready?")
-        .onAppear { locHelper.start() }
+        .onAppear {
+            locHelper.start()
+            // Surface the one-time HealthKit prompt here, while the user is
+            // idling on the Ready screen, instead of behind the Start tap.
+            Task { await workoutManager.requestAuthorization() }
+        }
         .onDisappear { locHelper.stop() }
     }
 }

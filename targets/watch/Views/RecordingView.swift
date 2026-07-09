@@ -5,19 +5,49 @@ struct RecordingView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
     @Binding var path: NavigationPath
     @State private var showStopAlert = false
+    @State private var selectedPage = 0
+    @State private var showSwipeHint = false
+    // Discovery aid: once the user has ever swiped between recording pages,
+    // stop showing the hint on future sessions.
+    @AppStorage("hasSwipedRecordingPages") private var hasSwipedRecordingPages = false
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedPage) {
             // Page 1 — Controls (pause/resume, end) — like the Workout app
             ControlsPage(showStopAlert: $showStopAlert)
+                .tag(0)
             // Page 2 — Pace metrics
             MetricsPage1()
+                .tag(1)
             // Page 3 — Heart rate & strokes
             MetricsPage2()
+                .tag(2)
             // Page 4 — Live map
             LiveMapPage()
+                .tag(3)
         }
-        .tabViewStyle(.carousel)
+        // Horizontal paging with the page dots always visible so it's clear
+        // there are more screens (stats, map) beside the controls.
+        .tabViewStyle(.page(indexDisplayMode: .always))
+        .overlay(alignment: .bottom) {
+            if showSwipeHint {
+                SwipeHintBadge()
+                    .padding(.bottom, 14)
+                    .transition(.opacity)
+            }
+        }
+        .onChange(of: selectedPage) { _ in
+            hasSwipedRecordingPages = true
+            withAnimation(.easeOut(duration: 0.3)) { showSwipeHint = false }
+        }
+        .onAppear {
+            guard !hasSwipedRecordingPages else { return }
+            showSwipeHint = true
+            Task {
+                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                withAnimation(.easeOut(duration: 0.5)) { showSwipeHint = false }
+            }
+        }
         .alert("Stop Session?", isPresented: $showStopAlert) {
             Button("Stop & Save", role: .destructive) {
                 Task {
@@ -31,6 +61,22 @@ struct RecordingView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+    }
+}
+
+// First-session hint shown over the controls page until the user swipes.
+private struct SwipeHintBadge: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("Swipe for stats")
+                .font(.system(.caption2, design: .rounded).bold())
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(.ultraThinMaterial))
     }
 }
 

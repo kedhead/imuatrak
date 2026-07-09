@@ -53,6 +53,7 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     private var durationTimer: Timer?
     private var sessionStartEpoch = 0.0
+    private var authRequestInFlight = false
 
     // Pause bookkeeping: track timestamps use ACTIVE time (wall time minus
     // paused time) so paused stretches don't inflate duration, pace, or splits.
@@ -88,13 +89,24 @@ final class WorkoutManager: NSObject, ObservableObject {
         if #available(watchOS 11.0, *) {
             types.insert(HKQuantityType(.distancePaddleSports))
         }
+        // Only prompt while some type is still undetermined. Re-requesting
+        // after the user has answered re-suspends on HealthKit for nothing,
+        // and overlapping requests are one way the prompt gets wedged and
+        // never resumes — which used to leave start() hung forever.
+        let needsPrompt = types.contains { healthStore.authorizationStatus(for: $0) == .notDetermined }
+        guard needsPrompt, !authRequestInFlight else { return }
+        authRequestInFlight = true
+        defer { authRequestInFlight = false }
         try? await healthStore.requestAuthorization(toShare: types, read: [HKQuantityType(.heartRate)])
     }
 
     // ── Session lifecycle ─────────────────────────────────────────────────────
 
     func start() async {
-        await requestAuthorization()
+        // Re-entrancy guard: a double-tap on Start (or Siri racing the UI)
+        // must not reset live state mid-session. Nothing below suspends
+        // before isRecording flips, so this check is airtight on @MainActor.
+        guard !isRecording else { return }
 
         sessionId = generateId()
         sessionStartDate = Date()
@@ -110,6 +122,41 @@ final class WorkoutManager: NSObject, ObservableObject {
         isPaused = false
         pausedAccumSec = 0
         pauseStartedAt = nil
+
+        // Flip isRecording BEFORE anything that can suspend: navigation to
+        // the recording screen is driven by this flag, and the HealthKit
+        // authorization below can stall indefinitely on watchOS. The Start
+        // button must never silently do nothing.
+        isRecording = true
+        WKInterfaceDevice.current().play(.start)
+
+        // GPS, accelerometer, and the duration clock don't need HealthKit.
+        locationManager.requestWhenInUseAuthorization()
+        locationManager.startUpdatingLocation()
+        startAccelerometer()
+
+        // Duration ticker (active time only — frozen while paused)
+        durationTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, !self.isPaused else { return }
+            self.durationSec = self.activeElapsedSec
+        }
+
+        // Fetch weather at session start (best-effort, non-blocking)
+        Task {
+            if let loc = locationManager.location {
+                _ = await WeatherService.fetch(lat: loc.coordinate.latitude,
+                                               lon: loc.coordinate.longitude)
+            }
+        }
+
+        // HealthKit last: the one-time permission prompt can suspend for as
+        // long as the sheet is up (or forever if it wedges); the workout
+        // above records regardless, HealthKit just attaches when ready.
+        let startingSessionId = sessionId
+        await requestAuthorization()
+        // The prompt may outlive the session — the user can end/discard and
+        // even start a new one while it's up. Don't attach to a dead run.
+        guard isRecording, sessionId == startingSessionId else { return }
 
         // Start HKWorkoutSession (powers GPS chip and HR sensor)
         let config = HKWorkoutConfiguration()
@@ -128,31 +175,10 @@ final class WorkoutManager: NSObject, ObservableObject {
 
             session.startActivity(with: sessionStartDate!)
             try await bldr.beginCollection(at: sessionStartDate!)
+            // The user may have paused while the auth prompt was up.
+            if isPaused { session.pause() }
         } catch {
             print("[WorkoutManager] HKWorkoutSession start failed: \(error)")
-        }
-
-        // Start location updates
-        locationManager.requestWhenInUseAuthorization()
-        locationManager.startUpdatingLocation()
-
-        // Start accelerometer for stroke detection
-        startAccelerometer()
-
-        // Duration ticker (active time only — frozen while paused)
-        durationTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self, !self.isPaused else { return }
-            self.durationSec = self.activeElapsedSec
-        }
-
-        isRecording = true
-
-        // Fetch weather at session start (best-effort, non-blocking)
-        Task {
-            if let loc = locationManager.location {
-                _ = await WeatherService.fetch(lat: loc.coordinate.latitude,
-                                               lon: loc.coordinate.longitude)
-            }
         }
     }
 
@@ -163,6 +189,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         guard isRecording, !isPaused else { return }
         isPaused = true
         pauseStartedAt = Date()
+        WKInterfaceDevice.current().play(.directionDown)
         workoutSession?.pause()
         locationManager.stopUpdatingLocation()
         motionManager.stopAccelerometerUpdates()
@@ -175,6 +202,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
         pauseStartedAt = nil
         isPaused = false
+        WKInterfaceDevice.current().play(.directionUp)
         workoutSession?.resume()
         locationManager.startUpdatingLocation()
         startAccelerometer()
@@ -248,6 +276,8 @@ final class WorkoutManager: NSObject, ObservableObject {
             try? await bldr.endCollection(at: endDate)
             try? await bldr.finishWorkout()
         }
+        workoutSession = nil
+        builder = nil
 
         // Persist + transfer to phone
         await TransferManager.shared.transferSession(session, fullTrack: track)
@@ -259,9 +289,12 @@ final class WorkoutManager: NSObject, ObservableObject {
         pauseStartedAt = nil
         pausedAccumSec = 0
         durationTimer?.invalidate()
+        durationTimer = nil
         locationManager.stopUpdatingLocation()
         motionManager.stopAccelerometerUpdates()
         workoutSession?.end()
+        workoutSession = nil
+        builder = nil
         track = []
     }
 
