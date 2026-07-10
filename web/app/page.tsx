@@ -32,7 +32,8 @@ export default function Landing() {
           </h1>
           <p style={{ fontSize: 18, color: "var(--muted)", margin: "0 0 32px", lineHeight: 1.6 }}>
             GPS, real stroke detection from the IMU, splits, and heart rate from your
-            watch. Built for outrigger, surfski, V1, and SUP — not &ldquo;Kayak (Other)&rdquo;.
+            watch. Plus clubs with chat, a practice calendar, and boat assignments.
+            Built for outrigger, surfski, V1, and SUP — not &ldquo;Kayak (Other)&rdquo;.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <a className="btn" href="mailto:support@imuatrak.app">Join the waitlist</a>
@@ -95,16 +96,18 @@ export default function Landing() {
         style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", marginBottom: 96 }}
       >
         <Feature icon="〽️" title="Real stroke detection">
-          Counts strokes from phone IMU using cadence + dominant-axis oscillation.
-          No magic numbers — handles waves, cars, and bumps.
+          Counts strokes and live stroke rate from the phone&apos;s accelerometer —
+          filtered peak detection tuned to paddling cadence, so waves and chop
+          don&apos;t register as strokes.
         </Feature>
-        <Feature icon="📍" title="GPS that handles canyons">
-          Kalman-smoothed track with accuracy-aware speed. Splits every 1 km,
-          moving-time aware so a coffee break doesn&apos;t tank your pace.
+        <Feature icon="📍" title="GPS route, pace &amp; splits">
+          Route map, speed and elevation charts, and splits every kilometer or
+          mile — moving-time aware, so a coffee break doesn&apos;t tank your pace.
         </Feature>
-        <Feature icon="🏝️" title="Built for outrigger crews">
-          OC1 to OC6 and surfski. Track stroke rate, distance, and pace for
-          every paddle — solo or with the whole crew.
+        <Feature icon="⌚" title="Apple Watch app">
+          Record from your wrist: start, pause, and stop on the watch, live
+          heart rate and HR zones, &ldquo;Start Paddling&rdquo; with Siri. Workouts save
+          to Apple Health.
         </Feature>
         <Feature icon="🗺️" title="GPX + shareable links">
           Every session exports clean GPX. Flip a switch to publish a public
@@ -115,9 +118,75 @@ export default function Landing() {
           different boats. Not &ldquo;Kayak (Other)&rdquo;.
         </Feature>
         <Feature icon="📡" title="Built for the offline put-in">
-          Records fully offline. Uploads when you&apos;re back on signal. Your data
-          sits in your account, not behind a paywall.
+          Records fully offline and saves to your phone. Sessions sync to your
+          account when you&apos;re back online.
         </Feature>
+        <Feature icon="📊" title="Stats that build up">
+          Lifetime totals, personal bests, and paddling habits — distance,
+          time, strokes, and streaks across every session.
+        </Feature>
+        <Feature icon="🏝️" title="Built for outrigger crews">
+          Solo OC1 runs or six seats in the same canoe — track stroke rate,
+          distance, and pace for every paddle.
+        </Feature>
+        <Feature icon="💧" title="Heart rate from your watch">
+          Live heart rate streams from your Apple Watch into the session, with
+          time-in-zone breakdowns in your history.
+        </Feature>
+      </section>
+
+      {/* ── Clubs ─────────────────────────────────────────────────── */}
+      <section id="clubs" style={{ marginBottom: 96 }}>
+        <p
+          style={{
+            color: "var(--blue-bright)",
+            fontWeight: 600,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            fontSize: 12,
+            margin: "0 0 12px",
+          }}
+        >
+          Clubs
+        </p>
+        <h2 style={{ fontSize: 34, margin: "0 0 12px", fontWeight: 800 }}>
+          Run your whole club from one app.
+        </h2>
+        <p style={{ fontSize: 16, color: "var(--muted)", margin: "0 0 32px", lineHeight: 1.6, maxWidth: 640 }}>
+          Create a club, invite paddlers with a link, and keep the feed, chat,
+          and practice calendar in the same place as everyone&apos;s training.
+          Members join with roles — owner, admin, coach, member — so the right
+          people can post announcements and set the schedule.
+        </p>
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+          <Feature icon="📣" title="Feed, polls &amp; announcements">
+            Post announcements, updates, and polls to the club feed. Members
+            like, comment, and vote — and you can link a session straight into
+            a post.
+          </Feature>
+          <Feature icon="💬" title="Chat channels">
+            Organized chat channels — public or private — with photo and video
+            sharing and push notifications, so race-day logistics don&apos;t get
+            buried.
+          </Feature>
+          <Feature icon="📅" title="Practice calendar &amp; RSVPs">
+            Schedule practices, races, and socials with meet time and location.
+            Members RSVP going / maybe / not going, so coaches know who&apos;s on
+            the water before they load boats.
+          </Feature>
+          <Feature icon="🛶" title="Boat &amp; seat assignments">
+            Assign crews seat-by-seat for each event, and bulk-schedule a whole
+            season of recurring practices in one go.
+          </Feature>
+          <Feature icon="🖥️" title="Web dashboard">
+            Admins manage members, events, and posts from the browser at
+            imuatrak.app — no phone required.
+          </Feature>
+          <Feature icon="🔗" title="Invite links">
+            Grow the roster with a shareable invite link. New members land in
+            the club feed, chat, and calendar the moment they join.
+          </Feature>
+        </div>
       </section>
 
       {/* ── Download CTA ─────────────────────────────────────────── */}
