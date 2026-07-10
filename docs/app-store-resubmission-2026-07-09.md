@@ -20,12 +20,18 @@ background mode). Removing it would break every real workout.
 
 Apple's own next-steps say what to do instead:
 
-- 🏗️ **Record a screen recording on a physical device** showing:
-  1. Sign in, Home tab → **Record**, grant location, start a session.
-  2. Lock the device or switch apps for 1–2 minutes **while moving** (walk
-     ~100 m — distance only advances with real movement). The iOS blue
-     location-indicator pill is visible in the status bar the whole time.
+- 🏗️ **Record a screen recording on a physical device** (Control Center →
+  Screen Recording, one continuous take). Note: iOS screen recording cannot
+  capture the lock screen, so **background the app instead of locking** — it
+  demonstrates the same thing:
+  1. Start the screen recording, open ImuaTrak, Home tab → **Record**, grant
+     location, start a session.
+  2. Swipe to the home screen and open another app (don't press the side
+     button) for 1–2 minutes **while moving** (walk ~100 m — distance only
+     advances with real movement). The iOS location indicator stays visible
+     in the status bar the whole time — that's the proof Apple wants.
   3. Reopen the app — route, distance, and time have kept accumulating.
+  4. Stop the recording; it saves to Photos.
 - 🏗️ Upload/attach that recording and the note below in **App Store Connect →
   App Review Information → Notes**, then **reply to the rejection message** in
   App Store Connect saying the recording is attached (Apple explicitly asked
