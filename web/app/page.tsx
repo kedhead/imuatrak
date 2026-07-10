@@ -158,6 +158,8 @@ export default function Landing() {
       >
         <span>© ImuaTrak</span>
         <span>
+          <Link href="/support">Support</Link>
+          {" · "}
           <Link href="/privacy">Privacy</Link>
           {" · "}
           <Link href="/terms">Terms</Link>
