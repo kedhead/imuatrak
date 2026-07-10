@@ -20,9 +20,20 @@ web-build/
 ios/
 android/
 
-# Keep native module source files even though ios/ is ignored above
+# Keep native module source files even though ios/ and android/ are ignored above
 !modules/*/ios/
 !modules/*/ios/**
+!modules/*/android/
+!modules/*/android/**
+
+# ----- Wear OS app (wear/) -----
+wear/.gradle/
+wear/build/
+wear/app/build/
+wear/local.properties
+wear/keystore.properties
+wear/*.keystore
+wear/*.jks
 
 # EAS local secrets
 .easignore

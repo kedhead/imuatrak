@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Receives session files pushed from the Wear OS app over the
+             Wearable Data Layer, even when the phone app is backgrounded. -->
+        <service
+            android:name="app.imuatrak.wearbridge.SessionListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/imuatrak/session" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

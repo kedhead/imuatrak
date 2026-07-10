@@ -6,31 +6,35 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.health.services.client.HealthServices
+import androidx.health.services.client.ExerciseUpdateCallback
 import androidx.health.services.client.data.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.guava.await
 import app.imuatrak.wear.models.*
 import java.time.Instant
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sqrt
 
 // ── WorkoutManager.kt ─────────────────────────────────────────────────────────
 // Orchestrates a Wear OS paddle session:
-//   HealthServicesClient ExerciseClient → keeps GPS + HR sensors powered
-//   SensorManager TYPE_ACCELEROMETER → 50 Hz → StrokeDetector
-//   FusedLocationProvider → 1 Hz GPS samples
+//   HealthServicesClient ExerciseClient → keeps GPS + HR sensors powered and
+//     streams LOCATION / HEART_RATE_BPM / SPEED via ExerciseUpdateCallback
+//   SensorManager TYPE_LINEAR_ACCELERATION → 50 Hz → StrokeDetector
 //
-// Uses kotlinx.serialization; add to build.gradle:
-//   implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3"
+// Owned by ExerciseService (foreground service) so recording survives the
+// screen turning off; the UI observes the StateFlows.
 
 class WorkoutManager(private val context: Context) : SensorEventListener {
 
     // ── State ─────────────────────────────────────────────────────────────────
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording
+    private val _isPaused = MutableStateFlow(false)
+    val isPaused: StateFlow<Boolean> = _isPaused
     private val _distanceM = MutableStateFlow(0.0)
     val distanceM: StateFlow<Double> = _distanceM
     private val _durationSec = MutableStateFlow(0L)
@@ -55,6 +59,34 @@ class WorkoutManager(private val context: Context) : SensorEventListener {
     private var durationJob: Job? = null
     private var currentStrokeRate = 0.0
     private var lastHr = 0
+    private var lastSpeedMps = 0.0
+
+    private val exerciseClient get() = HealthServices.getClient(context).exerciseClient
+
+    private val exerciseCallback = object : ExerciseUpdateCallback {
+        override fun onExerciseUpdateReceived(update: ExerciseUpdate) {
+            if (_isPaused.value) return
+            val metrics = update.latestMetrics
+            metrics.getData(DataType.HEART_RATE_BPM).lastOrNull()?.let {
+                updateHeartRate(it.value.toInt())
+            }
+            metrics.getData(DataType.SPEED).lastOrNull()?.let {
+                lastSpeedMps = max(0.0, it.value)
+            }
+            for (sample in metrics.getData(DataType.LOCATION)) {
+                val loc = sample.value
+                val alt = loc.altitude.takeIf { it.isFinite() && abs(it) < 20_000 } ?: 0.0
+                addGpsSample(loc.latitude, loc.longitude, alt, lastSpeedMps)
+            }
+        }
+
+        override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) {}
+        override fun onRegistered() {}
+        override fun onRegistrationFailed(throwable: Throwable) {
+            android.util.Log.e("WorkoutManager", "Exercise callback registration failed: $throwable")
+        }
+        override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {}
+    }
 
     // ── Start ─────────────────────────────────────────────────────────────────
 
@@ -69,41 +101,66 @@ class WorkoutManager(private val context: Context) : SensorEventListener {
         _strokeCount.value = 0
         _strokeRate.value = 0.0
         _heartRate.value = 0
+        _isPaused.value = false
+        lastSpeedMps = 0.0
 
-        // Start accelerometer for stroke detection (50 Hz)
+        // Start accelerometer for stroke detection (~50 Hz)
         sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)?.let { sensor ->
             sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME)
         }
 
-        // Duration ticker
+        startTicker()
+        _isRecording.value = true
+
+        // Start HealthServices exercise tracking (GPS + HR + speed)
+        scope.launch { startHealthServices() }
+    }
+
+    private fun startTicker() {
+        durationJob?.cancel()
         durationJob = scope.launch {
             while (isActive) {
                 delay(1000)
-                _durationSec.value++
+                if (!_isPaused.value) _durationSec.value++
             }
         }
-
-        _isRecording.value = true
-
-        // Start HealthServices exercise tracking (GPS + HR)
-        scope.launch { startHealthServices() }
     }
 
     private suspend fun startHealthServices() {
         try {
-            val hsClient = HealthServices.getClient(context)
-            val exerciseClient = hsClient.exerciseClient
+            val client = exerciseClient
+            client.setUpdateCallback(exerciseCallback)
 
             val config = ExerciseConfig.builder(ExerciseType.PADDLING)
-                .setDataTypes(setOf(DataType.LOCATION, DataType.HEART_RATE_BPM, DataType.DISTANCE))
+                .setDataTypes(setOf(DataType.LOCATION, DataType.HEART_RATE_BPM, DataType.SPEED))
                 .setIsAutoPauseAndResumeEnabled(false)
                 .build()
 
-            exerciseClient.startExerciseAsync(config).await()
-
-            exerciseClient.getExerciseInfoAsync().await() // confirm state
+            client.startExerciseAsync(config).await()
         } catch (e: Exception) {
             android.util.Log.e("WorkoutManager", "HealthServices start failed: $e")
+        }
+    }
+
+    // ── Pause / resume ────────────────────────────────────────────────────────
+
+    fun pause() {
+        if (!_isRecording.value || _isPaused.value) return
+        _isPaused.value = true
+        sensorManager.unregisterListener(this)
+        scope.launch {
+            try { exerciseClient.pauseExerciseAsync().await() } catch (_: Exception) {}
+        }
+    }
+
+    fun resume() {
+        if (!_isRecording.value || !_isPaused.value) return
+        _isPaused.value = false
+        sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)?.let { sensor ->
+            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME)
+        }
+        scope.launch {
+            try { exerciseClient.resumeExerciseAsync().await() } catch (_: Exception) {}
         }
     }
 
@@ -111,6 +168,7 @@ class WorkoutManager(private val context: Context) : SensorEventListener {
 
     suspend fun stopAndSave(): WatchSession {
         _isRecording.value = false
+        _isPaused.value = false
         durationJob?.cancel()
         sensorManager.unregisterListener(this)
 
@@ -144,7 +202,7 @@ class WorkoutManager(private val context: Context) : SensorEventListener {
 
         // Stop HealthServices
         try {
-            HealthServices.getClient(context).exerciseClient.endExerciseAsync().await()
+            exerciseClient.endExerciseAsync().await()
         } catch (_: Exception) {}
 
         // Persist + transfer
@@ -154,14 +212,19 @@ class WorkoutManager(private val context: Context) : SensorEventListener {
 
     fun discard() {
         _isRecording.value = false
+        _isPaused.value = false
         durationJob?.cancel()
         sensorManager.unregisterListener(this)
         track.clear()
+        scope.launch {
+            try { exerciseClient.endExerciseAsync().await() } catch (_: Exception) {}
+        }
     }
 
     // ── SensorEventListener (accelerometer at ~50 Hz) ─────────────────────────
 
     override fun onSensorChanged(event: SensorEvent) {
+        if (_isPaused.value) return
         val t = (event.timestamp / 1_000_000_000.0) - (sessionStart / 1000.0)
         val stroke = strokeDetector.onSample(t, event.values[0].toDouble(),
                                                event.values[1].toDouble(),
@@ -178,6 +241,7 @@ class WorkoutManager(private val context: Context) : SensorEventListener {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     fun addGpsSample(lat: Double, lon: Double, altM: Double, speedMps: Double) {
+        if (_isPaused.value) return
         val t = (System.currentTimeMillis() / 1000.0) - sessionStartEpoch
         val pt = WatchTrackPoint(t = t, lat = lat, lon = lon, altM = altM,
                                   speedMps = max(0.0, speedMps),

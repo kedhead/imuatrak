@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paddle blade over water — simple brand mark for the beta build. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:scaleX="0.5" android:scaleY="0.5" android:translateX="27" android:translateY="27">
+        <!-- Paddle shaft (diagonal) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M30,78 L74,34 L78,38 L34,82 Z" />
+        <!-- Blade -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M74,34 m-4,-4 a14,14 0 1,1 8,8 a14,14 0 1,1 -8,-8" />
+        <!-- Wave -->
+        <path
+            android:fillColor="#7CC4F5"
+            android:pathData="M14,88 q10,-8 20,0 q10,8 20,0 q10,-8 20,0 q10,8 20,0 l0,10 l-80,0 Z" />
+    </group>
+</vector>

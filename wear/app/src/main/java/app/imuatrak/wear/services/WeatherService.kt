@@ -1,5 +1,6 @@
 package app.imuatrak.wear.services
 
+import app.imuatrak.wear.BuildConfig
 import app.imuatrak.wear.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -9,15 +10,17 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object WeatherService {
-    // Fill in your Firebase project ID — same as EXPO_PUBLIC_FIREBASE_PROJECT_ID
-    private const val PROJECT_ID = "YOUR_FIREBASE_PROJECT_ID"
+    // Injected at build time from EXPO_PUBLIC_FIREBASE_PROJECT_ID (see
+    // app/build.gradle.kts). Blank disables the fetch entirely.
     private const val REGION = "us-central1"
+    private val projectId get() = BuildConfig.FIREBASE_PROJECT_ID
 
-    suspend fun fetch(lat: Double, lon: Double): WatchWeatherSummary? =
-        withTimeoutOrNull(5_000L) {
+    suspend fun fetch(lat: Double, lon: Double): WatchWeatherSummary? {
+        if (projectId.isBlank()) return null
+        return withTimeoutOrNull(5_000L) {
             withContext(Dispatchers.IO) {
                 try {
-                    val url = URL("https://$REGION-$PROJECT_ID.cloudfunctions.net/fetchWeather")
+                    val url = URL("https://$REGION-$projectId.cloudfunctions.net/fetchWeather")
                     val conn = url.openConnection() as HttpURLConnection
                     conn.requestMethod = "POST"
                     conn.setRequestProperty("Content-Type", "application/json")
@@ -35,4 +38,5 @@ object WeatherService {
                 } catch (_: Exception) { null }
             }
         }
+    }
 }

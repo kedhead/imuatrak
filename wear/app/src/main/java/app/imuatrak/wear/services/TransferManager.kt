@@ -21,18 +21,39 @@ object TransferManager {
         sessionFile.writeText(json.encodeToString(session))
         trackFile.writeText(json.encodeToString(track))
 
+        sendDir(context, id, dir)
+    }
+
+    /**
+     * Re-send any locally saved sessions that never reached the phone —
+     * called on app launch so a paddle recorded out of Bluetooth range
+     * lands on the phone the next time the app opens near it.
+     */
+    suspend fun retryPending(context: Context) {
+        val root = File(context.filesDir, "sessions")
+        val dirs = root.listFiles { f -> f.isDirectory } ?: return
+        for (dir in dirs) {
+            if (File(dir, ".sent").exists()) continue
+            if (!File(dir, "session.json").exists()) continue
+            sendDir(context, dir.name, dir)
+        }
+    }
+
+    private suspend fun sendDir(context: Context, id: String, dir: File) {
         try {
             val nodeClient = Wearable.getNodeClient(context)
             val nodes = nodeClient.connectedNodes.await()
+            if (nodes.isEmpty()) return // no phone in range; retryPending picks it up later
             val channelClient = Wearable.getChannelClient(context)
 
             for (node in nodes) {
-                sendFile(channelClient, node.id, id, "session", sessionFile)
-                sendFile(channelClient, node.id, id, "track", trackFile)
+                sendFile(channelClient, node.id, id, "session", File(dir, "session.json"))
+                sendFile(channelClient, node.id, id, "track", File(dir, "track.json"))
             }
+            File(dir, ".sent").writeText("1")
         } catch (e: Exception) {
             android.util.Log.e("TransferManager", "Transfer failed: $e")
-            // Files are saved locally; sync will retry when phone reconnects
+            // Files are saved locally; retryPending() will retry on next launch
         }
     }
 
