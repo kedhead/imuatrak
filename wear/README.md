@@ -53,7 +53,27 @@ time to enable the end-of-session weather fetch (same value as the phone app).
 3. Launch **ImuaTrak** from the watch app list. Grant location + body sensors
    when prompted on first GO.
 
-## Watch → phone sync: signature requirement
+## Release pipeline (Play Store Wear OS track)
+
+CI also builds a **signed release AAB** (`imuatrak-wear-release` artifact) once
+four repo secrets are set (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `WEAR_KEYSTORE_BASE64` | the keystore file, base64-encoded: `base64 -w0 imuatrak.jks` |
+| `WEAR_KEYSTORE_PASSWORD` | keystore password |
+| `WEAR_KEY_ALIAS` | key alias |
+| `WEAR_KEY_PASSWORD` | key password |
+
+Use the **same keystore as the EAS Android build** (`eas credentials -p
+android` → Download). `versionCode` auto-increments per CI run
+(`github.run_number`), so every artifact is directly uploadable to
+**Play Console → same app listing → Wear OS track**. Play App Signing then
+re-signs phone and watch with one key, which also satisfies the Data Layer
+signature requirement for store installs. Without the secrets, CI just skips
+the release steps and builds the debug APK as before.
+
+## Watch → phone sync: signature requirement (sideloads)
 
 The Wearable Data Layer only connects watch/phone apps that share the **same
 application ID and signing certificate**. This app already uses the phone's

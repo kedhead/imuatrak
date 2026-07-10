@@ -14,6 +14,13 @@ jobs:
     defaults:
       run:
         working-directory: wear
+    env:
+      # Release signing activates automatically once the four WEAR_* secrets
+      # are set in repo Settings → Secrets and variables → Actions.
+      HAS_KEYSTORE: ${{ secrets.WEAR_KEYSTORE_BASE64 != '' }}
+      EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+      # Auto-incrementing versionCode for Play uploads.
+      WEAR_VERSION_CODE: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v4
@@ -21,13 +28,45 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build debug APK
+
+      - name: Build debug APK (sideload / beta)
         run: ./gradlew assembleDebug --stacktrace
-        env:
-          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
-      - name: Upload APK artifact
+
+      - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: imuatrak-wear-debug
           path: wear/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
+      - name: Set up release keystore
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          echo "$WEAR_KEYSTORE_BASE64" | base64 -d > release.keystore
+          cat > keystore.properties <<EOF
+          storeFile=release.keystore
+          storePassword=$WEAR_KEYSTORE_PASSWORD
+          keyAlias=$WEAR_KEY_ALIAS
+          keyPassword=$WEAR_KEY_PASSWORD
+          EOF
+        env:
+          WEAR_KEYSTORE_BASE64: ${{ secrets.WEAR_KEYSTORE_BASE64 }}
+          WEAR_KEYSTORE_PASSWORD: ${{ secrets.WEAR_KEYSTORE_PASSWORD }}
+          WEAR_KEY_ALIAS: ${{ secrets.WEAR_KEY_ALIAS }}
+          WEAR_KEY_PASSWORD: ${{ secrets.WEAR_KEY_PASSWORD }}
+
+      - name: Build signed release AAB (Play Wear OS track)
+        if: env.HAS_KEYSTORE == 'true'
+        run: ./gradlew bundleRelease --stacktrace
+
+      - name: Upload release AAB artifact
+        if: env.HAS_KEYSTORE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: imuatrak-wear-release
+          path: wear/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Clean up keystore
+        if: always() && env.HAS_KEYSTORE == 'true'
+        run: rm -f release.keystore keystore.properties

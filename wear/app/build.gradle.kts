@@ -26,7 +26,9 @@ android {
         applicationId = "app.imuatrak"
         minSdk = 30       // Wear OS 3+
         targetSdk = 35
-        versionCode = 1
+        // CI sets WEAR_VERSION_CODE to the workflow run number so every Play
+        // upload auto-increments; local builds default to 1.
+        versionCode = (System.getenv("WEAR_VERSION_CODE") ?: "1").toInt()
         versionName = "0.1.0"
 
         // Firebase project id for the fetchWeather Cloud Function — same value
@@ -51,7 +53,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (keystoreProps.isNotEmpty()) {
                 signingConfig = signingConfigs.getByName("release")
             }
