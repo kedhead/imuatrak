@@ -66,7 +66,7 @@ export default function Support() {
 
       <h3>How do I delete my account and data?</h3>
       <p>
-        Email <a href="mailto:privacy@imuatrak.app">privacy@imuatrak.app</a> from the address linked to
+        Email <a href="mailto:support@imuatrak.app">support@imuatrak.app</a> from the address linked to
         your account and we&rsquo;ll delete your account and all associated data. See our{" "}
         <a href="/privacy">Privacy Policy</a> for details on what we store.
       </p>

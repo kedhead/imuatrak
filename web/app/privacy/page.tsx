@@ -98,7 +98,7 @@ export default function PrivacyPolicy() {
       <h2>Data Retention &amp; Deletion</h2>
       <p>
         You may delete your account and all associated data at any time by contacting us at{" "}
-        <a href="mailto:privacy@imuatrak.app">privacy@imuatrak.app</a>. Club content you authored will be removed.
+        <a href="mailto:support@imuatrak.app">support@imuatrak.app</a>. Club content you authored will be removed.
         Location and fitness data stored on your device is controlled by you through your device settings.
       </p>
 
@@ -110,7 +110,7 @@ export default function PrivacyPolicy() {
       <h2>Your Rights</h2>
       <p>
         Depending on your location you may have the right to access, correct, or delete your personal data.
-        Contact us at <a href="mailto:privacy@imuatrak.app">privacy@imuatrak.app</a> to make a request.
+        Contact us at <a href="mailto:support@imuatrak.app">support@imuatrak.app</a> to make a request.
       </p>
 
       <h2>Changes</h2>
@@ -121,7 +121,7 @@ export default function PrivacyPolicy() {
 
       <h2>Contact</h2>
       <p>
-        <a href="mailto:privacy@imuatrak.app">privacy@imuatrak.app</a>
+        <a href="mailto:support@imuatrak.app">support@imuatrak.app</a>
         <br />
         <a href="https://imuatrak.app">imuatrak.app</a>
       </p>

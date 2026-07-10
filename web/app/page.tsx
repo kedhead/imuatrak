@@ -35,7 +35,7 @@ export default function Landing() {
             watch. Built for outrigger, surfski, V1, and SUP — not &ldquo;Kayak (Other)&rdquo;.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a className="btn" href="mailto:hello@imuatrak.app">Join the waitlist</a>
+            <a className="btn" href="mailto:support@imuatrak.app">Join the waitlist</a>
             <a className="btn btn-outline" href="#features">See features</a>
           </div>
         </div>
@@ -138,11 +138,11 @@ export default function Landing() {
           TestFlight + Play Internal Testing this season.
         </p>
         <a
-          href="mailto:hello@imuatrak.app"
+          href="mailto:support@imuatrak.app"
           className="btn"
           style={{ marginTop: 20, display: "inline-block" }}
         >
-          Email hello@imuatrak.app to get on the list
+          Email support@imuatrak.app to get on the list
         </a>
       </section>
 
