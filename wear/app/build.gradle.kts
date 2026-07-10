@@ -81,7 +81,7 @@ dependencies {
     implementation("androidx.wear:wear-ongoing:1.0.0")
 
     // Health Services (exercise tracking + GPS + HR)
-    implementation("androidx.health.services.client:health-services-client:1.1.0-alpha04")
+    implementation("androidx.health:health-services-client:1.1.0-rc02")
 
     // Wearable Data Layer (phone transfer)
     implementation("com.google.android.gms:play-services-wearable:18.2.0")
