@@ -43,7 +43,7 @@ render the home/list map preview. The full track lives in Cloud Storage as GPX.
     "maxBpm": 190,
     "zones": [120, 140, 160, 175, 185]
   },
-  "defaultCraft": "OC1 | OC2 | OC6 | V1 | SUP | SURFSKI | OTHER"
+  "defaultCraft": "OC1 | OC2 | OC6 | V1 | SUP | SURFSKI | DB10 | DB20 | OTHER"
 }
 ```
 
@@ -56,7 +56,7 @@ render the home/list map preview. The full track lives in Cloud Storage as GPX.
   "schemaVersion": 1,
   "source": "ios-phone | ios-watch | android-phone | android-wear",
   "appVersion": "string",
-  "craftType": "OC1 | OC2 | OC6 | V1 | SUP | SURFSKI | OTHER",
+  "craftType": "OC1 | OC2 | OC6 | V1 | SUP | SURFSKI | DB10 | DB20 | OTHER",
   "startedAt": "ISO-8601 timestamp",
   "endedAt": "ISO-8601 timestamp",
 

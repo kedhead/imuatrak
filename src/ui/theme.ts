@@ -138,6 +138,8 @@ export const craftColors: Record<string, string> = {
   V1: colors.seafoam,
   SUP: colors.gold,
   SURFSKI: colors.coral,
+  DB10: colors.sunset,
+  DB20: colors.teal,
   OTHER: colors.muted,
 };
 

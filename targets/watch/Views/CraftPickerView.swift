@@ -4,7 +4,7 @@ struct CraftPickerView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
     @Binding var path: NavigationPath
 
-    private let crafts = ["OC1", "OC2", "OC6", "V1", "SUP", "SURFSKI", "OTHER"]
+    private let crafts = ["OC1", "OC2", "OC6", "V1", "SUP", "SURFSKI", "DB10", "DB20", "OTHER"]
 
     var body: some View {
         List(crafts, id: \.self) { craft in

@@ -9,7 +9,7 @@ import { formatDate, formatTime, formatDuration, formatKm, formatPace } from "@/
 import type { DashboardSession } from "@/lib/types";
 
 const BASE_URL = "https://imuatrak.app";
-const CRAFT_TYPES = ["OC1", "OC2", "OC6", "V1", "SUP", "SURFSKI", "OTHER"] as const;
+const CRAFT_TYPES = ["OC1", "OC2", "OC6", "V1", "SUP", "SURFSKI", "DB10", "DB20", "OTHER"] as const;
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();

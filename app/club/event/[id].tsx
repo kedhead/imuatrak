@@ -181,9 +181,11 @@ function EventDetail({
   const handleAddBoat = async () => {
     if (!event) return;
     const boats: BoatAssignment[] = [...(event.boatAssignments ?? [])];
+    // Match the event's existing boat size (e.g. 20-seat dragon boats); 6 for the first boat.
+    const seatCount = boats[0]?.seats.length ?? 6;
     boats.push({
       boatName: `Boat ${boats.length + 1}`,
-      seats: Array.from({ length: 6 }, (_, i) => ({ seatNumber: i + 1, uid: null })),
+      seats: Array.from({ length: seatCount }, (_, i) => ({ seatNumber: i + 1, uid: null })),
     });
     await updateBoatAssignments(clubId, eventId, boats);
     const updated = await getEvent(clubId, eventId);
@@ -606,7 +608,8 @@ function EventForm({
               <Text style={styles.stepBtnText}>−</Text>
             </Pressable>
             <Text style={styles.stepValue}>{seatsPerBoat}</Text>
-            <Pressable style={styles.stepBtn} onPress={() => setSeatsPerBoat(Math.min(12, seatsPerBoat + 1))}>
+            {/* 22 covers a DB20 dragon boat crew: 20 paddlers + drummer + steerer */}
+            <Pressable style={styles.stepBtn} onPress={() => setSeatsPerBoat(Math.min(22, seatsPerBoat + 1))}>
               <Text style={styles.stepBtnText}>+</Text>
             </Pressable>
           </View>

@@ -21,6 +21,7 @@ extension Color {
     static let imuaCoral = Color(hex: 0xFF6B5E)
     static let imuaSunset = Color(hex: 0xFF8A4C)
     static let imuaGold = Color(hex: 0xFFC24B)
+    static let imuaTeal = Color(hex: 0x1FB6A6)
     static let imuaMuted = Color(hex: 0x6B7785)
 }
 
@@ -33,6 +34,8 @@ func craftColor(_ craft: String) -> Color {
     case "V1": return .imuaSeafoam
     case "SUP": return .imuaGold
     case "SURFSKI": return .imuaCoral
+    case "DB10": return .imuaSunset
+    case "DB20": return .imuaTeal
     default: return .imuaMuted
     }
 }

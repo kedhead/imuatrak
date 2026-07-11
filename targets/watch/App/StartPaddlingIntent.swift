@@ -14,6 +14,8 @@ enum CraftChoice: String, AppEnum {
     case v1 = "V1"
     case sup = "SUP"
     case surfski = "SURFSKI"
+    case db10 = "DB10"
+    case db20 = "DB20"
     case other = "OTHER"
 
     static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Craft")
@@ -24,6 +26,8 @@ enum CraftChoice: String, AppEnum {
         .v1: DisplayRepresentation(title: "V1"),
         .sup: DisplayRepresentation(title: "SUP"),
         .surfski: DisplayRepresentation(title: "Surfski"),
+        .db10: DisplayRepresentation(title: "Dragon Boat 10"),
+        .db20: DisplayRepresentation(title: "Dragon Boat 20"),
         .other: DisplayRepresentation(title: "Other"),
     ]
 }

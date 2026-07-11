@@ -6,7 +6,16 @@
 
 export const SCHEMA_VERSION = 1;
 
-export type CraftType = "OC1" | "OC2" | "OC6" | "V1" | "SUP" | "SURFSKI" | "OTHER";
+export type CraftType =
+  | "OC1"
+  | "OC2"
+  | "OC6"
+  | "V1"
+  | "SUP"
+  | "SURFSKI"
+  | "DB10"
+  | "DB20"
+  | "OTHER";
 
 export const CRAFT_TYPES: readonly CraftType[] = [
   "OC1",
@@ -15,6 +24,8 @@ export const CRAFT_TYPES: readonly CraftType[] = [
   "V1",
   "SUP",
   "SURFSKI",
+  "DB10",
+  "DB20",
   "OTHER",
 ] as const;
 

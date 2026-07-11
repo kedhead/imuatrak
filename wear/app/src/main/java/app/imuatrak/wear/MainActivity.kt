@@ -27,7 +27,7 @@ import app.imuatrak.wear.services.TransferManager
 import app.imuatrak.wear.services.WorkoutManager
 import kotlinx.coroutines.launch
 
-private val CRAFTS = listOf("OC1", "OC2", "OC6", "V1", "SUP", "SURFSKI")
+private val CRAFTS = listOf("OC1", "OC2", "OC6", "V1", "SUP", "SURFSKI", "DB10", "DB20")
 
 private val BrandBlue = Color(0xFF3B82F6)
 private val Amber = Color(0xFFF59E0B)

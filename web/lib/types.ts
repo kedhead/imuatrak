@@ -5,7 +5,7 @@
  * without monorepo plumbing.
  */
 
-export type CraftType = "OC1" | "OC2" | "OC6" | "V1" | "SUP" | "SURFSKI" | "OTHER";
+export type CraftType = "OC1" | "OC2" | "OC6" | "V1" | "SUP" | "SURFSKI" | "DB10" | "DB20" | "OTHER";
 
 export interface Totals {
   distanceMeters: number;
