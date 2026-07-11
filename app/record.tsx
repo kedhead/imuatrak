@@ -103,6 +103,12 @@ export default function Record() {
             <Tile label="STROKE RATE" value={strokeRate} unit="spm" accent={colors.seafoam} />
             <Tile label="STROKES" value={recorder.strokeCount.toString()} accent={colors.gold} />
           </View>
+
+          <Text style={styles.backgroundHint}>
+            {recorder.isRecording
+              ? "GPS tracking continues in the background — lock your screen or stow your phone in the dry bag."
+              : "Once you start, GPS keeps recording your route even with the screen locked or the app in the background."}
+          </Text>
         </ScrollView>
 
         <View style={styles.actions}>
@@ -217,5 +223,12 @@ const styles = StyleSheet.create({
   tileValueRow: { flexDirection: "row", alignItems: "baseline", gap: 4 },
   tileValue: { fontSize: type.size.display, fontWeight: type.weight.heavy, ...type.mono },
   tileUnit: { color: "rgba(255,255,255,0.6)", fontSize: type.size.md, fontWeight: type.weight.bold },
+  backgroundHint: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: type.size.xs,
+    textAlign: "center",
+    lineHeight: 17,
+    paddingHorizontal: spacing.md,
+  },
   actions: { flexDirection: "row", gap: spacing.sm, padding: spacing.lg, paddingBottom: spacing.xxl },
 });
