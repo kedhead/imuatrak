@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+// Set from App Store Connect → App Information → "View on App Store".
+const APP_STORE_URL = "https://apps.apple.com/app/imuatrak/id0000000000"; // TODO: real link
+
 export default function Landing() {
   return (
     <main className="container">
@@ -36,9 +39,12 @@ export default function Landing() {
             Built for outrigger, dragon boat, surfski, V1, and SUP — not &ldquo;Kayak (Other)&rdquo;.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a className="btn" href="mailto:support@imuatrak.app">Join the waitlist</a>
+            <a className="btn" href={APP_STORE_URL}>Download on the App Store</a>
             <a className="btn btn-outline" href="#features">See features</a>
           </div>
+          <p style={{ color: "var(--muted)", fontSize: 13, margin: "12px 0 0" }}>
+            Free on iPhone &amp; Apple Watch · Android coming soon
+          </p>
         </div>
 
         {/* Mock session preview card */}
@@ -200,19 +206,35 @@ export default function Landing() {
           marginBottom: 80,
         }}
       >
+        <p
+          style={{
+            color: "var(--blue-bright)",
+            fontWeight: 600,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            fontSize: 12,
+            margin: "0 0 12px",
+          }}
+        >
+          Out now
+        </p>
         <h2 style={{ fontSize: 32, margin: "0 0 12px", fontWeight: 700 }}>
-          Coming soon to iOS &amp; Android
+          ImuaTrak is live on the App Store
         </h2>
         <p style={{ color: "var(--muted)", marginTop: 0, fontSize: 15 }}>
-          TestFlight + Play Internal Testing this season.
+          Free download for iPhone and Apple Watch.
         </p>
         <a
-          href="mailto:support@imuatrak.app"
+          href={APP_STORE_URL}
           className="btn"
           style={{ marginTop: 20, display: "inline-block" }}
         >
-          Email support@imuatrak.app to get on the list
+          Download on the App Store
         </a>
+        <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 20 }}>
+          On Android? The app is coming soon — email{" "}
+          <a href="mailto:support@imuatrak.app">support@imuatrak.app</a> to join the beta.
+        </p>
       </section>
 
       <footer
