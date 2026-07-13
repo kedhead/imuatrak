@@ -33,7 +33,7 @@ export default function InviteScreen() {
 
   const handleShare = async () => {
     await Share.share({
-      message: `Join ${club.name} on ImuaTrak!\n\n${permanentLink}\n\nDownload the app at imuatrak.app`,
+      message: `Join ${club.name} on ImuaTrak!\n\n${permanentLink}\n\nDon't have the app? Get it here: https://apps.apple.com/us/app/imuatrak/id6774396124`,
       url: Platform.OS === "ios" ? permanentLink : undefined,
     });
   };

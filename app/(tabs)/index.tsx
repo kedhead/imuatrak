@@ -14,6 +14,7 @@ import Animated, {
 import { listSummaries, type SessionSummary } from "@/services/storage";
 import { syncSession } from "@/services/sync";
 import { watchAuth } from "@/services/auth";
+import { takePendingInvite } from "@/services/pendingInvite";
 import { useSettings } from "@/services/settings";
 import { WatchBridge } from "@imuatrak/watch-bridge";
 import { WearBridge } from "@imuatrak/wear-bridge";
@@ -50,7 +51,8 @@ export default function HomeTab() {
 
   // When the user signs in, push any locally-stored sessions that never made
   // it to Firestore (recorded offline, before sign-in, or before sync existed).
-  // Already-synced sessions are skipped via the sync index.
+  // Already-synced sessions are skipped via the sync index. Also resume any
+  // club invite that was interrupted by the sign-in wall.
   useEffect(() => {
     return watchAuth((user) => {
       if (!user) return;
@@ -60,6 +62,11 @@ export default function HomeTab() {
           void syncSession(session).catch(() => undefined);
         }
       }).catch(() => undefined);
+      void takePendingInvite().then((identifier) => {
+        if (identifier) {
+          router.push({ pathname: "/club/join", params: { slug: identifier } });
+        }
+      });
     });
   }, []);
 

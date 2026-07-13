@@ -32,6 +32,10 @@ const config = {
     // when running prebuild); find it at developer.apple.com → Membership.
     appleTeamId: process.env.APPLE_TEAM_ID,
     supportsTablet: false,
+    // Universal links: https://imuatrak.app/join/{club} opens the app
+    // directly (no browser hop). Requires the apple-app-site-association
+    // file served by the website — see docs/universal-links.md.
+    associatedDomains: ["applinks:imuatrak.app"],
     infoPlist: {
       // Required on the companion iOS app because the bundled watch app uses
       // HealthKit (workout session + heart rate). The phone app itself does
@@ -67,6 +71,16 @@ const config = {
 
   android: {
     package: "app.imuatrak",
+    // Android App Links for invite URLs — verified against the
+    // assetlinks.json served by the website (see docs/universal-links.md).
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: [{ scheme: "https", host: "imuatrak.app", pathPrefix: "/join" }],
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#07314F",

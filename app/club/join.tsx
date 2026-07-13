@@ -12,7 +12,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Clipboard from "expo-clipboard";
 import { currentUser } from "@/services/auth";
+import { setPendingInvite } from "@/services/pendingInvite";
 import { resolveInviteToken, joinClub, getClub, getClubBySlug } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { colors, radii, spacing, type } from "@/ui/theme";
@@ -33,18 +35,46 @@ export default function JoinClubScreen() {
   const [input, setInput] = useState(params.code ?? "");
   const [loading, setLoading] = useState(false);
 
-  // Auto-join when opened via deep link with a slug/id param
+  // Auto-join when opened via deep link with a slug/id param. Otherwise,
+  // pre-fill from the clipboard — the "get the app" flow on the web invite
+  // page copies the link, so a fresh install lands here with it ready.
   useEffect(() => {
     if (params.slug) {
       setInput(params.slug);
       void handleJoinWithIdentifier(params.slug);
+      return;
+    }
+    if (!params.code) {
+      void (async () => {
+        try {
+          const clip = (await Clipboard.getStringAsync()).trim();
+          if (extractIdentifier(clip) && clip.includes("imuatrak.app/join")) {
+            setInput(clip);
+          }
+        } catch {
+          // Clipboard access denied — nothing to prefill.
+        }
+      })();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleJoinWithIdentifier = async (identifier: string) => {
     const user = currentUser();
-    if (!user) { Alert.alert("Please sign in first"); return; }
+    if (!user) {
+      // Keep the invite so the join resumes automatically after sign-in —
+      // the invitee shouldn't have to dig the link out of their chat again.
+      await setPendingInvite(identifier);
+      Alert.alert(
+        "Sign in to join",
+        "Create an account or sign in — we'll bring you right back to this invite.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign in", onPress: () => router.push("/onboarding") },
+        ],
+      );
+      return;
+    }
     setLoading(true);
     try {
       // Resolve in order: club document ID (current links) → slug (legacy
