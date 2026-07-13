@@ -1,7 +1,6 @@
 import Link from "next/link";
 
-// Set from App Store Connect → App Information → "View on App Store".
-const APP_STORE_URL = "https://apps.apple.com/app/imuatrak/id0000000000"; // TODO: real link
+const APP_STORE_URL = "https://apps.apple.com/us/app/imuatrak/id6774396124";
 
 export default function Landing() {
   return (
