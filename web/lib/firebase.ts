@@ -17,6 +17,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { DashboardSession, PublicSession } from "./types";
 import type { Club, ClubMember, ClubEvent, ClubPost, MemberRole, EventType, PostType, RsvpStatus } from "./clubTypes";
@@ -111,6 +112,47 @@ export async function setSessionPublic(
   } else {
     await deleteDoc(publicRef).catch(() => undefined);
   }
+}
+
+// ── App-admin analytics ──────────────────────────────────────────────────────
+
+/** Shape returned by the getAppStats Cloud Function. */
+export interface AppStats {
+  generatedAt: string;
+  totalUsers: number;
+  newUsers7: number;
+  newUsers30: number;
+  activeUsers7: number;
+  activeUsers30: number;
+  totalSessions: number;
+  sessions7: number;
+  sessions30: number;
+  clubs: number;
+  publicSessions: number;
+  /** YYYY-MM-DD → count, last 30 days (days with 0 are absent). */
+  signupsByDay: Record<string, number>;
+  sessionsByDay: Record<string, number>;
+}
+
+/**
+ * Whether this user may see the app-analytics admin page. Mirrors the
+ * server-side gate in the getAppStats Cloud Function: an admins/{uid} doc,
+ * created manually in the Firebase console.
+ */
+export async function isAppAdmin(uid: string): Promise<boolean> {
+  try {
+    const snap = await getDoc(doc(db, "admins", uid));
+    return snap.exists();
+  } catch {
+    return false;
+  }
+}
+
+/** Fetch app-wide usage stats. Rejects unless the caller is an app admin. */
+export async function fetchAppStats(): Promise<AppStats> {
+  const fn = httpsCallable<void, AppStats>(getFunctions(firebaseApp), "getAppStats");
+  const res = await fn();
+  return res.data;
 }
 
 // ── Club helpers ─────────────────────────────────────────────────────────────

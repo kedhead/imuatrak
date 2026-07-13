@@ -673,6 +673,105 @@ export const deleteAccount = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
+// getAppStats — app-wide usage analytics for the admin page on imuatrak.app.
+//
+// Gated on an admins/{uid} Firestore doc, created manually in the Firebase
+// console (doc ID = the admin's Auth UID). Aggregation runs with the Admin
+// SDK, so no security-rules carve-outs are needed for cross-user reads.
+//
+// Session dates are ISO-8601 strings throughout the app, so day bucketing and
+// cutoff comparisons are plain string operations.
+// ---------------------------------------------------------------------------
+export const getAppStats = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const db = getFirestore();
+  const adminSnap = await db.doc(`admins/${uid}`).get();
+  if (!adminSnap.exists) {
+    throw new HttpsError("permission-denied", "Admin only");
+  }
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const cutoff7 = new Date(now - 7 * DAY_MS).toISOString();
+  const cutoff30 = new Date(now - 30 * DAY_MS).toISOString();
+
+  // ── Users, from Firebase Auth (the source of truth for signups) ──────────
+  const adminAuth = getAuth();
+  let totalUsers = 0;
+  let newUsers7 = 0;
+  let newUsers30 = 0;
+  const signupsByDay: Record<string, number> = {};
+  let pageToken: string | undefined;
+  do {
+    const page = await adminAuth.listUsers(1000, pageToken);
+    totalUsers += page.users.length;
+    for (const u of page.users) {
+      const createdAt = new Date(u.metadata.creationTime).toISOString();
+      if (createdAt >= cutoff30) {
+        newUsers30 += 1;
+        const day = createdAt.slice(0, 10);
+        signupsByDay[day] = (signupsByDay[day] ?? 0) + 1;
+      }
+      if (createdAt >= cutoff7) newUsers7 += 1;
+    }
+    pageToken = page.pageToken;
+  } while (pageToken);
+
+  // ── Sessions (collection group over users/*/sessions) ────────────────────
+  const sessionsGroup = db.collectionGroup("sessions");
+  const [totalSessionsSnap, recentSnap, clubsSnap, publicSnap] =
+    await Promise.all([
+      sessionsGroup.count().get(),
+      sessionsGroup
+        .where("startedAt", ">=", cutoff30)
+        .select("userId", "startedAt")
+        .get(),
+      db.collection("clubs").count().get(),
+      db.collection("publicSessions").count().get(),
+    ]);
+
+  const sessionsByDay: Record<string, number> = {};
+  const activeUids7 = new Set<string>();
+  const activeUids30 = new Set<string>();
+  let sessions7 = 0;
+  for (const d of recentSnap.docs) {
+    const { userId, startedAt } = d.data() as {
+      userId?: string;
+      startedAt?: string;
+    };
+    if (!startedAt) continue;
+    // Old session docs may predate the userId field; the owner is always the
+    // parent user doc in the path users/{uid}/sessions/{sessionId}.
+    const owner = userId ?? d.ref.parent.parent?.id ?? "";
+    const day = startedAt.slice(0, 10);
+    sessionsByDay[day] = (sessionsByDay[day] ?? 0) + 1;
+    if (owner) activeUids30.add(owner);
+    if (startedAt >= cutoff7) {
+      sessions7 += 1;
+      if (owner) activeUids7.add(owner);
+    }
+  }
+
+  return {
+    generatedAt: new Date(now).toISOString(),
+    totalUsers,
+    newUsers7,
+    newUsers30,
+    activeUsers7: activeUids7.size,
+    activeUsers30: activeUids30.size,
+    totalSessions: totalSessionsSnap.data().count,
+    sessions7,
+    sessions30: recentSnap.size,
+    clubs: clubsSnap.data().count,
+    publicSessions: publicSnap.data().count,
+    signupsByDay,
+    sessionsByDay,
+  };
+});
+
+// ---------------------------------------------------------------------------
 // migrateMessagesToGeneralChannel — one-time callable (owner only) that copies
 // all legacy messages from clubs/{clubId}/messages to the General channel.
 // ---------------------------------------------------------------------------
