@@ -34,6 +34,10 @@ export interface LiveStats {
   currentStrokeRate: number;
   strokeCount: number;
   currentHr?: number;
+  /** GPS fixes received this session — ticks ~1/s even when stationary. */
+  gpsPointCount: number;
+  /** Reported accuracy of the latest fix, in meters (0 = no fix yet). */
+  gpsAccuracyM: number;
 }
 
 interface RecorderState extends LiveStats {
@@ -52,6 +56,8 @@ const empty: LiveStats = {
   currentSpeedMps: 0,
   currentStrokeRate: 0,
   strokeCount: 0,
+  gpsPointCount: 0,
+  gpsAccuracyM: 0,
 };
 
 let track: TrackPoint[] = [];
@@ -221,6 +227,8 @@ function subscribeAndStart(
       distanceMeters: totals.distanceMeters,
       currentSpeedMps: s.speedMps,
       strokeCount,
+      gpsPointCount: track.length,
+      gpsAccuracyM: s.accuracyM,
     });
   });
 

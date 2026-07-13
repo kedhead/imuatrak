@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import {
@@ -25,6 +26,31 @@ export function currentUser(): AuthUser | null {
 
 export async function signOut(): Promise<void> {
   await fbSignOut(auth);
+}
+
+// ── Guest mode ────────────────────────────────────────────────────────────────
+// Recording, history, and stats are all local-first and work without an
+// account; only clubs and cross-device sync need sign-in. The flag lets the
+// app open straight into the tabs so the core feature is reachable with zero
+// friction (users trying the app out — and App Review).
+
+const KEY_GUEST = "imuatrak.guestMode";
+
+export async function isGuestMode(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(KEY_GUEST)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export async function setGuestMode(on: boolean): Promise<void> {
+  try {
+    if (on) await AsyncStorage.setItem(KEY_GUEST, "1");
+    else await AsyncStorage.removeItem(KEY_GUEST);
+  } catch {
+    // Non-critical — worst case the user sees onboarding again.
+  }
 }
 
 export const appleSignInAvailable = async (): Promise<boolean> => {

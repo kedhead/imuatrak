@@ -1,7 +1,7 @@
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { watchAuth } from "@/services/auth";
+import { isGuestMode, watchAuth } from "@/services/auth";
 import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, spacing } from "@/ui/theme";
@@ -10,7 +10,15 @@ export default function Index() {
   const [state, setState] = useState<"loading" | "in" | "out">("loading");
 
   useEffect(() => {
-    return watchAuth((user) => setState(user ? "in" : "out"));
+    return watchAuth((user) => {
+      if (user) {
+        setState("in");
+        return;
+      }
+      // Signed out — guests who chose "explore without an account" go
+      // straight to the tabs; recording works fully offline.
+      void isGuestMode().then((guest) => setState(guest ? "in" : "out"));
+    });
   }, []);
 
   if (state === "loading") {

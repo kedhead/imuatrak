@@ -91,6 +91,17 @@ export default function Record() {
 
           <StatusPill recording={recorder.isRecording} />
 
+          {/* Live GPS status: the point counter keeps climbing ~1/s even when
+              stationary (and while backgrounded), so persistent location is
+              visibly demonstrable without moving. */}
+          {recorder.isRecording && (
+            <Text style={styles.gpsStatus}>
+              {recorder.gpsPointCount > 0
+                ? `GPS locked · ${recorder.gpsPointCount} point${recorder.gpsPointCount === 1 ? "" : "s"} · ±${Math.max(1, Math.round(recorder.gpsAccuracyM))} m`
+                : "Acquiring GPS…"}
+            </Text>
+          )}
+
           {/* Hero metric */}
           <View style={styles.heroMetric}>
             <Text style={styles.heroValue}>{formatDistance(recorder.distanceMeters, units)}</Text>
@@ -223,6 +234,13 @@ const styles = StyleSheet.create({
   tileValueRow: { flexDirection: "row", alignItems: "baseline", gap: 4 },
   tileValue: { fontSize: type.size.display, fontWeight: type.weight.heavy, ...type.mono },
   tileUnit: { color: "rgba(255,255,255,0.6)", fontSize: type.size.md, fontWeight: type.weight.bold },
+  gpsStatus: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: type.size.xs,
+    textAlign: "center",
+    fontWeight: type.weight.bold,
+    letterSpacing: 0.5,
+  },
   backgroundHint: {
     color: "rgba(255,255,255,0.55)",
     fontSize: type.size.xs,

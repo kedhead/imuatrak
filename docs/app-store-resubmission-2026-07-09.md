@@ -9,6 +9,55 @@ on a device · ⚠️ verify.
 
 ---
 
+## Update — July 13: 2.5.4 rejected again (same submission, video attached)
+
+Foolproofing shipped in code so the reviewer can neither miss the feature nor
+fail to see it working while sitting at a desk:
+
+- ✅ **Guest mode** — onboarding gains "Explore without an account". Record,
+  history, and stats are local-first and now need **zero sign-in**; clubs and
+  sync prompt for sign-in when touched. The reviewer path is now: launch →
+  Explore without an account → Record → GO.
+- ✅ **Live GPS status on the Record screen** — "GPS locked · N points · ±X m".
+  The point counter climbs ~1/second *even when stationary*, and keeps
+  climbing while backgrounded. An indoor reviewer can background the app for
+  30 s, return, and see the counter jumped ~30 — visible proof of persistent
+  background location with no movement required.
+- ✅ Record screen states in copy that tracking continues in the background
+  (shipped July 10).
+
+These need a new build (bump to build 79) or an `eas update` to reach review.
+
+### Revised reviewer note (replaces the old one)
+
+> **Re: Guideline 2.5.4.** ImuaTrak's core feature — recording a paddling
+> workout — requires persistent background location: paddlers stow the phone
+> in a dry bag with the screen off for the entire 1–3 h session.
+>
+> To see it **(no account or movement needed)**:
+> 1. Launch → tap **"Explore without an account"**.
+> 2. Home tab → **Record** → **Start paddling**, grant location.
+> 3. Note the live counter: "GPS locked · N points · ±X m" — one point per
+>    second.
+> 4. Background the app (home screen or another app) for ~30 s — the iOS
+>    location indicator stays in the status bar.
+> 5. Return: the point counter has advanced ~30 and the timer kept running —
+>    location updates were delivered continuously while backgrounded.
+>
+> A screen recording of exactly this is attached. The `location` background
+> mode powers only this feature.
+
+### Escalation path (if rejected again)
+
+1. Reply to the rejection **with the video attached to the reply itself**
+   (not only the Notes field).
+2. Request a **phone call with App Review** via the contact option on the
+   rejection.
+3. Formal **App Review Board appeal** — GPS workout tracker, canonical use of
+   the mode, video evidence submitted repeatedly.
+
+---
+
 ## 1. Guideline 2.5.4 — `UIBackgroundModes` "location"
 
 Same underlying complaint as the earlier 2.1 rejection: the reviewer did not

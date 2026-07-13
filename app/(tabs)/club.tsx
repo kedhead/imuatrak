@@ -43,6 +43,11 @@ const EVENT_COLORS: Record<string, string> = {
 export default function ClubTab() {
   const club = useClub((s) => s.club);
   const loaded = useClub((s) => s.loaded);
+  const user = currentUser();
+
+  // Guest mode: the club store never loads without a user, so short-circuit
+  // to a sign-in prompt instead of waiting on `loaded`.
+  if (!user) return <SignInPromptScreen />;
 
   if (!loaded) {
     return (
@@ -56,6 +61,28 @@ export default function ClubTab() {
 
   if (!club) return <NoClubScreen />;
   return <ClubHomeScreen clubId={club.id} clubName={club.name} />;
+}
+
+// ── Guest sign-in prompt ──────────────────────────────────────────────────────
+
+function SignInPromptScreen() {
+  const router = useRouter();
+  return (
+    <ScreenBackground gradient="ocean">
+      <View style={styles.center}>
+        <View style={styles.emptyLogo}>
+          <Logo size={96} />
+        </View>
+        <Text style={styles.emptyTitle}>Clubs need an account</Text>
+        <Text style={styles.emptySubtitle}>
+          Sign in to join your crew — feed, chat, practice calendar, and boat assignments.
+        </Text>
+        <View style={styles.emptyActions}>
+          <Button title="Sign in" gradient="sunrise" glow onPress={() => router.push("/onboarding")} />
+        </View>
+      </View>
+    </ScreenBackground>
+  );
 }
 
 // ── No-club empty state ───────────────────────────────────────────────────────

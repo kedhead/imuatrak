@@ -182,6 +182,14 @@ export default function Settings() {
                 <Button title="Delete Account" variant="danger" onPress={onDeleteAccount} style={{ marginTop: spacing.sm }} />
               </>
             )}
+            {!user && (
+              <Button
+                title="Sign in"
+                gradient="aqua"
+                onPress={() => router.push("/onboarding")}
+                style={{ marginTop: spacing.md }}
+              />
+            )}
           </GradientCard>
         </Section>
 

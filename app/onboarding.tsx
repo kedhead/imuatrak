@@ -14,7 +14,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { appleSignInAvailable, signInWithApple, signInWithGoogleAccessToken } from "@/services/auth";
+import { appleSignInAvailable, setGuestMode, signInWithApple, signInWithGoogleAccessToken } from "@/services/auth";
 import { Button } from "@/ui/Button";
 import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
@@ -47,11 +47,17 @@ export default function Onboarding() {
   const handleApple = async () => {
     try {
       await signInWithApple();
+      void setGuestMode(false);
       router.replace("/(tabs)");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert("Sign-in failed", msg);
     }
+  };
+
+  const handleGuest = async () => {
+    await setGuestMode(true);
+    router.replace("/(tabs)");
   };
 
   // Show Google on Android always; on iOS only when Apple Sign-In isn't available
@@ -94,6 +100,12 @@ export default function Onboarding() {
               style={styles.googleBtn}
             />
           )}
+          <Text style={styles.guestLink} onPress={handleGuest}>
+            Explore without an account
+          </Text>
+          <Text style={styles.guestNote}>
+            Record paddles right away — sign in later to sync and join a club.
+          </Text>
         </Animated.View>
       </View>
     </ScreenBackground>
@@ -119,7 +131,10 @@ function GoogleSignInButton() {
     if (!accessToken) { Alert.alert("Sign-in failed", "No access token returned by Google."); return; }
     setSigningIn(true);
     signInWithGoogleAccessToken(accessToken)
-      .then(() => router.replace("/(tabs)"))
+      .then(() => {
+        void setGuestMode(false);
+        router.replace("/(tabs)");
+      })
       .catch((e) => Alert.alert("Sign-in failed", e instanceof Error ? e.message : String(e)))
       .finally(() => setSigningIn(false));
   }, [response]);
@@ -157,5 +172,20 @@ const styles = StyleSheet.create({
   googleBtn: {
     backgroundColor: "rgba(255,255,255,0.12)",
     borderColor: "rgba(255,255,255,0.4)",
+  },
+  guestLink: {
+    color: colors.white,
+    textAlign: "center",
+    fontWeight: type.weight.bold,
+    fontSize: type.size.md,
+    textDecorationLine: "underline",
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  guestNote: {
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    fontSize: type.size.xs,
+    marginTop: -spacing.sm,
   },
 });
