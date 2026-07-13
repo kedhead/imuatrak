@@ -105,7 +105,13 @@ service cloud.firestore {
       // the onMemberJoin/onMemberLeave Cloud Function triggers (Admin SDK
       // bypasses rules), so clients get no counter carve-out — it allowed any
       // signed-in user to set an arbitrary count on any club.
-      allow update: if hasClubRole(clubId, ["owner", "admin"]);
+      // Subscription fields are billing state (they gate ads and channel
+      // limits) and may only change server-side: the expireClubTrials sweep
+      // and any future billing webhook, both via the Admin SDK.
+      allow update: if hasClubRole(clubId, ["owner", "admin"])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+          ["subscriptionStatus", "subscriptionTier", "trialEndsAt", "subscriptionRenewsAt"]
+        );
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid;
       allow delete: if hasClubRole(clubId, ["owner"]);

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Platform, Text, View } from "react-native";
 import { BannerAd, BannerAdSize, TestIds } from "react-native-google-mobile-ads";
+import { clubGrantsAdFree } from "@/models/club";
 import { useAds } from "@/services/ads";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
@@ -15,8 +16,8 @@ const IS_DEV = __DEV__;
 
 export function AdBanner() {
   const isAdFree = useSubscription((s) => s.isAdFree);
-  const clubStatus = useClub((s) => s.club?.subscriptionStatus);
-  const clubAdFree = clubStatus === "active" || clubStatus === "trial";
+  const club = useClub((s) => s.club);
+  const clubAdFree = clubGrantsAdFree(club);
   const personalizedAds = useAds((s) => s.personalizedAds);
   const [error, setError] = useState<string | null>(null);
 
