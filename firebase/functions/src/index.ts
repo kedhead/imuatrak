@@ -5,6 +5,7 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 
 initializeApp();
 
@@ -670,6 +671,38 @@ export const deleteAccount = onCall(async (request) => {
   await adminAuth.deleteUser(uid);
 
   return { success: true };
+});
+
+// ---------------------------------------------------------------------------
+// expireClubTrials — daily sweep that flips clubs whose 30-day trial has
+// lapsed from "trial" to "expired". Nothing else ends a trial: clients gate
+// ads and channel limits on subscriptionStatus (with a trialEndsAt check as a
+// same-day belt-and-braces), and security rules bar clients from writing the
+// subscription fields, so this Admin-SDK sweep is the one writer.
+// ---------------------------------------------------------------------------
+export const expireClubTrials = onSchedule("every day 06:00", async () => {
+  const db = getFirestore();
+  const now = new Date().toISOString();
+
+  const snap = await db
+    .collection("clubs")
+    .where("subscriptionStatus", "==", "trial")
+    .where("trialEndsAt", "<=", now)
+    .get();
+  if (snap.empty) {
+    console.log("expireClubTrials: no overdue trials");
+    return;
+  }
+
+  const docs = snap.docs;
+  for (let i = 0; i < docs.length; i += 500) {
+    const batch = db.batch();
+    for (const d of docs.slice(i, i + 500)) {
+      batch.update(d.ref, { subscriptionStatus: "expired" });
+    }
+    await batch.commit();
+  }
+  console.log(`expireClubTrials: expired ${docs.length} club trial(s)`);
 });
 
 // ---------------------------------------------------------------------------

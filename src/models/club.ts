@@ -30,6 +30,27 @@ export interface Club {
   createdAt: string;
 }
 
+/**
+ * Whether a club's subscription grants its members ad-free access right now.
+ *
+ * A "trial" only counts while trialEndsAt is still in the future — the
+ * scheduled expireClubTrials Cloud Function flips overdue trials to "expired"
+ * at most once a day, so the status string alone can lag reality. All club
+ * timestamps are ISO-8601 UTC strings, so plain string comparison is safe.
+ */
+export function clubGrantsAdFree(
+  club: Pick<Club, "subscriptionStatus" | "trialEndsAt"> | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!club) return false;
+  if (club.subscriptionStatus === "active") return true;
+  return (
+    club.subscriptionStatus === "trial" &&
+    typeof club.trialEndsAt === "string" &&
+    club.trialEndsAt > now.toISOString()
+  );
+}
+
 export interface ClubMember {
   uid: string;
   role: MemberRole;
