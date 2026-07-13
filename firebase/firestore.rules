@@ -72,6 +72,17 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
 
+    // ── App admins ───────────────────────────────────────────────────────────
+    // Grants access to the app-analytics admin page (imuatrak.app/dashboard/
+    // admin). Docs are created manually in the Firebase console: doc ID = the
+    // admin's Auth UID. A user may check their OWN admin status so the web
+    // dashboard knows whether to show the page; the getAppStats Cloud Function
+    // re-checks server-side, so this read is a UI hint, not the gate.
+    match /admins/{uid} {
+      allow get: if isOwner(uid);
+      allow list, write: if false; // console / Admin SDK only
+    }
+
     // ── Invite tokens (created by Cloud Functions) ───────────────────────────
     // Tokens are secret capabilities: a signed-in user who KNOWS a token may
     // fetch it (join flow does a direct doc get), but nobody may list the
