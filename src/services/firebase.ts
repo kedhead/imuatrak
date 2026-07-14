@@ -1,6 +1,13 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 import { getApp, getApps, initializeApp, type FirebaseOptions } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, initializeAuth, type Auth } from "firebase/auth";
+// getReactNativePersistence ships in Firebase's React Native build but isn't in
+// the bundled `firebase/auth` type declarations (a known upstream gap); Metro
+// resolves the real function at runtime on native.
+// @ts-ignore
+import { getReactNativePersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
@@ -38,7 +45,26 @@ export const firebaseApp = getApps().length
       appId: cfg.appId,
     });
 
-export const auth = getAuth(firebaseApp);
+// Persist the auth session across app restarts so signed-in users stay signed
+// in (the whole point of "remember me"). getAuth() alone uses in-memory
+// persistence on React Native, logging users out every cold start.
+function makeAuth(): Auth {
+  if (Platform.OS === "web") {
+    // Web uses the SDK's default (browser local) persistence.
+    return getAuth(firebaseApp);
+  }
+  try {
+    return initializeAuth(firebaseApp, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    // Already initialized (e.g. Fast Refresh) — reuse the existing instance,
+    // which already has AsyncStorage persistence configured.
+    return getAuth(firebaseApp);
+  }
+}
+
+export const auth = makeAuth();
 export const db = getFirestore(firebaseApp);
 // Pass the bucket explicitly so we never fall back to the SDK's wrong guess.
 export const storage = getStorage(firebaseApp, `gs://${storageBucket}`);
