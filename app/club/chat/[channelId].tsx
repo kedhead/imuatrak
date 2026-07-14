@@ -26,13 +26,14 @@ import {
   markChannelRead,
 } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
-import type { ClubChannel, ClubMessage } from "@/models/club";
+import type { ClubChannel, ClubMessage, MemberRole } from "@/models/club";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ChannelIcon } from "../channels";
 
 export default function ChannelChatScreen() {
   const { channelId } = useLocalSearchParams<{ channelId: string }>();
   const club = useClub((s) => s.club);
+  const members = useClub((s) => s.members);
   const navigation = useNavigation();
   const user = currentUser();
 
@@ -69,6 +70,14 @@ export default function ChannelChatScreen() {
   }, [user?.uid, channelId]);
 
   const reversed = useMemo(() => [...messages].reverse(), [messages]);
+
+  // Look up each sender's CURRENT club role by uid — roles aren't stored on
+  // the message (they'd go stale on promotion), so we resolve live.
+  const roleByUid = useMemo(() => {
+    const map = new Map<string, MemberRole>();
+    for (const m of members) map.set(m.uid, m.role);
+    return map;
+  }, [members]);
 
   const onSend = async () => {
     const content = text.trim();
@@ -144,6 +153,7 @@ export default function ChannelChatScreen() {
             <MessageBubble
               message={item}
               isMe={item.authorId === user?.uid}
+              role={roleByUid.get(item.authorId)}
               uploading={uploadingId === item.id}
             />
           )}
@@ -185,25 +195,56 @@ export default function ChannelChatScreen() {
   );
 }
 
+// Per-role accents for chat. Members get no badge and the default bubble so
+// the feed stays clean; owner/admin/coach are highlighted.
+const ROLE_META: Record<MemberRole, { label: string; color: string; bubbleBg: string } | null> = {
+  owner: { label: "OWNER", color: colors.gold, bubbleBg: "#FFF7E6" },
+  admin: { label: "ADMIN", color: colors.coral, bubbleBg: "#FFF0EE" },
+  coach: { label: "COACH", color: colors.teal, bubbleBg: "#E9F9F6" },
+  member: null,
+};
+
 function MessageBubble({
   message,
   isMe,
+  role,
   uploading,
 }: {
   message: ClubMessage;
   isMe: boolean;
+  role?: MemberRole;
   uploading: boolean;
 }) {
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
   });
+  const roleMeta = role ? ROLE_META[role] : null;
 
   return (
     <View style={[styles.row, isMe ? styles.rowMe : styles.rowThem]}>
-      <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
+      <View
+        style={[
+          styles.bubble,
+          isMe ? styles.bubbleMe : styles.bubbleThem,
+          !isMe && roleMeta && {
+            backgroundColor: roleMeta.bubbleBg,
+            borderLeftWidth: 3,
+            borderLeftColor: roleMeta.color,
+          },
+        ]}
+      >
         {!isMe && (
-          <Text style={styles.authorName}>{message.authorName}</Text>
+          <View style={styles.authorRow}>
+            <Text style={[styles.authorName, roleMeta && { color: roleMeta.color }]}>
+              {message.authorName}
+            </Text>
+            {roleMeta && (
+              <View style={[styles.roleChip, { backgroundColor: roleMeta.color }]}>
+                <Text style={styles.roleChipText}>{roleMeta.label}</Text>
+              </View>
+            )}
+          </View>
         )}
 
         {message.mediaType === "photo" && message.mediaUrl && (
@@ -274,11 +315,27 @@ const styles = StyleSheet.create({
   },
   bubbleMe: { backgroundColor: colors.ocean },
   bubbleThem: { backgroundColor: colors.white },
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: 2,
+  },
   authorName: {
     fontSize: type.size.xs,
     fontWeight: type.weight.bold,
     color: colors.ocean,
-    marginBottom: 2,
+  },
+  roleChip: {
+    borderRadius: radii.sm,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  roleChipText: {
+    fontSize: 9,
+    fontWeight: type.weight.heavy,
+    letterSpacing: 0.5,
+    color: colors.white,
   },
   msgText: { fontSize: type.size.md, color: colors.ink, lineHeight: 20 },
   msgTextMe: { color: colors.white },
