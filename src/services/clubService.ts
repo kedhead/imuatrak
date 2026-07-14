@@ -21,8 +21,7 @@ import {
 } from "firebase/firestore";
 import * as FileSystem from "expo-file-system/legacy";
 import { httpsCallable } from "firebase/functions";
-import { ref, uploadString, getDownloadURL } from "firebase/storage";
-import { auth, db, functions, storage } from "./firebase";
+import { auth, db, functions } from "./firebase";
 import type {
   BoatAssignment,
   Club,
@@ -645,6 +644,40 @@ export async function sendMessage(
   return { ...msg, id: ref.id };
 }
 
+/**
+ * Delete a channel message. Firestore rules allow this for the author or a
+ * club owner/admin. Any attached media is removed best-effort via the same
+ * Storage REST endpoint (Firebase-scheme auth) the upload uses.
+ */
+export async function deleteChannelMessage(
+  clubId: string,
+  channelId: string,
+  message: Pick<ClubMessage, "id" | "mediaStoragePath">,
+): Promise<void> {
+  await deleteDoc(doc(db, "clubs", clubId, "channels", channelId, "messages", message.id));
+
+  // Best-effort media cleanup — a failed delete here must not block removing
+  // the message from the feed.
+  if (message.mediaStoragePath?.startsWith("gs://")) {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const token = await user.getIdToken();
+      const withoutScheme = message.mediaStoragePath.slice("gs://".length);
+      const slash = withoutScheme.indexOf("/");
+      if (slash < 0) return;
+      const bucket = withoutScheme.slice(0, slash);
+      const objectPath = withoutScheme.slice(slash + 1);
+      await fetch(
+        `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}`,
+        { method: "DELETE", headers: { Authorization: `Firebase ${token}` } },
+      );
+    } catch {
+      // Orphaned media is harmless; the message is already gone.
+    }
+  }
+}
+
 export async function uploadMessageMedia(
   clubId: string,
   channelId: string,
@@ -654,28 +687,45 @@ export async function uploadMessageMedia(
 ): Promise<string> {
   const user = auth.currentUser;
   if (!user) throw new Error("not signed in");
+  const token = await user.getIdToken();
 
   const ext = mimeType.split("/")[1] ?? "bin";
+  const bucket = "imuatrak.firebasestorage.app";
   const path = `clubs/${clubId}/channels/${channelId}/messages/${messageId}/media.${ext}`;
+  const uploadUrl =
+    `https://firebasestorage.googleapis.com/v0/b/` +
+    `${encodeURIComponent(bucket)}/o` +
+    `?uploadType=media&name=${encodeURIComponent(path)}`;
 
-  // Upload through the Firebase Storage SDK so auth and the bucket are handled
-  // correctly (the old hand-rolled REST call sent the ID token as a Bearer
-  // credential → treated as unauthenticated → 403).
-  //
-  // Read the file as base64 and use uploadString('base64'): React Native's
-  // Blob can't be constructed from an ArrayBuffer, so fetch().blob() + a
-  // resumable upload throws "Creating blobs from 'ArrayBuffer'…". uploadString
-  // decodes to a Uint8Array internally — the same shape the GPX sync uploads.
-  const base64 = await FileSystem.readAsStringAsync(localUri, {
-    encoding: FileSystem.EncodingType.Base64,
+  // Stream the file to Storage natively via expo-file-system. The Firebase JS
+  // SDK can't be used here: it builds the multipart request body with
+  // `new Blob([...])`, and React Native can't construct a Blob from an
+  // ArrayBuffer/ArrayBufferView ("Creating blobs from 'ArrayBuffer'…").
+  // Auth MUST use the "Firebase <idToken>" scheme (what the Storage SDK sends,
+  // see @firebase/storage); "Bearer" is parsed as an OAuth2 token, rejected as
+  // unauthenticated, and the security rules then deny → HTTP 403.
+  const upload = await FileSystem.uploadAsync(uploadUrl, localUri, {
+    httpMethod: "POST",
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: { Authorization: `Firebase ${token}`, "Content-Type": mimeType },
   });
-  const storageRef = ref(storage, path);
-  await uploadString(storageRef, base64, "base64", { contentType: mimeType });
-  const mediaUrl = await getDownloadURL(storageRef);
+
+  if (upload.status < 200 || upload.status >= 300) {
+    throw new Error(`Upload failed: HTTP ${upload.status} ${upload.body?.slice(0, 200) ?? ""}`);
+  }
+
+  const meta = JSON.parse(upload.body) as { downloadTokens?: string };
+  const downloadToken = meta.downloadTokens?.split(",")[0];
+  if (!downloadToken) throw new Error("No download token in Storage response");
+
+  const mediaUrl =
+    `https://firebasestorage.googleapis.com/v0/b/` +
+    `${encodeURIComponent(bucket)}/o/${encodeURIComponent(path)}` +
+    `?alt=media&token=${downloadToken}`;
 
   await updateDoc(
     doc(db, "clubs", clubId, "channels", channelId, "messages", messageId),
-    { mediaUrl, mediaStoragePath: storageRef.toString() },
+    { mediaUrl, mediaStoragePath: `gs://${bucket}/${path}` },
   );
 
   return mediaUrl;

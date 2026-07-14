@@ -51,6 +51,11 @@ service firebase.storage {
         && request.resource.size < 100 * 1024 * 1024
         && (request.resource.contentType.matches('image/.*')
             || request.resource.contentType.matches('video/.*'));
+      // Deleting a message cleans up its media. The write rule above can't
+      // cover delete (no request.resource on a delete), so allow it explicitly
+      // for club members. Firestore rules still gate WHO can delete the message
+      // doc (author or owner/admin), which is what drives this cleanup.
+      allow delete: if isClubMember(clubId);
     }
 
     match /clubs/{clubId}/logo.jpg {

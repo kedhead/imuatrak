@@ -24,6 +24,7 @@ import {
   uploadMessageMedia,
   getChannel,
   markChannelRead,
+  deleteChannelMessage,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
 import { useClub } from "@/services/clubStore";
@@ -80,6 +81,26 @@ export default function ChannelChatScreen() {
     for (const m of members) map.set(m.uid, m.role);
     return map;
   }, [members]);
+  const myRole = user ? roleByUid.get(user.uid) : undefined;
+
+  const onDeleteMessage = (message: ClubMessage) => {
+    if (!club || !channelId) return;
+    Alert.alert("Delete message?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          // Optimistically drop it from the list; the subscription will
+          // reconcile if the server delete is rejected.
+          setMessages((prev) => prev.filter((m) => m.id !== message.id));
+          void deleteChannelMessage(club.id, channelId, message).catch(() => {
+            Alert.alert("Couldn't delete", "Please try again.");
+          });
+        },
+      },
+    ]);
+  };
 
   const onSend = async () => {
     const content = text.trim();
@@ -157,6 +178,11 @@ export default function ChannelChatScreen() {
               isMe={item.authorId === user?.uid}
               role={roleByUid.get(item.authorId)}
               uploading={uploadingId === item.id}
+              canDelete={
+                !!user &&
+                (item.authorId === user.uid || myRole === "owner" || myRole === "admin")
+              }
+              onDelete={() => onDeleteMessage(item)}
             />
           )}
           ListEmptyComponent={
@@ -211,11 +237,15 @@ function MessageBubble({
   isMe,
   role,
   uploading,
+  canDelete,
+  onDelete,
 }: {
   message: ClubMessage;
   isMe: boolean;
   role?: MemberRole;
   uploading: boolean;
+  canDelete: boolean;
+  onDelete: () => void;
 }) {
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "numeric",
@@ -224,7 +254,11 @@ function MessageBubble({
   const roleMeta = role ? ROLE_META[role] : null;
 
   return (
-    <View style={[styles.row, isMe ? styles.rowMe : styles.rowThem]}>
+    <Pressable
+      onLongPress={canDelete ? onDelete : undefined}
+      delayLongPress={300}
+      style={[styles.row, isMe ? styles.rowMe : styles.rowThem]}
+    >
       <View
         style={[
           styles.bubble,
@@ -276,7 +310,7 @@ function MessageBubble({
 
         <Text style={[styles.timestamp, isMe && styles.timestampMe]}>{time}</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
