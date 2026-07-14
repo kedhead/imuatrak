@@ -101,7 +101,11 @@ service cloud.firestore {
 
       // ── Members ────────────────────────────────────────────────────────────
       match /members/{uid} {
-        allow read: if isClubMember(clubId);
+        // A member can read the roster; anyone may read THEIR OWN member doc
+        // even before joining, so the join flow's "am I already a member?"
+        // existence check isn't denied for a brand-new joiner. isOwner(uid)
+        // restricts this to the caller's own doc — no enumerating others.
+        allow read: if isClubMember(clubId) || isOwner(uid);
         allow write: if hasClubRole(clubId, ["owner", "admin"]);
         // Users can create/delete their own membership (join via invite, leave).
         allow create, delete: if isOwner(uid);
