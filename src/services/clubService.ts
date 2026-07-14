@@ -19,9 +19,9 @@ import {
   Timestamp,
   onSnapshot,
 } from "firebase/firestore";
-import * as FileSystem from "expo-file-system/legacy";
 import { httpsCallable } from "firebase/functions";
-import { auth, db, functions } from "./firebase";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { auth, db, functions, storage } from "./firebase";
 import type {
   BoatAssignment,
   Club,
@@ -653,38 +653,25 @@ export async function uploadMessageMedia(
 ): Promise<string> {
   const user = auth.currentUser;
   if (!user) throw new Error("not signed in");
-  const token = await user.getIdToken();
 
   const ext = mimeType.split("/")[1] ?? "bin";
-  const bucket = "imuatrak.firebasestorage.app";
   const path = `clubs/${clubId}/channels/${channelId}/messages/${messageId}/media.${ext}`;
-  const uploadUrl =
-    `https://firebasestorage.googleapis.com/v0/b/` +
-    `${encodeURIComponent(bucket)}/o` +
-    `?uploadType=media&name=${encodeURIComponent(path)}`;
 
-  const upload = await FileSystem.uploadAsync(uploadUrl, localUri, {
-    httpMethod: "POST",
-    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": mimeType },
-  });
+  // Upload through the Firebase Storage SDK (same path as GPX sync) so auth,
+  // App Check, and the bucket are handled correctly. The previous hand-rolled
+  // REST upload sent the Firebase ID token as a `Bearer` credential, which the
+  // Storage REST endpoint treats as an invalid OAuth token → request.auth null
+  // → security rules deny → HTTP 403.
+  const res = await fetch(localUri);
+  const blob = await res.blob();
 
-  if (upload.status < 200 || upload.status >= 300) {
-    throw new Error(`Upload failed: HTTP ${upload.status}`);
-  }
-
-  const meta = JSON.parse(upload.body) as { downloadTokens?: string };
-  const downloadToken = meta.downloadTokens?.split(",")[0];
-  if (!downloadToken) throw new Error("No download token in Storage response");
-
-  const mediaUrl =
-    `https://firebasestorage.googleapis.com/v0/b/` +
-    `${encodeURIComponent(bucket)}/o/${encodeURIComponent(path)}` +
-    `?alt=media&token=${downloadToken}`;
+  const storageRef = ref(storage, path);
+  await uploadBytesResumable(storageRef, blob, { contentType: mimeType });
+  const mediaUrl = await getDownloadURL(storageRef);
 
   await updateDoc(
     doc(db, "clubs", clubId, "channels", channelId, "messages", messageId),
-    { mediaUrl, mediaStoragePath: `gs://${bucket}/${path}` },
+    { mediaUrl, mediaStoragePath: storageRef.toString() },
   );
 
   return mediaUrl;
