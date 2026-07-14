@@ -106,9 +106,15 @@ service cloud.firestore {
         // existence check isn't denied for a brand-new joiner. isOwner(uid)
         // restricts this to the caller's own doc — no enumerating others.
         allow read: if isClubMember(clubId) || isOwner(uid);
-        allow write: if hasClubRole(clubId, ["owner", "admin"]);
         // Users can create/delete their own membership (join via invite, leave).
-        allow create, delete: if isOwner(uid);
+        allow create, delete: if isOwner(uid) || hasClubRole(clubId, ["owner", "admin"]);
+        // Owners/admins can update any member (e.g. change role). A member may
+        // update THEIR OWN doc only for profile fields (displayName/avatarUrl) —
+        // role and uid must be unchanged, so they can't self-promote.
+        allow update: if hasClubRole(clubId, ["owner", "admin"])
+          || (isOwner(uid)
+              && request.resource.data.role == resource.data.role
+              && request.resource.data.uid == resource.data.uid);
       }
 
       // ── Events ─────────────────────────────────────────────────────────────

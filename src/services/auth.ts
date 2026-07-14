@@ -93,6 +93,21 @@ export async function signInWithApple(): Promise<AuthUser> {
   // it hashes rawNonce with SHA-256 and compares against payload.nonce.
   const { data } = await fn({ idToken: credential.identityToken, rawNonce });
   const { user } = await signInWithCustomToken(auth, data.customToken);
+
+  // Apple returns the user's real name ONLY on the very first authorization
+  // (and only if they consent), in credential.fullName. Custom-token sign-in
+  // does not carry it, so capture it here and persist to the Firebase profile.
+  // Without this, user.displayName stays null and the person shows up as the
+  // literal "Member" fallback in clubs.
+  if (!user.displayName && credential.fullName) {
+    const name = [credential.fullName.givenName, credential.fullName.familyName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    if (name) {
+      await updateProfile(user, { displayName: name }).catch(() => undefined);
+    }
+  }
   return user;
 }
 
