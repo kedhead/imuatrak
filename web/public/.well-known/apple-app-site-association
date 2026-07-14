@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appID": "REPLACE_WITH_TEAM_ID.app.imuatrak",
+        "appID": "SLWPCC9328.app.imuatrak",
         "paths": ["/join/*"]
       }
     ]
