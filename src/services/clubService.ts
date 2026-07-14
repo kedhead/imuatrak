@@ -147,6 +147,21 @@ export async function updateMemberDisplayName(
   await updateDoc(doc(db, "clubs", clubId, "members", uid), { displayName });
 }
 
+/**
+ * Propagate a user's display name to their member doc in EVERY club they
+ * belong to. Called after the name is set (onboarding name gate or Settings)
+ * so the denormalized roster copy never lags behind the profile.
+ */
+export async function syncMemberDisplayName(uid: string, displayName: string): Promise<void> {
+  const userClubs = await getUserClubs(uid);
+  if (!userClubs?.clubIds?.length) return;
+  await Promise.all(
+    userClubs.clubIds.map((clubId) =>
+      updateMemberDisplayName(clubId, uid, displayName).catch(() => undefined),
+    ),
+  );
+}
+
 // ── Members ──────────────────────────────────────────────────────────────────
 
 export async function getClubMembers(clubId: string): Promise<ClubMember[]> {

@@ -7,12 +7,14 @@ import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, spacing } from "@/ui/theme";
 
 export default function Index() {
-  const [state, setState] = useState<"loading" | "in" | "out">("loading");
+  const [state, setState] = useState<"loading" | "in" | "out" | "needName">("loading");
 
   useEffect(() => {
     return watchAuth((user) => {
       if (user) {
-        setState("in");
+        // Signed in but no display name (common with Apple) → force the name
+        // gate before entering, so they never appear as "Member".
+        setState(user.displayName?.trim() ? "in" : "needName");
         return;
       }
       // Signed out — guests who chose "explore without an account" go
@@ -33,6 +35,7 @@ export default function Index() {
   }
 
   if (state === "in") return <Redirect href="/(tabs)" />;
+  if (state === "needName") return <Redirect href="/complete-profile" />;
   return <Redirect href="/onboarding" />;
 }
 

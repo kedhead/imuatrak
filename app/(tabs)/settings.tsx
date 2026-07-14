@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CRAFT_TYPES, type CraftType } from "@/models";
 import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
-import { leaveClub, updateMemberDisplayName } from "@/services/clubService";
+import { leaveClub, syncMemberDisplayName } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
@@ -71,7 +71,8 @@ export default function Settings() {
     setSavingName(true);
     try {
       await updateDisplayName(trimmed);
-      if (club) await updateMemberDisplayName(club.id, user.uid, trimmed);
+      // Propagate to the roster in every club they belong to, not just active.
+      await syncMemberDisplayName(user.uid, trimmed);
       Alert.alert("Name updated");
     } catch {
       Alert.alert("Error", "Failed to update name");

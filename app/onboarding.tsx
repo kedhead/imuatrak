@@ -46,9 +46,9 @@ export default function Onboarding() {
 
   const handleApple = async () => {
     try {
-      await signInWithApple();
+      const user = await signInWithApple();
       void setGuestMode(false);
-      router.replace("/(tabs)");
+      router.replace(user.displayName?.trim() ? "/(tabs)" : "/complete-profile");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert("Sign-in failed", msg);
@@ -131,9 +131,9 @@ function GoogleSignInButton() {
     if (!accessToken) { Alert.alert("Sign-in failed", "No access token returned by Google."); return; }
     setSigningIn(true);
     signInWithGoogleAccessToken(accessToken)
-      .then(() => {
+      .then((user) => {
         void setGuestMode(false);
-        router.replace("/(tabs)");
+        router.replace(user.displayName?.trim() ? "/(tabs)" : "/complete-profile");
       })
       .catch((e) => Alert.alert("Sign-in failed", e instanceof Error ? e.message : String(e)))
       .finally(() => setSigningIn(false));
