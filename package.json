@@ -16,6 +16,7 @@
     "deploy:ota": "eas update --environment production --channel production",
     "deploy:ota:rollback": "eas update:roll-back-to-embedded --branch production",
     "deploy:rules": "firebase deploy --only firestore:rules",
+    "deploy:functions": "firebase deploy --only functions",
     "build:ios": "eas build --profile production --platform ios",
     "submit:ios": "eas submit -p ios --latest --profile production"
   },

@@ -2,7 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import MobileAds from "react-native-google-mobile-ads";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -13,7 +13,8 @@ import { useRecorder } from "@/services/recorder";
 import { useAds } from "@/services/ads";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
-import { watchAuth } from "@/services/auth";
+import { currentUser, watchAuth } from "@/services/auth";
+import { setAppBadge, syncAppBadge } from "@/services/badge";
 import { registerFcmToken } from "@/services/clubService";
 import { AnimatedSplash } from "@/ui/AnimatedSplash";
 import { colors } from "@/ui/theme";
@@ -81,6 +82,8 @@ export default function RootLayout() {
       if (user) {
         void loadClub(user.uid);
         void initSubscription(user.uid);
+        // Sync the app-icon badge to the user's unread total on sign-in/launch.
+        void syncAppBadge(user.uid);
         // Register FCM token for push notifications (best-effort)
         void (async () => {
           try {
@@ -99,9 +102,21 @@ export default function RootLayout() {
         })();
       } else {
         clearClub();
+        void setAppBadge(0);
       }
     });
   }, [loadClub, clearClub, initSubscription]);
+
+  // Re-sync the badge whenever the app returns to the foreground — messages may
+  // have arrived (and pushed the badge up) or been read on another device.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next !== "active") return;
+      const user = currentUser();
+      if (user) void syncAppBadge(user.uid);
+    });
+    return () => sub.remove();
+  }, []);
 
   // Deep-link into the right channel when user taps a push notification
   useEffect(() => {

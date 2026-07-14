@@ -445,39 +445,48 @@ export const onChannelMessageCreate = onDocumentCreated(
     recipientUids = recipientUids.filter((id) => id !== messageData.authorId);
     if (recipientUids.length === 0) return;
 
-    const tokenArrays = await Promise.all(
+    const body = messageData.content.length > 0
+      ? messageData.content.slice(0, 200)
+      : "Sent a photo";
+
+    // Per recipient: atomically bump this channel's unread count and the
+    // user's global unread total (drives the app-icon badge), then push with
+    // that real total as the badge. Muted recipients are still counted (they
+    // have unread) but get no alert — their badge syncs on next app open.
+    await Promise.all(
       recipientUids.map(async (userId) => {
-        const prefSnap = await db
-          .doc(`users/${userId}/channelPreferences/${channelId}`)
-          .get();
-        if (prefSnap.exists && (prefSnap.data() as { muteNotifications?: boolean })?.muteNotifications === true) {
-          return [] as string[];
-        }
+        const userRef = db.doc(`users/${userId}`);
+        const prefRef = db.doc(`users/${userId}/channelPreferences/${channelId}`);
+
+        const { newTotal, muted } = await db.runTransaction(async (tx) => {
+          const [userSnap, prefSnap] = await Promise.all([tx.get(userRef), tx.get(prefRef)]);
+          const total = ((userSnap.data()?.unreadTotal as number | undefined) ?? 0) + 1;
+          const isMuted = (prefSnap.data()?.muteNotifications as boolean | undefined) === true;
+          tx.set(userRef, { unreadTotal: total }, { merge: true });
+          tx.set(prefRef, { unreadCount: FieldValue.increment(1) }, { merge: true });
+          return { newTotal: total, muted: isMuted };
+        });
+
+        if (muted) return;
+
         const tokensSnap = await db.collection(`users/${userId}/fcmTokens`).get();
-        return tokensSnap.docs.map((d) => (d.data() as { token: string }).token);
-      }),
-    );
+        const tokens = tokensSnap.docs
+          .map((d) => (d.data() as { token: string }).token)
+          .filter(Boolean);
+        if (tokens.length === 0) return;
 
-    const tokens = tokenArrays.flat().filter(Boolean);
-    if (tokens.length > 0) {
-      const body = messageData.content.length > 0
-        ? messageData.content.slice(0, 200)
-        : "Sent a photo";
-
-      for (let i = 0; i < tokens.length; i += 500) {
-        const chunk = tokens.slice(i, i + 500);
         await getMessaging().sendEachForMulticast({
-          tokens: chunk,
+          tokens,
           notification: {
             title: `${messageData.authorName} in #${channel.name}`,
             body,
           },
           data: { clubId, channelId, screen: "club/chat" },
-          apns: { payload: { aps: { sound: "default", badge: 1 } } },
+          apns: { payload: { aps: { sound: "default", badge: newTotal } } },
           android: { priority: "high", notification: { sound: "default" } },
         });
-      }
-    }
+      }),
+    );
 
     await db.doc(`clubs/${clubId}/channels/${channelId}`).update({
       lastMessageAt: event.data?.createTime?.toDate().toISOString() ?? new Date().toISOString(),

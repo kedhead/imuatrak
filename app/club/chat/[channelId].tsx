@@ -25,6 +25,7 @@ import {
   getChannel,
   markChannelRead,
 } from "@/services/clubService";
+import { setAppBadge } from "@/services/badge";
 import { useClub } from "@/services/clubStore";
 import type { ClubChannel, ClubMessage, MemberRole } from "@/models/club";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
@@ -63,10 +64,11 @@ export default function ChannelChatScreen() {
     return subscribeChannelMessages(club.id, channelId, setMessages);
   }, [club?.id, channelId]);
 
-  // Mark channel as read when screen is focused
+  // Mark channel as read when screen is focused, and update the app badge to
+  // the new global unread total.
   useEffect(() => {
     if (!user || !channelId) return;
-    void markChannelRead(user.uid, channelId);
+    void markChannelRead(user.uid, channelId).then(setAppBadge).catch(() => undefined);
   }, [user?.uid, channelId]);
 
   const reversed = useMemo(() => [...messages].reverse(), [messages]);

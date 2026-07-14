@@ -142,6 +142,9 @@ export interface ClubChannel {
 export interface ChannelPreference {
   muteNotifications: boolean;
   lastReadAt: string;
+  // Unread message count for this channel; summed across channels into the
+  // user doc's unreadTotal for the app-icon badge. Maintained server-side.
+  unreadCount?: number;
 }
 
 export interface FcmToken {

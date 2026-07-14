@@ -15,6 +15,7 @@ import {
   arrayRemove,
   increment,
   writeBatch,
+  runTransaction,
   Timestamp,
   onSnapshot,
 } from "firebase/firestore";
@@ -719,10 +720,28 @@ export async function setChannelPreference(
   await setDoc(doc(db, "users", uid, "channelPreferences", channelId), prefs, { merge: true });
 }
 
-export async function markChannelRead(uid: string, channelId: string): Promise<void> {
-  await setDoc(
-    doc(db, "users", uid, "channelPreferences", channelId),
-    { lastReadAt: new Date().toISOString() },
-    { merge: true },
-  );
+/**
+ * Mark a channel read: stamp lastReadAt, zero this channel's unread count, and
+ * subtract that amount from the user's global unread total (which drives the
+ * app-icon badge). One transaction so the total can't drift. Returns the new
+ * global total so the caller can update the app badge.
+ */
+export async function markChannelRead(uid: string, channelId: string): Promise<number> {
+  const userRef = doc(db, "users", uid);
+  const prefRef = doc(db, "users", uid, "channelPreferences", channelId);
+  return runTransaction(db, async (tx) => {
+    const [userSnap, prefSnap] = await Promise.all([tx.get(userRef), tx.get(prefRef)]);
+    const channelUnread = (prefSnap.data()?.unreadCount as number | undefined) ?? 0;
+    const currentTotal = (userSnap.data()?.unreadTotal as number | undefined) ?? 0;
+    const newTotal = Math.max(0, currentTotal - channelUnread);
+    tx.set(prefRef, { lastReadAt: new Date().toISOString(), unreadCount: 0 }, { merge: true });
+    tx.set(userRef, { unreadTotal: newTotal }, { merge: true });
+    return newTotal;
+  });
+}
+
+/** Current global unread total for the app-icon badge (0 if unset). */
+export async function getUnreadTotal(uid: string): Promise<number> {
+  const snap = await getDoc(doc(db, "users", uid));
+  return Math.max(0, (snap.data()?.unreadTotal as number | undefined) ?? 0);
 }

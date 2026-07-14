@@ -16,6 +16,7 @@ import {
   getChannelPreferences,
   markChannelRead,
 } from "@/services/clubService";
+import { setAppBadge } from "@/services/badge";
 import { useClub } from "@/services/clubStore";
 import type { ClubChannel, ChannelPreference } from "@/models/club";
 import { GradientHeader } from "@/ui/GradientHeader";
@@ -61,7 +62,7 @@ export default function ChannelsScreen() {
   );
 
   const handleChannelPress = async (channelId: string) => {
-    if (user) await markChannelRead(user.uid, channelId);
+    if (user) await markChannelRead(user.uid, channelId).then(setAppBadge).catch(() => undefined);
     router.push(`/club/chat/${channelId}` as never);
   };
 
