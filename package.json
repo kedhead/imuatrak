@@ -12,7 +12,11 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
-    "test": "jest"
+    "test": "jest",
+    "deploy:ota": "eas update --environment production --channel production",
+    "deploy:ota:rollback": "eas update:roll-back-to-embedded --branch production",
+    "build:ios": "eas build --profile production --platform ios",
+    "submit:ios": "eas submit -p ios --latest --profile production"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
