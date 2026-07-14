@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -89,10 +90,17 @@ export default function RootLayout() {
           try {
             const { status } = await Notifications.requestPermissionsAsync();
             if (status === "granted") {
-              const deviceToken = await Notifications.getDevicePushTokenAsync();
+              // Register an EXPO push token, not getDevicePushTokenAsync():
+              // on iOS that returns a raw APNs hex token which FCM silently
+              // rejects — the reason chat pushes never arrived. The Expo Push
+              // Service handles APNs/FCM routing from one token type.
+              const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+              const expoToken = await Notifications.getExpoPushTokenAsync(
+                projectId ? { projectId } : undefined,
+              );
               await registerFcmToken(
                 user.uid,
-                deviceToken.data as string,
+                expoToken.data,
                 Platform.OS === "ios" ? "ios" : "android",
               );
             }

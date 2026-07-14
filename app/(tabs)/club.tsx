@@ -25,6 +25,7 @@ import { getPosts, createPost, deletePost, votePoll, getUpcomingEvents, toggleLi
 import { currentUser } from "@/services/auth";
 import type { ClubPost, ClubEvent, ClubComment, PollOption } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
+import { LinkifiedText } from "@/ui/LinkifiedText";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { Gradient } from "@/ui/Gradient";
@@ -418,7 +419,11 @@ function PostCard({
             </Pressable>
           )}
         </View>
-        <Text style={styles.postContent}>{post.content}</Text>
+        <LinkifiedText
+          text={post.content}
+          style={styles.postContent}
+          linkStyle={styles.postLink}
+        />
         {post.type === "poll" && (
           <PollCard post={post} clubId={clubId} currentUserId={currentUserId} />
         )}
@@ -829,6 +834,7 @@ const styles = StyleSheet.create({
   postAuthor: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.ink },
   postDate: { fontSize: type.size.xs, color: colors.muted },
   postContent: { fontSize: type.size.md, color: colors.inkSoft, lineHeight: 22 },
+  postLink: { color: colors.ocean, textDecorationLine: "underline" },
   postActions: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.sm },
   likeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingRight: spacing.sm },
   likeCount: { fontSize: type.size.sm, color: colors.muted, fontWeight: type.weight.bold },

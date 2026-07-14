@@ -27,6 +27,7 @@ import {
   deleteChannelMessage,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
+import { extractImageUrls, LinkifiedText } from "@/ui/LinkifiedText";
 import { useClub } from "@/services/clubStore";
 import type { ClubChannel, ClubMessage, MemberRole } from "@/models/club";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
@@ -253,6 +254,11 @@ function MessageBubble({
   });
   const roleMeta = role ? ROLE_META[role] : null;
 
+  // Pasted GIF/image links (Giphy/Tenor media URLs etc.) render inline; when
+  // the message is ONLY the link, skip the text so just the image shows.
+  const linkedImages = extractImageUrls(message.content);
+  const imageOnly = linkedImages.length === 1 && message.content.trim() === linkedImages[0];
+
   return (
     <Pressable
       onLongPress={canDelete ? onDelete : undefined}
@@ -302,10 +308,18 @@ function MessageBubble({
           <VideoBubble uri={message.mediaUrl} uploading={uploading} />
         )}
 
-        {message.content.length > 0 && (
-          <Text style={[styles.msgText, isMe && styles.msgTextMe]}>
-            {message.content}
-          </Text>
+        {linkedImages.map((url) => (
+          <View key={url} style={styles.mediaWrap}>
+            <Image source={{ uri: url }} style={styles.mediaImage} resizeMode="cover" />
+          </View>
+        ))}
+
+        {message.content.length > 0 && !imageOnly && (
+          <LinkifiedText
+            text={message.content}
+            style={[styles.msgText, isMe && styles.msgTextMe]}
+            linkStyle={[styles.msgLink, isMe && styles.msgLinkMe]}
+          />
         )}
 
         <Text style={[styles.timestamp, isMe && styles.timestampMe]}>{time}</Text>
@@ -375,6 +389,8 @@ const styles = StyleSheet.create({
   },
   msgText: { fontSize: type.size.md, color: colors.ink, lineHeight: 20 },
   msgTextMe: { color: colors.white },
+  msgLink: { color: colors.ocean, textDecorationLine: "underline" },
+  msgLinkMe: { color: "#BFE0FF", textDecorationLine: "underline" },
   timestamp: { fontSize: 10, color: colors.muted, marginTop: 2, alignSelf: "flex-end" },
   timestampMe: { color: "rgba(255,255,255,0.65)" },
   mediaWrap: { position: "relative", marginBottom: spacing.xs },

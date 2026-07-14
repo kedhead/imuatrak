@@ -2,7 +2,6 @@ import * as crypto from "crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getMessaging } from "firebase-admin/messaging";
 import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
@@ -507,11 +506,23 @@ export const onChannelMessageCreate = onDocumentCreated(
     const body = messageData.content.length > 0
       ? messageData.content.slice(0, 200)
       : "Sent a photo";
+    const title = `${messageData.authorName} in #${channel.name}`;
 
     // Per recipient: atomically bump this channel's unread count and the
     // user's global unread total (drives the app-icon badge), then push with
     // that real total as the badge. Muted recipients are still counted (they
     // have unread) but get no alert — their badge syncs on next app open.
+    interface ExpoPushMessage {
+      to: string[];
+      title: string;
+      body: string;
+      sound: string;
+      badge: number;
+      priority: string;
+      data: Record<string, string>;
+    }
+    const pushMessages: ExpoPushMessage[] = [];
+
     await Promise.all(
       recipientUids.map(async (userId) => {
         const userRef = db.doc(`users/${userId}`);
@@ -528,24 +539,47 @@ export const onChannelMessageCreate = onDocumentCreated(
 
         if (muted) return;
 
+        // Only Expo push tokens are sendable. Legacy docs hold raw APNs hex
+        // tokens (from getDevicePushTokenAsync) which FCM silently rejected —
+        // the reason pushes never arrived; those are filtered out here.
         const tokensSnap = await db.collection(`users/${userId}/fcmTokens`).get();
         const tokens = tokensSnap.docs
           .map((d) => (d.data() as { token: string }).token)
-          .filter(Boolean);
+          .filter((t) => typeof t === "string" && t.startsWith("ExponentPushToken"));
         if (tokens.length === 0) return;
 
-        await getMessaging().sendEachForMulticast({
-          tokens,
-          notification: {
-            title: `${messageData.authorName} in #${channel.name}`,
-            body,
-          },
+        pushMessages.push({
+          to: tokens,
+          title,
+          body,
+          sound: "default",
+          badge: newTotal,
+          priority: "high",
           data: { clubId, channelId, screen: "club/chat" },
-          apns: { payload: { aps: { sound: "default", badge: newTotal } } },
-          android: { priority: "high", notification: { sound: "default" } },
         });
       }),
     );
+
+    // Deliver via the Expo Push Service (handles APNs + FCM routing). Max 100
+    // messages per request.
+    for (let i = 0; i < pushMessages.length; i += 100) {
+      const chunk = pushMessages.slice(i, i + 100);
+      try {
+        const res = await fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(chunk),
+        });
+        if (!res.ok) {
+          console.error("Expo push send failed:", res.status, await res.text());
+        }
+      } catch (e) {
+        console.error("Expo push send error:", e);
+      }
+    }
 
     await db.doc(`clubs/${clubId}/channels/${channelId}`).update({
       lastMessageAt: event.data?.createTime?.toDate().toISOString() ?? new Date().toISOString(),
