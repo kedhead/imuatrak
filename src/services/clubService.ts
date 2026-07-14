@@ -19,8 +19,9 @@ import {
   Timestamp,
   onSnapshot,
 } from "firebase/firestore";
+import * as FileSystem from "expo-file-system/legacy";
 import { httpsCallable } from "firebase/functions";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { auth, db, functions, storage } from "./firebase";
 import type {
   BoatAssignment,
@@ -657,16 +658,19 @@ export async function uploadMessageMedia(
   const ext = mimeType.split("/")[1] ?? "bin";
   const path = `clubs/${clubId}/channels/${channelId}/messages/${messageId}/media.${ext}`;
 
-  // Upload through the Firebase Storage SDK (same path as GPX sync) so auth,
-  // App Check, and the bucket are handled correctly. The previous hand-rolled
-  // REST upload sent the Firebase ID token as a `Bearer` credential, which the
-  // Storage REST endpoint treats as an invalid OAuth token → request.auth null
-  // → security rules deny → HTTP 403.
-  const res = await fetch(localUri);
-  const blob = await res.blob();
-
+  // Upload through the Firebase Storage SDK so auth and the bucket are handled
+  // correctly (the old hand-rolled REST call sent the ID token as a Bearer
+  // credential → treated as unauthenticated → 403).
+  //
+  // Read the file as base64 and use uploadString('base64'): React Native's
+  // Blob can't be constructed from an ArrayBuffer, so fetch().blob() + a
+  // resumable upload throws "Creating blobs from 'ArrayBuffer'…". uploadString
+  // decodes to a Uint8Array internally — the same shape the GPX sync uploads.
+  const base64 = await FileSystem.readAsStringAsync(localUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
   const storageRef = ref(storage, path);
-  await uploadBytesResumable(storageRef, blob, { contentType: mimeType });
+  await uploadString(storageRef, base64, "base64", { contentType: mimeType });
   const mediaUrl = await getDownloadURL(storageRef);
 
   await updateDoc(
