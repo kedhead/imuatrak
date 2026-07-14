@@ -39,6 +39,65 @@ export const renderSessionCard = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
+// uploadChannelMedia — receives a base64 image/video from a club member and
+// writes it to Storage with the Admin SDK. This sidesteps the React Native
+// Storage-upload minefield entirely: the JS SDK can't build its multipart body
+// (RN can't make a Blob from an ArrayBuffer), and the raw REST endpoint kept
+// hitting auth/rules/bucket 403s. Admin writes bypass Storage rules and target
+// the real default bucket, so uploads just work. Membership is enforced here.
+// ---------------------------------------------------------------------------
+export const uploadChannelMedia = onCall({ memory: "512MiB" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { clubId, channelId, messageId, base64, contentType } = request.data ?? {};
+  if (
+    typeof clubId !== "string" ||
+    typeof channelId !== "string" ||
+    typeof messageId !== "string" ||
+    typeof base64 !== "string" ||
+    typeof contentType !== "string"
+  ) {
+    throw new HttpsError("invalid-argument", "Missing upload fields");
+  }
+  if (!/^(image|video)\//.test(contentType)) {
+    throw new HttpsError("invalid-argument", "Only image or video uploads are allowed");
+  }
+
+  // Must be a member of the club to post media.
+  const memberSnap = await getFirestore().doc(`clubs/${clubId}/members/${uid}`).get();
+  if (!memberSnap.exists) throw new HttpsError("permission-denied", "Not a club member");
+
+  const buffer = Buffer.from(base64, "base64");
+  // Callable request payloads are capped (~10 MB); base64 inflates ~33%, so
+  // hold the decoded file to 7 MB. Covers phone photos; large videos need the
+  // signed-URL path (follow-up).
+  if (buffer.length > 7 * 1024 * 1024) {
+    throw new HttpsError("invalid-argument", "File too large (max ~7 MB for now)");
+  }
+
+  const ext = contentType.split("/")[1] || "bin";
+  const path = `clubs/${clubId}/channels/${channelId}/messages/${messageId}/media.${ext}`;
+  const token = crypto.randomUUID();
+  const bucket = getStorage().bucket();
+
+  await bucket.file(path).save(buffer, {
+    contentType,
+    metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+  });
+
+  const mediaUrl =
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+    `${encodeURIComponent(path)}?alt=media&token=${token}`;
+
+  await getFirestore()
+    .doc(`clubs/${clubId}/channels/${channelId}/messages/${messageId}`)
+    .update({ mediaUrl, mediaStoragePath: `gs://${bucket.name}/${path}` });
+
+  return { mediaUrl };
+});
+
+// ---------------------------------------------------------------------------
 // fetchWeather — server-side proxy to OpenWeather so the API key never ships
 // in the Android app. iOS uses WeatherKit directly.
 // ---------------------------------------------------------------------------

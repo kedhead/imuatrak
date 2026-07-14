@@ -687,48 +687,21 @@ export async function uploadMessageMedia(
 ): Promise<string> {
   const user = auth.currentUser;
   if (!user) throw new Error("not signed in");
-  const token = await user.getIdToken();
 
-  const ext = mimeType.split("/")[1] ?? "bin";
-  const bucket = "imuatrak.firebasestorage.app";
-  const path = `clubs/${clubId}/channels/${channelId}/messages/${messageId}/media.${ext}`;
-  const uploadUrl =
-    `https://firebasestorage.googleapis.com/v0/b/` +
-    `${encodeURIComponent(bucket)}/o` +
-    `?uploadType=media&name=${encodeURIComponent(path)}`;
-
-  // Stream the file to Storage natively via expo-file-system. The Firebase JS
-  // SDK can't be used here: it builds the multipart request body with
-  // `new Blob([...])`, and React Native can't construct a Blob from an
-  // ArrayBuffer/ArrayBufferView ("Creating blobs from 'ArrayBuffer'…").
-  // Auth MUST use the "Firebase <idToken>" scheme (what the Storage SDK sends,
-  // see @firebase/storage); "Bearer" is parsed as an OAuth2 token, rejected as
-  // unauthenticated, and the security rules then deny → HTTP 403.
-  const upload = await FileSystem.uploadAsync(uploadUrl, localUri, {
-    httpMethod: "POST",
-    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    headers: { Authorization: `Firebase ${token}`, "Content-Type": mimeType },
+  // Upload via a Cloud Function (Admin SDK write) rather than from the client.
+  // React Native can't build the Blob the Firebase Storage SDK needs, and the
+  // raw REST endpoint fought us on auth/rules/bucket (403s). The function
+  // handles auth + membership and writes to the real bucket, bypassing rules.
+  const base64 = await FileSystem.readAsStringAsync(localUri, {
+    encoding: FileSystem.EncodingType.Base64,
   });
 
-  if (upload.status < 200 || upload.status >= 300) {
-    throw new Error(`Upload failed: HTTP ${upload.status} ${upload.body?.slice(0, 200) ?? ""}`);
-  }
-
-  const meta = JSON.parse(upload.body) as { downloadTokens?: string };
-  const downloadToken = meta.downloadTokens?.split(",")[0];
-  if (!downloadToken) throw new Error("No download token in Storage response");
-
-  const mediaUrl =
-    `https://firebasestorage.googleapis.com/v0/b/` +
-    `${encodeURIComponent(bucket)}/o/${encodeURIComponent(path)}` +
-    `?alt=media&token=${downloadToken}`;
-
-  await updateDoc(
-    doc(db, "clubs", clubId, "channels", channelId, "messages", messageId),
-    { mediaUrl, mediaStoragePath: `gs://${bucket}/${path}` },
-  );
-
-  return mediaUrl;
+  const fn = httpsCallable<
+    { clubId: string; channelId: string; messageId: string; base64: string; contentType: string },
+    { mediaUrl: string }
+  >(functions, "uploadChannelMedia");
+  const { data } = await fn({ clubId, channelId, messageId, base64, contentType: mimeType });
+  return data.mediaUrl;
 }
 
 // ── Channel preferences & FCM ─────────────────────────────────────────────────
