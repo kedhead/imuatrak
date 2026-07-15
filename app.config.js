@@ -4,7 +4,19 @@ const config = {
   slug: "imuatrak",
   owner: "paintpile",
   scheme: "imuatrak",
-  version: "0.1.10",
+  // App Store / Play Store marketing version (CFBundleShortVersionString /
+  // versionName). Store versions must strictly INCREASE, compared
+  // segment-by-segment: 0.1.10 is LOWER than the live 1.0 (0 < 1), which is
+  // why submits were rejected as "not new". The first launch shipped as 1.0,
+  // so the next store build must be 1.0.1 or higher.
+  //
+  // runtimeVersion below uses the "appVersion" policy, so this same value is
+  // ALSO the OTA runtime — there is no separate runtime knob to "bump". Live
+  // users are on runtime 0.1.0 (the value when build 78 was made); their OTAs
+  // were already published against 0.1.0. Moving to 1.0.1 gives the next
+  // native build its own runtime, which correctly isolates native-only
+  // additions (e.g. the GPX document picker) from older binaries.
+  version: "1.0.1",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "automatic",
