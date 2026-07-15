@@ -31,8 +31,8 @@ class SessionListenerService : WearableListenerService() {
     override fun onInputClosed(channel: ChannelClient.Channel, closeReason: Int, appError: Int) {
         val parsed = parse(channel.path) ?: return
         val (id, _) = parsed
-        if (closeReason != ChannelClient.Channel.CLOSE_REASON_NORMAL &&
-            closeReason != ChannelClient.Channel.CLOSE_REASON_REMOTE_CLOSE) {
+        if (closeReason != ChannelClient.ChannelCallback.CLOSE_REASON_NORMAL &&
+            closeReason != ChannelClient.ChannelCallback.CLOSE_REASON_REMOTE_CLOSE) {
             Log.w(TAG, "Channel ${channel.path} closed abnormally (reason=$closeReason)")
             return
         }
