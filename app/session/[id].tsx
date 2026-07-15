@@ -134,9 +134,15 @@ export default function SessionDetail() {
           <GradientCard gradient="ocean">
             <View style={{ flexDirection: "row", gap: spacing.xs }}>
               {s.craftType && <Badge label={s.craftType} color="rgba(255,255,255,0.25)" />}
-              {(s.source === "ios-watch" || s.source === "android-wear") && (
+              {(s.source === "ios-watch" || s.source === "android-wear" || s.source === "gpx-import") && (
                 <Badge
-                  label={s.source === "ios-watch" ? "Apple Watch" : "Wear OS"}
+                  label={
+                    s.source === "ios-watch"
+                      ? "Apple Watch"
+                      : s.source === "android-wear"
+                        ? "Wear OS"
+                        : "Imported"
+                  }
                   color="rgba(255,255,255,0.18)"
                 />
               )}

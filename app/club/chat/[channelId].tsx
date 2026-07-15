@@ -18,7 +18,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
 import {
   subscribeChannelMessages,
@@ -38,6 +38,7 @@ import { ChannelIcon } from "../channels";
 
 export default function ChannelChatScreen() {
   const { channelId } = useLocalSearchParams<{ channelId: string }>();
+  const insets = useSafeAreaInsets();
   const club = useClub((s) => s.club);
   const members = useClub((s) => s.members);
   const navigation = useNavigation();
@@ -230,7 +231,10 @@ export default function ChannelChatScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
+        // Header = status bar (safe-area top inset, varies by device) + 44pt
+        // nav bar. The old hardcoded 88 was wrong on notched iPhones, so the
+        // keyboard overlapped the newest chat bubbles.
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
         <FlatList
           data={reversed}

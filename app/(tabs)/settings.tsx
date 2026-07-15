@@ -30,6 +30,7 @@ export default function Settings() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [importing, setImporting] = useState(false);
   const units = useSettings((s) => s.units);
   const defaultCraft = useSettings((s) => s.defaultCraft);
   const weightKg = useSettings((s) => s.weightKg);
@@ -78,6 +79,59 @@ export default function Settings() {
       Alert.alert("Error", "Failed to update name");
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const onImportGpx = async () => {
+    if (importing) return;
+    setImporting(true);
+    try {
+      // expo-document-picker is a native module that ships with builds AFTER
+      // 1.0 (78). A static import would crash older binaries at bundle-load,
+      // so it must stay a dynamic import — the catch turns "module missing"
+      // into an upgrade prompt instead of a crash.
+      let DocumentPicker: typeof import("expo-document-picker");
+      try {
+        DocumentPicker = await import("expo-document-picker");
+      } catch {
+        Alert.alert(
+          "Update required",
+          "GPX import needs the newest version of ImuaTrak. Please update from the App Store and try again.",
+        );
+        return;
+      }
+
+      const res = await DocumentPicker.getDocumentAsync({
+        // GPX has no universally-registered MIME type — Garmin exports often
+        // arrive as octet-stream — so accept anything and let the parser vet it.
+        type: ["application/gpx+xml", "application/xml", "text/xml", "application/octet-stream", "*/*"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+
+      const FileSystem = await import("expo-file-system/legacy");
+      const xml = await FileSystem.readAsStringAsync(res.assets[0].uri);
+      const { importGpx } = await import("@/services/gpxImport");
+      const { session, pointCount } = await importGpx(xml, { craftType: defaultCraft, weightKg });
+
+      const km = session.totals.distanceMeters / 1000;
+      const dist = imperial ? `${(km * KM_TO_MI).toFixed(2)} mi` : `${km.toFixed(2)} km`;
+      Alert.alert(
+        "Workout imported",
+        `${dist} · ${pointCount} GPS points · logged as ${session.craftType}. It's now in your History.`,
+        [
+          { text: "View session", onPress: () => routerHook.push(`/session/${session.id}`) },
+          { text: "Done", style: "cancel" },
+        ],
+      );
+    } catch (e) {
+      Alert.alert(
+        "Import failed",
+        e instanceof Error ? e.message : "Could not read that file. Make sure it's a GPX export.",
+      );
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -383,6 +437,25 @@ export default function Settings() {
               />
               <Text style={[styles.body, { color: colors.muted }]}>min / week</Text>
             </View>
+          </GradientCard>
+        </Section>
+
+        <Section title="Data">
+          <GradientCard>
+            <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs }]}>
+              Have a Garmin, Suunto, Polar or other watch? Export your workout as a
+              GPX file and import it here — distance, splits and heart rate come along.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [styles.settingsRow, (pressed || importing) && styles.rowPressed]}
+              onPress={() => void onImportGpx()}
+              disabled={importing}
+            >
+              <Text style={styles.settingsRowText}>
+                {importing ? "Importing…" : "Import GPX workout"}
+              </Text>
+              <Ionicons name="download-outline" size={18} color={colors.muted} />
+            </Pressable>
           </GradientCard>
         </Section>
 

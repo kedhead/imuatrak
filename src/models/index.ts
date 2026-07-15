@@ -29,7 +29,12 @@ export const CRAFT_TYPES: readonly CraftType[] = [
   "OTHER",
 ] as const;
 
-export type SessionSource = "ios-phone" | "ios-watch" | "android-phone" | "android-wear";
+export type SessionSource =
+  | "ios-phone"
+  | "ios-watch"
+  | "android-phone"
+  | "android-wear"
+  | "gpx-import";
 
 export interface Totals {
   distanceMeters: number;
