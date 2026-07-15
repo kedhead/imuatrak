@@ -4,7 +4,7 @@ const config = {
   slug: "imuatrak",
   owner: "paintpile",
   scheme: "imuatrak",
-  version: "0.1.0",
+  version: "0.1.10",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "automatic",
