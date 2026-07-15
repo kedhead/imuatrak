@@ -109,14 +109,23 @@ const config = {
       "FOREGROUND_SERVICE",
       "FOREGROUND_SERVICE_LOCATION",
       "WAKE_LOCK",
-      "BODY_SENSORS",
-      "HIGH_SAMPLING_RATE_SENSORS",
-      "ACTIVITY_RECOGNITION",
+      // BODY_SENSORS, ACTIVITY_RECOGNITION and HIGH_SAMPLING_RATE_SENSORS were
+      // removed: the phone does not read them. Stroke rate comes from the raw
+      // accelerometer at 50 Hz (expo-sensors, no permission needed), and heart
+      // rate arrives from the paired watch over the data layer — never from the
+      // phone's body sensors. Declaring them forced a Google "Health apps"
+      // permissions review for data the app never touches. They are also blocked
+      // below so a dependency can't silently re-add them to the merged manifest.
       // RECORD_AUDIO removed alongside iOS NSMicrophoneUsageDescription — the
       // audio "hut" detection feature (Phase 3) is not built yet. Restore when
       // it ships.
       "POST_NOTIFICATIONS",
       "com.google.android.wearable.permission.RECEIVE_COMPLICATION_DATA",
+    ],
+    blockedPermissions: [
+      "android.permission.BODY_SENSORS",
+      "android.permission.ACTIVITY_RECOGNITION",
+      "android.permission.HIGH_SAMPLING_RATE_SENSORS",
     ],
   },
 
