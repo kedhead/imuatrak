@@ -21,13 +21,18 @@ open the app.
 
 File: `web/public/.well-known/assetlinks.json`
 
-Replace `REPLACE_WITH_SHA256_CERT_FINGERPRINT` with the SHA-256 fingerprint of
-the **app signing certificate**:
+The `sha256_cert_fingerprints` array holds every cert that may sign the app.
+Both of these should be present:
 
-- EAS keystore: `eas credentials -p android` shows the SHA-256.
-- Once on Play with Play App Signing, use the fingerprint from Play Console →
-  Setup → App signing (and add the upload key's too — the array accepts
-  multiple).
+- **Upload key** (EAS keystore "Default", from `eas credentials -p android`):
+  `06:54:39:78:...:ED:FC:DB` — **already added**. Covers directly-installed
+  APKs (internal testing sideloads) signed by the EAS build keystore.
+- **Play App Signing key** — **still TODO**. Because Play App Signing is
+  enabled, Google re-signs the AAB with its OWN key for Play Store installs,
+  so production installs only verify against Google's fingerprint. Get it from
+  Play Console → your app → App integrity → App signing → *App signing key
+  certificate* → SHA-256, and add it to the array. Requires at least one
+  release uploaded to Play first.
 
 `app.config.js` declares the verified intent filter for `/join`.
 

@@ -4,7 +4,9 @@
     "target": {
       "namespace": "android_app",
       "package_name": "app.imuatrak",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_SHA256_CERT_FINGERPRINT"]
+      "sha256_cert_fingerprints": [
+        "06:54:39:78:03:23:4D:63:6C:01:A6:05:2A:5A:08:C1:4B:A0:3E:FE:39:D8:A7:B7:DF:C3:F3:3D:62:ED:FC:DB"
+      ]
     }
   }
 ]
