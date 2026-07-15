@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "app.imuatrak",
       "sha256_cert_fingerprints": [
-        "06:54:39:78:03:23:4D:63:6C:01:A6:05:2A:5A:08:C1:4B:A0:3E:FE:39:D8:A7:B7:DF:C3:F3:3D:62:ED:FC:DB"
+        "06:54:39:78:03:23:4D:63:6C:01:A6:05:2A:5A:08:C1:4B:A0:3E:FE:39:D8:A7:B7:DF:C3:F3:3D:62:ED:FC:DB",
+        "FC:CF:C2:40:25:E8:EB:FD:F7:83:63:32:7A:66:DC:5F:1B:A8:88:15:2B:5B:76:A5:A7:58:04:E8:60:39:7F:1A"
       ]
     }
   }

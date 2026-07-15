@@ -27,12 +27,11 @@ Both of these should be present:
 - **Upload key** (EAS keystore "Default", from `eas credentials -p android`):
   `06:54:39:78:...:ED:FC:DB` — **already added**. Covers directly-installed
   APKs (internal testing sideloads) signed by the EAS build keystore.
-- **Play App Signing key** — **still TODO**. Because Play App Signing is
-  enabled, Google re-signs the AAB with its OWN key for Play Store installs,
-  so production installs only verify against Google's fingerprint. Get it from
-  Play Console → your app → App integrity → App signing → *App signing key
-  certificate* → SHA-256, and add it to the array. Requires at least one
-  release uploaded to Play first.
+- **Play App Signing key** (`FC:CF:C2:40:...:7F:1A`) — **already added**.
+  Because Play App Signing is enabled, Google re-signs the AAB with its OWN
+  key for Play Store installs, so production installs verify against this
+  fingerprint (Play Console → App integrity → App signing → *App signing key
+  certificate*).
 
 `app.config.js` declares the verified intent filter for `/join`.
 
