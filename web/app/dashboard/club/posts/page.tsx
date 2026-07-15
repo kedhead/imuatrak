@@ -124,12 +124,16 @@ function PostCard({ post, isAdmin, myUid, onDelete }: { post: ClubPost; isAdmin:
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ flex: 1 }}>
+        {/* minWidth: 0 lets this flex child shrink below its content width —
+            without it a long unbroken URL blows the card open sideways. */}
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontWeight: 700, fontSize: 14 }}>{post.authorName}</span>
             <span style={{ fontSize: 12, color: "var(--muted)" }}>{new Date(post.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
           </div>
-          <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{post.content}</p>
+          <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            <Linkify text={post.content} />
+          </p>
           {post.commentCount > 0 && (
             <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--muted)" }}>{post.commentCount} comment{post.commentCount !== 1 ? "s" : ""}</p>
           )}
@@ -141,6 +145,24 @@ function PostCard({ post, isAdmin, myUid, onDelete }: { post: ClubPost; isAdmin:
         )}
       </div>
     </div>
+  );
+}
+
+/** Renders http(s) URLs in post text as clickable links. */
+function Linkify({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/gi);
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^https?:\/\//i.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue-bright)", wordBreak: "break-all" }}>
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
   );
 }
 

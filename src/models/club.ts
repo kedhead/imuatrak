@@ -119,6 +119,12 @@ export interface ClubMessage {
   mediaUrl?: string;
   mediaStoragePath?: string;
   mediaType?: "photo" | "video";
+  /** Multi-image messages: download URLs in send order (grid rendering). */
+  mediaUrls?: string[];
+  /** Emoji reactions: emoji → uids of members who reacted. */
+  reactions?: Record<string, string[]>;
+  /** Set when this message is a reply to another. */
+  replyTo?: { messageId: string; authorName: string; preview: string };
   createdAt: string;
 }
 

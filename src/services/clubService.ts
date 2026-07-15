@@ -13,6 +13,7 @@ import {
   limit,
   arrayUnion,
   arrayRemove,
+  FieldPath,
   increment,
   writeBatch,
   runTransaction,
@@ -622,6 +623,7 @@ export async function sendMessage(
   displayName: string,
   content: string,
   mediaType?: "photo" | "video",
+  replyTo?: ClubMessage["replyTo"],
 ): Promise<ClubMessage> {
   const now = new Date().toISOString();
   const msg: Omit<ClubMessage, "id"> = {
@@ -630,6 +632,7 @@ export async function sendMessage(
     content,
     authorId: uid,
     authorName: displayName,
+    ...(replyTo ? { replyTo } : {}),
     createdAt: now,
     ...(mediaType ? { mediaType } : {}),
   };
@@ -642,6 +645,26 @@ export async function sendMessage(
     lastMessageAt: now,
   }).catch(() => undefined);
   return { ...msg, id: ref.id };
+}
+
+/**
+ * Toggle an emoji reaction on a message. Uses FieldPath (not dot notation)
+ * because emoji aren't valid unquoted field-path segments. Rules restrict
+ * member updates to the reactions field only.
+ */
+export async function toggleMessageReaction(
+  clubId: string,
+  channelId: string,
+  message: ClubMessage,
+  emoji: string,
+  uid: string,
+): Promise<void> {
+  const hasReacted = (message.reactions?.[emoji] ?? []).includes(uid);
+  await updateDoc(
+    doc(db, "clubs", clubId, "channels", channelId, "messages", message.id),
+    new FieldPath("reactions", emoji),
+    hasReacted ? arrayRemove(uid) : arrayUnion(uid),
+  );
 }
 
 /**
@@ -684,6 +707,8 @@ export async function uploadMessageMedia(
   messageId: string,
   localUri: string,
   mimeType: string,
+  /** "media" (default, single → mediaUrl) or "media-N" (multi → mediaUrls[]). */
+  fileKey: string = "media",
 ): Promise<string> {
   const user = auth.currentUser;
   if (!user) throw new Error("not signed in");
@@ -697,10 +722,17 @@ export async function uploadMessageMedia(
   });
 
   const fn = httpsCallable<
-    { clubId: string; channelId: string; messageId: string; base64: string; contentType: string },
+    {
+      clubId: string;
+      channelId: string;
+      messageId: string;
+      base64: string;
+      contentType: string;
+      fileKey?: string;
+    },
     { mediaUrl: string }
   >(functions, "uploadChannelMedia");
-  const { data } = await fn({ clubId, channelId, messageId, base64, contentType: mimeType });
+  const { data } = await fn({ clubId, channelId, messageId, base64, contentType: mimeType, fileKey });
   return data.mediaUrl;
 }
 

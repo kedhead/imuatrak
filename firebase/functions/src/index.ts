@@ -49,7 +49,7 @@ export const uploadChannelMedia = onCall({ memory: "512MiB" }, async (request) =
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
 
-  const { clubId, channelId, messageId, base64, contentType } = request.data ?? {};
+  const { clubId, channelId, messageId, base64, contentType, fileKey } = request.data ?? {};
   if (
     typeof clubId !== "string" ||
     typeof channelId !== "string" ||
@@ -61,6 +61,12 @@ export const uploadChannelMedia = onCall({ memory: "512MiB" }, async (request) =
   }
   if (!/^(image|video)\//.test(contentType)) {
     throw new HttpsError("invalid-argument", "Only image or video uploads are allowed");
+  }
+  // "media" = single attachment (legacy mediaUrl field); "media-N" = one image
+  // of a multi-image message, appended to mediaUrls[] in send order.
+  const key: string = typeof fileKey === "string" ? fileKey : "media";
+  if (!/^media(-\d{1,2})?$/.test(key)) {
+    throw new HttpsError("invalid-argument", "Bad fileKey");
   }
 
   // Must be a member of the club to post media.
@@ -76,7 +82,7 @@ export const uploadChannelMedia = onCall({ memory: "512MiB" }, async (request) =
   }
 
   const ext = contentType.split("/")[1] || "bin";
-  const path = `clubs/${clubId}/channels/${channelId}/messages/${messageId}/media.${ext}`;
+  const path = `clubs/${clubId}/channels/${channelId}/messages/${messageId}/${key}.${ext}`;
   const token = crypto.randomUUID();
   const bucket = getStorage().bucket();
 
@@ -89,9 +95,13 @@ export const uploadChannelMedia = onCall({ memory: "512MiB" }, async (request) =
     `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
     `${encodeURIComponent(path)}?alt=media&token=${token}`;
 
-  await getFirestore()
-    .doc(`clubs/${clubId}/channels/${channelId}/messages/${messageId}`)
-    .update({ mediaUrl, mediaStoragePath: `gs://${bucket.name}/${path}` });
+  const msgRef = getFirestore()
+    .doc(`clubs/${clubId}/channels/${channelId}/messages/${messageId}`);
+  if (key === "media") {
+    await msgRef.update({ mediaUrl, mediaStoragePath: `gs://${bucket.name}/${path}` });
+  } else {
+    await msgRef.update({ mediaUrls: FieldValue.arrayUnion(mediaUrl) });
+  }
 
   return { mediaUrl };
 });

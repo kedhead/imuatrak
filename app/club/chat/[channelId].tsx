@@ -6,9 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -25,6 +27,7 @@ import {
   getChannel,
   markChannelRead,
   deleteChannelMessage,
+  toggleMessageReaction,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
 import { extractImageUrls, LinkifiedText } from "@/ui/LinkifiedText";
@@ -45,6 +48,10 @@ export default function ChannelChatScreen() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  // Long-press action sheet target, reply-compose target, full-screen viewer.
+  const [actionTarget, setActionTarget] = useState<ClubMessage | null>(null);
+  const [replyTarget, setReplyTarget] = useState<NonNullable<ClubMessage["replyTo"]> | null>(null);
+  const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
 
   useEffect(() => {
     if (!club || !channelId) return;
@@ -103,13 +110,39 @@ export default function ChannelChatScreen() {
     ]);
   };
 
+  const previewOf = (m: ClubMessage): string =>
+    m.content.trim().length > 0
+      ? m.content.trim().slice(0, 80)
+      : m.mediaType === "video"
+        ? "Video"
+        : "Photo";
+
+  const onToggleReaction = (message: ClubMessage, emoji: string) => {
+    if (!club || !channelId || !user) return;
+    const uid = user.uid;
+    // Optimistic flip; the onSnapshot subscription reconciles with the server.
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== message.id) return m;
+        const uids = m.reactions?.[emoji] ?? [];
+        const next = uids.includes(uid) ? uids.filter((u) => u !== uid) : [...uids, uid];
+        return { ...m, reactions: { ...(m.reactions ?? {}), [emoji]: next } };
+      }),
+    );
+    void toggleMessageReaction(club.id, channelId, message, emoji, uid).catch(() => undefined);
+  };
+
   const onSend = async () => {
     const content = text.trim();
     if (!content || !club || !channelId || !user) return;
+    const replyTo = replyTarget ?? undefined;
     setText("");
+    setReplyTarget(null);
     setSending(true);
     try {
-      await sendMessage(club.id, channelId, user.uid, user.displayName ?? "Member", content);
+      await sendMessage(
+        club.id, channelId, user.uid, user.displayName ?? "Member", content, undefined, replyTo,
+      );
     } catch {
       Alert.alert("Error", "Failed to send message.");
     } finally {
@@ -127,24 +160,55 @@ export default function ChannelChatScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
       quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: 8,
     });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const mimeType = asset.mimeType ?? (asset.type === "video" ? "video/mp4" : "image/jpeg");
-    const mediaType = mimeType.startsWith("video") ? "video" : "photo";
+    if (result.canceled || result.assets.length === 0) return;
+
+    const name = user.displayName ?? "Member";
+    const isVideo = (a: ImagePicker.ImagePickerAsset) =>
+      (a.mimeType ?? "").startsWith("video") || a.type === "video";
+    const videos = result.assets.filter(isVideo);
+    const images = result.assets.filter((a) => !isVideo(a));
 
     try {
-      const msg = await sendMessage(
-        club.id, channelId, user.uid, user.displayName ?? "Member", "", mediaType,
-      );
-      setMessages((prev) => prev.map((m) =>
-        m.id === msg.id ? { ...m, mediaUrl: asset.uri } : m,
-      ));
-      setUploadingId(msg.id);
-      const url = await uploadMessageMedia(club.id, channelId, msg.id, asset.uri, mimeType);
-      setMessages((prev) => prev.map((m) =>
-        m.id === msg.id ? { ...m, mediaUrl: url } : m,
-      ));
+      // Each video is its own message (single-attachment flow).
+      for (const v of videos) {
+        const mime = v.mimeType ?? "video/mp4";
+        const msg = await sendMessage(club.id, channelId, user.uid, name, "", "video");
+        setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: v.uri } : m)));
+        setUploadingId(msg.id);
+        const url = await uploadMessageMedia(club.id, channelId, msg.id, v.uri, mime);
+        setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: url } : m)));
+        setUploadingId(null);
+      }
+
+      if (images.length === 1) {
+        const img = images[0]!;
+        const mime = img.mimeType ?? "image/jpeg";
+        const msg = await sendMessage(club.id, channelId, user.uid, name, "", "photo");
+        setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: img.uri } : m)));
+        setUploadingId(msg.id);
+        const url = await uploadMessageMedia(club.id, channelId, msg.id, img.uri, mime);
+        setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: url } : m)));
+      } else if (images.length > 1) {
+        // One message carrying all images — rendered as a WhatsApp-style grid.
+        const msg = await sendMessage(club.id, channelId, user.uid, name, "", "photo");
+        const localUris = images.map((i) => i.uri);
+        setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrls: localUris } : m)));
+        setUploadingId(msg.id);
+        const uploaded: string[] = [];
+        for (let i = 0; i < images.length; i++) {
+          const img = images[i]!;
+          const mime = img.mimeType ?? "image/jpeg";
+          const url = await uploadMessageMedia(
+            club.id, channelId, msg.id, img.uri, mime, `media-${i}`,
+          );
+          uploaded.push(url);
+          const merged = [...uploaded, ...localUris.slice(uploaded.length)];
+          setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrls: merged } : m)));
+        }
+      }
     } catch (e) {
       const err = e instanceof Error ? e.message : "Unknown error";
       Alert.alert("Upload failed", err);
@@ -179,11 +243,10 @@ export default function ChannelChatScreen() {
               isMe={item.authorId === user?.uid}
               role={roleByUid.get(item.authorId)}
               uploading={uploadingId === item.id}
-              canDelete={
-                !!user &&
-                (item.authorId === user.uid || myRole === "owner" || myRole === "admin")
-              }
-              onDelete={() => onDeleteMessage(item)}
+              myUid={user?.uid}
+              onLongPress={() => setActionTarget(item)}
+              onToggleReaction={(emoji) => onToggleReaction(item, emoji)}
+              onPressImage={(urls, index) => setViewer({ urls, index })}
             />
           )}
           ListEmptyComponent={
@@ -192,6 +255,18 @@ export default function ChannelChatScreen() {
             </View>
           }
         />
+
+        {replyTarget && (
+          <View style={styles.replyBar}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.replyBarName}>Replying to {replyTarget.authorName}</Text>
+              <Text style={styles.replyBarSnippet} numberOfLines={1}>{replyTarget.preview}</Text>
+            </View>
+            <Pressable onPress={() => setReplyTarget(null)} hitSlop={10}>
+              <Ionicons name="close" size={20} color={colors.muted} />
+            </Pressable>
+          </View>
+        )}
 
         <View style={styles.composer}>
           <Pressable onPress={onPickMedia} hitSlop={8} style={styles.mediaBtn}>
@@ -220,9 +295,88 @@ export default function ChannelChatScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Long-press action sheet: react / reply / delete */}
+      {actionTarget && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setActionTarget(null)}>
+          <Pressable style={styles.sheetBackdrop} onPress={() => setActionTarget(null)}>
+            <View style={styles.sheetCard}>
+              <View style={styles.emojiRow}>
+                {REACTION_EMOJI.map((e) => (
+                  <Pressable
+                    key={e}
+                    style={styles.emojiBtn}
+                    onPress={() => {
+                      onToggleReaction(actionTarget, e);
+                      setActionTarget(null);
+                    }}
+                  >
+                    <Text style={styles.emojiTxt}>{e}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Pressable
+                style={styles.sheetRow}
+                onPress={() => {
+                  setReplyTarget({
+                    messageId: actionTarget.id,
+                    authorName: actionTarget.authorName,
+                    preview: previewOf(actionTarget),
+                  });
+                  setActionTarget(null);
+                }}
+              >
+                <Ionicons name="arrow-undo-outline" size={20} color={colors.ink} />
+                <Text style={styles.sheetRowText}>Reply</Text>
+              </Pressable>
+              {!!user &&
+                (actionTarget.authorId === user.uid || myRole === "owner" || myRole === "admin") && (
+                <Pressable
+                  style={styles.sheetRow}
+                  onPress={() => {
+                    const target = actionTarget;
+                    setActionTarget(null);
+                    onDeleteMessage(target);
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                  <Text style={[styles.sheetRowText, { color: colors.danger }]}>Delete</Text>
+                </Pressable>
+              )}
+            </View>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* Full-screen image viewer with horizontal paging */}
+      {viewer && (
+        <Modal visible animationType="fade" onRequestClose={() => setViewer(null)}>
+          <View style={styles.viewerBg}>
+            <FlatList
+              horizontal
+              pagingEnabled
+              data={viewer.urls}
+              initialScrollIndex={viewer.index}
+              getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
+              keyExtractor={(_, i) => String(i)}
+              renderItem={({ item }) => (
+                <Pressable style={styles.viewerPage} onPress={() => setViewer(null)}>
+                  <Image source={{ uri: item }} style={styles.viewerImage} resizeMode="contain" />
+                </Pressable>
+              )}
+            />
+            <Pressable style={styles.viewerClose} onPress={() => setViewer(null)} hitSlop={12}>
+              <Ionicons name="close" size={30} color={colors.white} />
+            </Pressable>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
+
+const SCREEN_W = Dimensions.get("window").width;
+const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
 // Per-role accents for chat. Members get no badge and the default bubble so
 // the feed stays clean; owner/admin/coach are highlighted.
@@ -238,15 +392,19 @@ function MessageBubble({
   isMe,
   role,
   uploading,
-  canDelete,
-  onDelete,
+  myUid,
+  onLongPress,
+  onToggleReaction,
+  onPressImage,
 }: {
   message: ClubMessage;
   isMe: boolean;
   role?: MemberRole;
   uploading: boolean;
-  canDelete: boolean;
-  onDelete: () => void;
+  myUid?: string;
+  onLongPress: () => void;
+  onToggleReaction: (emoji: string) => void;
+  onPressImage: (urls: string[], index: number) => void;
 }) {
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "numeric",
@@ -259,9 +417,21 @@ function MessageBubble({
   const linkedImages = extractImageUrls(message.content);
   const imageOnly = linkedImages.length === 1 && message.content.trim() === linkedImages[0];
 
+  // Uploaded photos: multi-image grid (mediaUrls) or the single legacy mediaUrl.
+  const photoUrls =
+    message.mediaUrls && message.mediaUrls.length > 0
+      ? message.mediaUrls
+      : message.mediaType === "photo" && message.mediaUrl
+        ? [message.mediaUrl]
+        : [];
+
+  const reactionEntries = Object.entries(message.reactions ?? {}).filter(
+    ([, uids]) => uids.length > 0,
+  );
+
   return (
     <Pressable
-      onLongPress={canDelete ? onDelete : undefined}
+      onLongPress={onLongPress}
       delayLongPress={300}
       style={[styles.row, isMe ? styles.rowMe : styles.rowThem]}
     >
@@ -289,19 +459,21 @@ function MessageBubble({
           </View>
         )}
 
-        {message.mediaType === "photo" && message.mediaUrl && (
-          <View style={styles.mediaWrap}>
-            <Image
-              source={{ uri: message.mediaUrl }}
-              style={styles.mediaImage}
-              resizeMode="cover"
-            />
-            {uploading && (
-              <View style={styles.uploadingOverlay}>
-                <ActivityIndicator color={colors.white} />
-              </View>
-            )}
+        {message.replyTo && (
+          <View style={styles.replyQuote}>
+            <Text style={styles.replyQuoteName}>{message.replyTo.authorName}</Text>
+            <Text style={styles.replyQuoteText} numberOfLines={2}>
+              {message.replyTo.preview}
+            </Text>
           </View>
+        )}
+
+        {photoUrls.length > 0 && (
+          <MediaGrid
+            urls={photoUrls}
+            uploading={uploading}
+            onPressImage={(i) => onPressImage(photoUrls, i)}
+          />
         )}
 
         {message.mediaType === "video" && message.mediaUrl && (
@@ -309,9 +481,9 @@ function MessageBubble({
         )}
 
         {linkedImages.map((url) => (
-          <View key={url} style={styles.mediaWrap}>
+          <Pressable key={url} style={styles.mediaWrap} onPress={() => onPressImage([url], 0)}>
             <Image source={{ uri: url }} style={styles.mediaImage} resizeMode="cover" />
-          </View>
+          </Pressable>
         ))}
 
         {message.content.length > 0 && !imageOnly && (
@@ -322,9 +494,79 @@ function MessageBubble({
           />
         )}
 
+        {reactionEntries.length > 0 && (
+          <View style={styles.reactionsRow}>
+            {reactionEntries.map(([emoji, uids]) => (
+              <Pressable
+                key={emoji}
+                onPress={() => onToggleReaction(emoji)}
+                style={[
+                  styles.reactionChip,
+                  !!myUid && uids.includes(myUid) && styles.reactionChipMine,
+                ]}
+              >
+                <Text style={styles.reactionChipText}>
+                  {emoji} {uids.length}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
         <Text style={[styles.timestamp, isMe && styles.timestampMe]}>{time}</Text>
       </View>
     </Pressable>
+  );
+}
+
+/**
+ * WhatsApp-style photo layout: one image full width; 2+ in a 2-column grid
+ * capped at 4 tiles with a "+N" overlay on the last. Tap opens the viewer.
+ */
+function MediaGrid({
+  urls,
+  uploading,
+  onPressImage,
+}: {
+  urls: string[];
+  uploading: boolean;
+  onPressImage: (index: number) => void;
+}) {
+  if (urls.length === 1) {
+    return (
+      <Pressable style={styles.mediaWrap} onPress={() => onPressImage(0)}>
+        <Image source={{ uri: urls[0] }} style={styles.mediaImage} resizeMode="cover" />
+        {uploading && (
+          <View style={styles.uploadingOverlay}>
+            <ActivityIndicator color={colors.white} />
+          </View>
+        )}
+      </Pressable>
+    );
+  }
+
+  const shown = urls.slice(0, 4);
+  const extra = urls.length - shown.length;
+  return (
+    <View style={styles.mediaWrap}>
+      <View style={styles.gridWrap}>
+        {shown.map((u, i) => (
+          <Pressable key={`${u}-${i}`} style={styles.gridTile} onPress={() => onPressImage(i)}>
+            <Image source={{ uri: u }} style={styles.gridImage} resizeMode="cover" />
+            {i === shown.length - 1 && extra > 0 && (
+              <View style={styles.gridMore}>
+                <Text style={styles.gridMoreText}>+{extra}</Text>
+              </View>
+            )}
+          </Pressable>
+        ))}
+      </View>
+      {uploading && (
+        <View style={styles.uploadingOverlay}>
+          <ActivityIndicator color={colors.white} />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -395,6 +637,92 @@ const styles = StyleSheet.create({
   timestampMe: { color: "rgba(255,255,255,0.65)" },
   mediaWrap: { position: "relative", marginBottom: spacing.xs },
   mediaImage: { width: 220, height: 160, borderRadius: radii.md },
+  gridWrap: { width: 220, flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  gridTile: {
+    width: 108,
+    height: 108,
+    borderRadius: radii.sm,
+    overflow: "hidden",
+    position: "relative",
+  },
+  gridImage: { width: "100%", height: "100%" },
+  gridMore: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  gridMoreText: { color: colors.white, fontSize: type.size.xl, fontWeight: type.weight.heavy },
+  reactionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: spacing.xs },
+  reactionChip: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0,0,0,0.06)",
+    borderRadius: radii.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  reactionChipMine: { borderColor: colors.ocean, backgroundColor: "rgba(14,95,165,0.12)" },
+  reactionChipText: { fontSize: type.size.sm, color: colors.ink },
+  replyQuote: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.ocean,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  replyQuoteName: { fontSize: type.size.xs, fontWeight: type.weight.bold, color: colors.ocean },
+  replyQuoteText: { fontSize: type.size.xs, color: colors.muted, marginTop: 1 },
+  replyBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    backgroundColor: colors.bgSoft,
+  },
+  replyBarName: { fontSize: type.size.xs, fontWeight: type.weight.bold, color: colors.ocean },
+  replyBarSnippet: { fontSize: type.size.xs, color: colors.muted, marginTop: 1 },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+    padding: spacing.lg,
+  },
+  sheetCard: {
+    backgroundColor: colors.white,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    gap: spacing.xs,
+    marginBottom: spacing.xl,
+    ...shadow.sm,
+  },
+  emojiRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  emojiBtn: { padding: spacing.xs },
+  emojiTxt: { fontSize: 26 },
+  sheetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+  },
+  sheetRowText: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ink },
+  viewerBg: { flex: 1, backgroundColor: "#000" },
+  viewerPage: { width: SCREEN_W, height: "100%", justifyContent: "center" },
+  viewerImage: { width: "100%", height: "100%" },
+  viewerClose: { position: "absolute", top: 56, right: 20 },
   uploadingOverlay: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.4)",

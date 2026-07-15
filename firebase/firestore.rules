@@ -156,7 +156,10 @@ service cloud.firestore {
           allow delete: if isChannelMember()
             && (resource.data.authorId == request.auth.uid
                 || hasClubRole(clubId, ["owner", "admin"]));
-          allow update: if false;
+          // Members may toggle emoji reactions — and touch NOTHING else on the
+          // message (same affectedKeys pattern as poll votes on posts).
+          allow update: if isChannelMember()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"]);
         }
       }
 
