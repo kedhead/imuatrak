@@ -14,7 +14,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { appleSignInAvailable, setGuestMode, signInWithApple, signInWithGoogleAccessToken } from "@/services/auth";
+import { appleSignInAvailable, setGuestMode, signInWithApple, signInWithGoogleTokens } from "@/services/auth";
 import { Button } from "@/ui/Button";
 import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
@@ -24,7 +24,11 @@ import { colors, spacing, type } from "@/ui/theme";
 // Evaluated at build time; undefined when not configured.
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
-// Only mount the Google auth component when at least one ID is available.
+// The project's Web (type 3) OAuth client. Firebase requires the returned ID
+// token's audience to be this client, so it must be passed as webClientId even
+// on native — otherwise Firebase rejects the credential.
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+// Only mount the Google auth component when a native client ID is available.
 // This prevents expo-auth-session from crashing when IDs are missing.
 const GOOGLE_CONFIGURED = !!(GOOGLE_IOS_CLIENT_ID || GOOGLE_ANDROID_CLIENT_ID);
 
@@ -123,14 +127,16 @@ function GoogleSignInButton() {
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    webClientId: GOOGLE_WEB_CLIENT_ID,
   });
 
   useEffect(() => {
     if (response?.type !== "success") return;
-    const accessToken = response.authentication?.accessToken;
-    if (!accessToken) { Alert.alert("Sign-in failed", "No access token returned by Google."); return; }
+    const idToken = response.authentication?.idToken ?? null;
+    const accessToken = response.authentication?.accessToken ?? null;
+    if (!idToken && !accessToken) { Alert.alert("Sign-in failed", "No token returned by Google."); return; }
     setSigningIn(true);
-    signInWithGoogleAccessToken(accessToken)
+    signInWithGoogleTokens(idToken, accessToken)
       .then((user) => {
         void setGuestMode(false);
         router.replace(user.displayName?.trim() ? "/(tabs)" : "/complete-profile");

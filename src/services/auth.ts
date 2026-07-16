@@ -112,12 +112,19 @@ export async function signInWithApple(): Promise<AuthUser> {
 }
 
 /**
- * Sign in with a Google access token obtained from expo-auth-session.
+ * Sign in with Google tokens obtained from expo-auth-session.
  * The caller (onboarding screen) handles the OAuth prompt; this function
- * exchanges the token for a Firebase credential.
+ * exchanges the tokens for a Firebase credential.
+ *
+ * Firebase prefers the ID token (its audience must be the project's Web
+ * client ID — set via webClientId in the auth request). The access token is
+ * passed too as a fallback so older flows keep working.
  */
-export async function signInWithGoogleAccessToken(accessToken: string): Promise<AuthUser> {
-  const credential = GoogleAuthProvider.credential(null, accessToken);
+export async function signInWithGoogleTokens(
+  idToken: string | null,
+  accessToken: string | null,
+): Promise<AuthUser> {
+  const credential = GoogleAuthProvider.credential(idToken, accessToken);
   const { user } = await signInWithCredential(auth, credential);
   return user;
 }
