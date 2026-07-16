@@ -1,5 +1,3 @@
-import { Platform } from "react-native";
-
 export interface PaddlingWorkout {
   startedAt: Date;
   endedAt: Date;
@@ -20,44 +18,22 @@ export interface PaddlingWorkout {
  * integration and never links any Apple HealthKit components.
  */
 
+// Health Connect export is DISABLED. Calling requestPermission() kills the
+// whole app process: react-native-health-connect requires
+// HealthConnectPermissionDelegate.setPermissionDelegate(activity) to run in
+// MainActivity.onCreate, and its Expo config plugin does not install that
+// hook — so the native side throws UninitializedPropertyAccessException on a
+// background coroutine, which no JS try/catch can contain. Re-enabling needs:
+//   1. a config plugin that patches MainActivity with the delegate call,
+//   2. android.permission.health.WRITE_* entries in the manifest,
+//   3. the Health Connect data-types declaration in Play Console.
+// Until all three are done, these are no-ops so recording can never be taken
+// down by an optional export feature.
+
 export async function requestAuthorization(): Promise<void> {
-  if (Platform.OS === "android") {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mod = require("react-native-health-connect") as {
-        initialize: () => Promise<boolean>;
-        requestPermission: (req: { accessType: string; recordType: string }[]) => Promise<unknown>;
-      };
-      await mod.initialize();
-      await mod.requestPermission([
-        { accessType: "write", recordType: "ExerciseSession" },
-        { accessType: "write", recordType: "Distance" },
-        { accessType: "write", recordType: "TotalCaloriesBurned" },
-      ]);
-    } catch {
-      // Native module not linked — skip
-    }
-  }
+  // Intentionally a no-op — see note above.
 }
 
-export async function writePaddlingWorkout(w: PaddlingWorkout): Promise<void> {
-  if (Platform.OS === "android") {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mod = require("react-native-health-connect") as {
-        insertRecords: (records: unknown[]) => Promise<unknown>;
-      };
-      await mod.insertRecords([
-        {
-          recordType: "ExerciseSession",
-          exerciseType: 60, // PADDLING
-          startTime: w.startedAt.toISOString(),
-          endTime: w.endedAt.toISOString(),
-          title: "ImuaTrak session",
-        },
-      ]);
-    } catch {
-      // Native module not linked — skip
-    }
-  }
+export async function writePaddlingWorkout(_w: PaddlingWorkout): Promise<void> {
+  // Intentionally a no-op — see note above.
 }
