@@ -1,7 +1,8 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -19,12 +20,19 @@ import { ScreenBackground } from "@/ui/ScreenBackground";
 import { formatDuration, formatDistance, formatPaceStr } from "@/ui/format";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
+// Google Play requires a prominent disclosure shown BEFORE the location
+// permission prompt, naming the background-location feature and requiring an
+// affirmative tap. Shown once before the first recording; the flag records
+// that the user has seen and accepted it.
+const LOCATION_DISCLOSURE_KEY = "imuatrak.locationDisclosureAccepted";
+
 export default function Record() {
   const recorder = useRecorder();
   const units = useSettings((s) => s.units);
   const [busy, setBusy] = useState(false);
+  const [showDisclosure, setShowDisclosure] = useState(false);
 
-  const onStart = async () => {
+  const beginRecording = async () => {
     try {
       await recorder.start();
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -32,6 +40,23 @@ export default function Record() {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert("Couldn't start", msg);
     }
+  };
+
+  const onStart = async () => {
+    // Prominent disclosure gate: on the first ever start, show the disclosure
+    // and hold the OS permission request until the user taps Continue.
+    const accepted = await AsyncStorage.getItem(LOCATION_DISCLOSURE_KEY);
+    if (accepted !== "1") {
+      setShowDisclosure(true);
+      return;
+    }
+    await beginRecording();
+  };
+
+  const onAcceptDisclosure = async () => {
+    await AsyncStorage.setItem(LOCATION_DISCLOSURE_KEY, "1");
+    setShowDisclosure(false);
+    await beginRecording();
   };
 
   const onStop = async () => {
@@ -121,6 +146,33 @@ export default function Record() {
               : "Once you start, GPS keeps recording your route even with the screen locked or the app in the background."}
           </Text>
         </ScrollView>
+
+        <Modal
+          visible={showDisclosure}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDisclosure(false)}
+        >
+          <View style={styles.disclosureBackdrop}>
+            <View style={styles.disclosureCard}>
+              <Text style={styles.disclosureTitle}>Location & your route</Text>
+              <Text style={styles.disclosureBody}>
+                ImuaTrak collects location data to record your route, distance, and pace during a
+                paddling session — <Text style={styles.disclosureEmphasis}>even when the app is in
+                the background and the screen is off</Text>. Paddlers keep their phone stowed while
+                on the water, so recording must keep running until you end the session.
+              </Text>
+              <Text style={styles.disclosureBody}>
+                Location is collected only while a session you start is running, and it stops the
+                moment you tap Stop. It is never used for advertising or shared with third parties.
+              </Text>
+              <Button title="Continue" gradient="aqua" onPress={onAcceptDisclosure} style={{ marginTop: spacing.md }} />
+              <Pressable onPress={() => setShowDisclosure(false)} style={styles.disclosureCancel} hitSlop={8}>
+                <Text style={styles.disclosureCancelText}>Not now</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
 
         <View style={styles.actions}>
           {recorder.isRecording ? (
@@ -249,4 +301,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   actions: { flexDirection: "row", gap: spacing.sm, padding: spacing.lg, paddingBottom: spacing.xxl },
+  disclosureBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  disclosureCard: {
+    backgroundColor: colors.bg,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  disclosureTitle: {
+    color: colors.ink,
+    fontSize: type.size.lg,
+    fontWeight: type.weight.heavy,
+    marginBottom: spacing.xs,
+  },
+  disclosureBody: { color: colors.ink, fontSize: type.size.sm, lineHeight: 20 },
+  disclosureEmphasis: { fontWeight: type.weight.heavy },
+  disclosureCancel: { alignItems: "center", paddingVertical: spacing.sm, marginTop: spacing.xs },
+  disclosureCancelText: { color: colors.muted, fontSize: type.size.sm, fontWeight: type.weight.bold },
 });
