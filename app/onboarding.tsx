@@ -1,5 +1,5 @@
+import { GoogleSignin, isSuccessResponse } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
-import * as Google from "expo-auth-session/providers/google";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Platform, StyleSheet, Text, View } from "react-native";
@@ -20,17 +20,13 @@ import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, spacing, type } from "@/ui/theme";
 
-// Google OAuth client IDs — set in EAS secrets or local .env.
-// Evaluated at build time; undefined when not configured.
-const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
-// The project's Web (type 3) OAuth client. Firebase requires the returned ID
-// token's audience to be this client, so it must be passed as webClientId even
-// on native — otherwise Firebase rejects the credential.
+// The project's Web (type 3) OAuth client ID — set in EAS env as
+// EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID. @react-native-google-signin uses it as the
+// server client ID so the Google ID token's audience is the Web client, which
+// is what Firebase requires. The Android OAuth client (matched by package +
+// SHA-1) is resolved automatically by Google Play Services — no need to pass it.
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-// Only mount the Google auth component when a native client ID is available.
-// This prevents expo-auth-session from crashing when IDs are missing.
-const GOOGLE_CONFIGURED = !!(GOOGLE_IOS_CLIENT_ID || GOOGLE_ANDROID_CLIENT_ID);
+const GOOGLE_CONFIGURED = !!GOOGLE_WEB_CLIENT_ID;
 
 export default function Onboarding() {
   const [appleAvailable, setAppleAvailable] = useState(false);
@@ -64,8 +60,10 @@ export default function Onboarding() {
     router.replace("/(tabs)");
   };
 
-  // Show Google on Android always; on iOS only when Apple Sign-In isn't available
-  const showGoogle = Platform.OS === "android" || !appleAvailable;
+  // Native Google Sign-In is wired up for Android only (iOS uses Apple, and no
+  // iOS Google OAuth client / URL scheme is configured). On iOS, Apple + guest
+  // cover sign-in.
+  const showGoogle = Platform.OS === "android";
 
   return (
     <ScreenBackground gradient="night">
@@ -100,7 +98,7 @@ export default function Onboarding() {
               title="Continue with Google"
               variant="outline"
               disabled
-              onPress={() => Alert.alert("Not configured", "Google Sign-In requires EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID / EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID to be set.")}
+              onPress={() => Alert.alert("Not configured", "Google Sign-In requires EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to be set.")}
               style={styles.googleBtn}
             />
           )}
@@ -117,40 +115,45 @@ export default function Onboarding() {
 }
 
 /**
- * Isolated component so that Google.useAuthRequest (which validates client IDs
- * eagerly and can throw) is only mounted when GOOGLE_CONFIGURED is true.
- * Hooks must be called unconditionally within a component, but a component
- * itself can be conditionally rendered.
+ * Native Google Sign-In (@react-native-google-signin). Uses Android's account
+ * picker via Google Play Services — no browser redirect, so it avoids the
+ * OAuth "invalid_request" errors of the web-based flow. Returns an ID token
+ * whose audience is the Web client, which Firebase accepts.
  */
 function GoogleSignInButton() {
   const [signingIn, setSigningIn] = useState(false);
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: GOOGLE_IOS_CLIENT_ID,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-  });
 
   useEffect(() => {
-    if (response?.type !== "success") return;
-    const idToken = response.authentication?.idToken ?? null;
-    const accessToken = response.authentication?.accessToken ?? null;
-    if (!idToken && !accessToken) { Alert.alert("Sign-in failed", "No token returned by Google."); return; }
+    GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
+  }, []);
+
+  const onPress = async () => {
     setSigningIn(true);
-    signInWithGoogleTokens(idToken, accessToken)
-      .then((user) => {
-        void setGuestMode(false);
-        router.replace(user.displayName?.trim() ? "/(tabs)" : "/complete-profile");
-      })
-      .catch((e) => Alert.alert("Sign-in failed", e instanceof Error ? e.message : String(e)))
-      .finally(() => setSigningIn(false));
-  }, [response]);
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const res = await GoogleSignin.signIn();
+      if (!isSuccessResponse(res)) return; // user cancelled the picker
+      const idToken = res.data.idToken;
+      if (!idToken) {
+        Alert.alert("Sign-in failed", "No ID token returned by Google.");
+        return;
+      }
+      const user = await signInWithGoogleTokens(idToken, null);
+      void setGuestMode(false);
+      router.replace(user.displayName?.trim() ? "/(tabs)" : "/complete-profile");
+    } catch (e) {
+      Alert.alert("Sign-in failed", e instanceof Error ? e.message : String(e));
+    } finally {
+      setSigningIn(false);
+    }
+  };
 
   return (
     <Button
       title={signingIn ? "Signing in…" : "Continue with Google"}
       variant="outline"
-      onPress={() => { if (request) promptAsync(); }}
-      disabled={signingIn || !request}
+      onPress={() => void onPress()}
+      disabled={signingIn}
       style={styles.googleBtn}
     />
   );
