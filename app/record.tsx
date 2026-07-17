@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -43,6 +43,13 @@ export default function Record() {
   };
 
   const onStart = async () => {
+    // The prominent disclosure is a Google Play requirement. iOS keeps its
+    // original flow untouched (the App Store relies on the Info.plist location
+    // usage strings), so the disclosure gate is Android-only.
+    if (Platform.OS !== "android") {
+      await beginRecording();
+      return;
+    }
     // Prominent disclosure gate: on the first ever start, show the disclosure
     // and hold the OS permission request until the user taps Continue.
     const accepted = await AsyncStorage.getItem(LOCATION_DISCLOSURE_KEY);

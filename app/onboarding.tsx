@@ -142,7 +142,18 @@ function GoogleSignInButton() {
       void setGuestMode(false);
       router.replace(user.displayName?.trim() ? "/(tabs)" : "/complete-profile");
     } catch (e) {
-      Alert.alert("Sign-in failed", e instanceof Error ? e.message : String(e));
+      // Surface the Firebase error code so failures are diagnosable, and give a
+      // friendlier message for the common "can't reach Google's servers" case
+      // (slow/flaky network — which is what a near-timeout usually is).
+      const code = (e as { code?: string })?.code;
+      const raw = e instanceof Error ? e.message : String(e);
+      const friendly =
+        code === "auth/network-request-failed"
+          ? "Couldn't reach the sign-in server. Check your internet connection and try again."
+          : code
+            ? `${raw} (${code})`
+            : raw;
+      Alert.alert("Sign-in failed", friendly);
     } finally {
       setSigningIn(false);
     }
