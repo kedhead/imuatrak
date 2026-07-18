@@ -2,7 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import * as Sharing from "expo-sharing";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, Platform, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import MapView, { Marker, Polyline, type LatLng } from "react-native-maps";
 import { AnimatedNumber } from "@/ui/AnimatedNumber";
@@ -20,6 +20,15 @@ import { deleteSession, setSessionPublic } from "@/services/sync";
 import { emptyTotals, emptyHr } from "@/models";
 
 const PUBLIC_BASE_URL = "https://imuatrak.app";
+
+// Android's Google Maps SDK kills the whole process from a native thread
+// (androidmapsapi-ula) when the manifest has no API key — unreachable by any
+// JS try/catch. The key is injected at build time from
+// EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY (app.config.js), so mirror that check
+// here and show a placeholder instead of mounting MapView when the build has
+// no key. iOS uses Apple Maps and needs no key, so it is always available.
+const MAPS_AVAILABLE =
+  Platform.OS !== "android" || !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY;
 
 export default function SessionDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -172,7 +181,7 @@ export default function SessionDetail() {
 
         {/* Map */}
         <Animated.View entering={FadeInDown.delay(80).duration(450)} style={styles.mapBox}>
-          {coords.length >= 2 ? (
+          {coords.length >= 2 && MAPS_AVAILABLE ? (
             <MapView
               ref={mapRef}
               style={styles.map}
@@ -189,7 +198,9 @@ export default function SessionDetail() {
             </MapView>
           ) : (
             <View style={[styles.map, styles.mapPlaceholder]}>
-              <Text style={{ color: colors.muted }}>No GPS data captured</Text>
+              <Text style={{ color: colors.muted }}>
+                {coords.length >= 2 ? "Map unavailable in this build" : "No GPS data captured"}
+              </Text>
             </View>
           )}
         </Animated.View>
