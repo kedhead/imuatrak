@@ -1,11 +1,19 @@
 import { Platform } from "react-native";
-import Purchases, { type PurchasesPackage } from "react-native-purchases";
+import Purchases, { type CustomerInfo, type PurchasesPackage } from "react-native-purchases";
 import { create } from "zustand";
 
 const IOS_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? "";
 const ANDROID_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY ?? "";
 const API_KEY = Platform.OS === "ios" ? IOS_KEY : ANDROID_KEY;
-const ENTITLEMENT = "ad_free";
+// Entitlement identifiers that grant ad-free. The RevenueCat dashboard's
+// live entitlement is "app.imuatrak.plus.monthly" (attached to the App Store
+// product); "ad_free" is kept for compatibility in case it exists or is
+// adopted later. Matching ANY of them counts.
+const ENTITLEMENTS = ["ad_free", "app.imuatrak.plus.monthly"];
+
+function hasAdFree(info: CustomerInfo): boolean {
+  return ENTITLEMENTS.some((e) => e in info.entitlements.active);
+}
 
 /**
  * Drives the paywall UI so it never shows a silently-disabled button:
@@ -57,7 +65,7 @@ export const useSubscription = create<SubscriptionState>((set, get) => ({
     try {
       await Purchases.logIn(userId);
       const info = await Purchases.getCustomerInfo();
-      set({ isAdFree: ENTITLEMENT in info.entitlements.active });
+      set({ isAdFree: hasAdFree(info) });
     } catch {
       // Customer-info fetch can fail offline — let offerings drive the UI.
     }
@@ -97,7 +105,7 @@ export const useSubscription = create<SubscriptionState>((set, get) => ({
     set({ isLoading: true });
     try {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
-      const isAdFree = ENTITLEMENT in customerInfo.entitlements.active;
+      const isAdFree = hasAdFree(customerInfo);
       set({ isAdFree, isLoading: false });
     } catch {
       set({ isLoading: false });
@@ -109,7 +117,7 @@ export const useSubscription = create<SubscriptionState>((set, get) => ({
     set({ isLoading: true });
     try {
       const info = await Purchases.restorePurchases();
-      const isAdFree = ENTITLEMENT in info.entitlements.active;
+      const isAdFree = hasAdFree(info);
       set({ isAdFree, isLoading: false });
     } catch {
       set({ isLoading: false });
@@ -118,6 +126,6 @@ export const useSubscription = create<SubscriptionState>((set, get) => ({
 
   async refreshStatus() {
     const info = await Purchases.getCustomerInfo();
-    set({ isAdFree: ENTITLEMENT in info.entitlements.active });
+    set({ isAdFree: hasAdFree(info) });
   },
 }));
