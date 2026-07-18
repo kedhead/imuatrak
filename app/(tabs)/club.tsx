@@ -44,6 +44,8 @@ const EVENT_COLORS: Record<string, string> = {
 export default function ClubTab() {
   const club = useClub((s) => s.club);
   const loaded = useClub((s) => s.loaded);
+  const loadError = useClub((s) => s.loadError);
+  const load = useClub((s) => s.load);
   const user = currentUser();
 
   // Guest mode: the club store never loads without a user, so short-circuit
@@ -55,6 +57,25 @@ export default function ClubTab() {
       <ScreenBackground>
         <View style={styles.center}>
           <ActivityIndicator color={colors.ocean} />
+        </View>
+      </ScreenBackground>
+    );
+  }
+
+  // A failed load must offer Retry — falling through to "Find your crew" on a
+  // network error would wrongly tell existing members they have no club.
+  if (loadError) {
+    return (
+      <ScreenBackground gradient="ocean">
+        <View style={styles.center}>
+          <View style={styles.emptyLogo}>
+            <Logo size={96} />
+          </View>
+          <Text style={styles.emptyTitle}>Couldn&apos;t load your club</Text>
+          <Text style={styles.emptySubtitle}>{loadError}</Text>
+          <View style={styles.emptyActions}>
+            <Button title="Retry" gradient="sunrise" glow onPress={() => void load(user.uid)} />
+          </View>
         </View>
       </ScreenBackground>
     );
