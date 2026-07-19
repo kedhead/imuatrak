@@ -9,7 +9,7 @@ export default function Terms() {
   return (
     <main style={{ maxWidth: 760, margin: "0 auto", padding: "48px 24px", lineHeight: 1.7, color: "var(--ink, #1a1a1a)" }}>
       <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>Terms of Use</h1>
-      <p style={{ color: "#666", marginBottom: 40 }}>Last updated: July 10, 2026</p>
+      <p style={{ color: "var(--muted)", marginBottom: 40 }}>Last updated: July 10, 2026</p>
 
       <h2>The app</h2>
       <p>

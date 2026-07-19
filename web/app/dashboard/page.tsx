@@ -257,7 +257,7 @@ function SessionRow({
               borderRadius: 8,
               border: "1px solid var(--line)",
               background: "transparent",
-              color: copied ? "#22c55e" : "var(--muted)",
+              color: copied ? "var(--success)" : "var(--muted)",
               cursor: "pointer",
               fontWeight: 600,
               whiteSpace: "nowrap",

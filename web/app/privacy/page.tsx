@@ -9,7 +9,7 @@ export default function PrivacyPolicy() {
   return (
     <main style={{ maxWidth: 760, margin: "0 auto", padding: "48px 24px", lineHeight: 1.7, color: "var(--ink, #1a1a1a)" }}>
       <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>Privacy Policy</h1>
-      <p style={{ color: "#666", marginBottom: 40 }}>Last updated: June 8, 2026</p>
+      <p style={{ color: "var(--muted)", marginBottom: 40 }}>Last updated: June 8, 2026</p>
 
       <h2>Overview</h2>
       <p>
@@ -56,7 +56,7 @@ export default function PrivacyPolicy() {
       <h2>How We Use Your Data</h2>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 24 }}>
         <thead>
-          <tr style={{ borderBottom: "2px solid #eee" }}>
+          <tr style={{ borderBottom: "2px solid var(--line)" }}>
             <th style={{ textAlign: "left", padding: "8px 12px" }}>Data</th>
             <th style={{ textAlign: "left", padding: "8px 12px" }}>Purpose</th>
           </tr>
@@ -69,7 +69,7 @@ export default function PrivacyPolicy() {
             ["Push tokens", "Delivering club chat notifications"],
             ["Ad data", "Showing relevant ads to free tier users"],
           ].map(([data, purpose]) => (
-            <tr key={data} style={{ borderBottom: "1px solid #eee" }}>
+            <tr key={data} style={{ borderBottom: "1px solid var(--line)" }}>
               <td style={{ padding: "8px 12px" }}>{data}</td>
               <td style={{ padding: "8px 12px" }}>{purpose}</td>
             </tr>

@@ -112,7 +112,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <p style={{ color: "#f87171", fontSize: 13, marginTop: 16 }}>{error}</p>
+          <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 16 }}>{error}</p>
         )}
       </div>
     </main>
