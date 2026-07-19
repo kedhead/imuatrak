@@ -1,3 +1,6 @@
+/* Dark is the default theme; a boot script in the root layout stamps
+   data-theme="light"|"dark" on <html> before first paint (saved choice,
+   falling back to the system preference). */
 :root {
   --bg: #0b0d10;
   --card: #14181d;
@@ -6,6 +9,26 @@
   --blue: #3b82f6;
   --blue-bright: #60a5fa;
   --line: #1f242b;
+  --panel: #0e1520;
+  --map-bg: #0a1622;
+  --danger: #f87171;
+  --success: #22c55e;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --ink: #16191d;
+  --muted: #5c6672;
+  --blue: #2563eb;
+  --blue-bright: #1d4ed8;
+  --line: #e4e8ed;
+  --panel: #eef1f5;
+  --map-bg: #dde7f0;
+  --danger: #dc2626;
+  --success: #15803d;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -140,5 +163,5 @@ a { color: inherit; }
 .leaflet-container {
   width: 100%;
   height: 100%;
-  background: #0a1622;
+  background: var(--map-bg);
 }
