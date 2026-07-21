@@ -174,7 +174,9 @@ const config = {
       "expo-build-properties",
       {
         ios: { deploymentTarget: "16.4" },
-        android: { compileSdkVersion: 36, targetSdkVersion: 35, minSdkVersion: 26 },
+        // targetSdkVersion 36 (Android 16): Google Play requires targets within
+        // one year of the latest Android release from Aug 30, 2026.
+        android: { compileSdkVersion: 36, targetSdkVersion: 36, minSdkVersion: 26 },
       },
     ],
   ],
