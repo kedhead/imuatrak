@@ -18,7 +18,9 @@
     "deploy:rules": "firebase deploy --only firestore:rules",
     "deploy:functions": "firebase deploy --only functions",
     "build:ios": "eas build --profile production --platform ios",
-    "submit:ios": "eas submit -p ios --latest --profile production"
+    "submit:ios": "eas submit -p ios --latest --profile production",
+    "build:android": "eas build --profile production --platform android",
+    "submit:android": "eas submit -p android --latest --profile production"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
