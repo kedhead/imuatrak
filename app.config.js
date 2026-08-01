@@ -30,7 +30,11 @@ const config = {
   // were already published against 0.1.0. Moving to 1.0.1 gives the next
   // native build its own runtime, which correctly isolates native-only
   // additions (e.g. the GPX document picker) from older binaries.
-  version: "1.0.1",
+  //
+  // 1.0.2: isolates the Google Sign-In iOS URL scheme (a native Info.plist
+  // addition) from shipped 1.0.1 binaries — OTA JS that shows the iOS Google
+  // button must never reach a binary without the scheme.
+  version: "1.0.2",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "automatic",
