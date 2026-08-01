@@ -194,7 +194,16 @@ const config = {
     [
       "expo-build-properties",
       {
-        ios: { deploymentTarget: "16.4" },
+        ios: {
+          deploymentTarget: "16.4",
+          // GoogleSignIn's AppCheckCore pod is Swift and imports these two
+          // Objective-C pods, which don't define module maps — pod install
+          // fails as static libraries unless they generate modular headers.
+          extraPods: [
+            { name: "GoogleUtilities", modular_headers: true },
+            { name: "RecaptchaInterop", modular_headers: true },
+          ],
+        },
         // targetSdkVersion 36 (Android 16): Google Play requires targets within
         // one year of the latest Android release from Aug 30, 2026.
         android: { compileSdkVersion: 36, targetSdkVersion: 36, minSdkVersion: 26 },
