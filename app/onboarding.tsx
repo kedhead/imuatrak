@@ -14,7 +14,13 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { appleSignInAvailable, setGuestMode, signInWithApple, signInWithGoogleTokens } from "@/services/auth";
+import {
+  appleSignInAvailable,
+  friendlyAuthError,
+  setGuestMode,
+  signInWithApple,
+  signInWithGoogleTokens,
+} from "@/services/auth";
 import { Button } from "@/ui/Button";
 import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
@@ -26,7 +32,12 @@ import { colors, spacing, type } from "@/ui/theme";
 // is what Firebase requires. The Android OAuth client (matched by package +
 // SHA-1) is resolved automatically by Google Play Services — no need to pass it.
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-const GOOGLE_CONFIGURED = !!GOOGLE_WEB_CLIENT_ID;
+// iOS additionally needs its own iOS OAuth client (matched by bundle ID) —
+// the same env var also drives the URL-scheme config plugin in app.config.js,
+// so a binary built without it has no scheme and the button must stay hidden.
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+const GOOGLE_CONFIGURED =
+  !!GOOGLE_WEB_CLIENT_ID && (Platform.OS !== "ios" || !!GOOGLE_IOS_CLIENT_ID);
 
 export default function Onboarding() {
   const [appleAvailable, setAppleAvailable] = useState(false);
@@ -60,10 +71,11 @@ export default function Onboarding() {
     router.replace("/(tabs)");
   };
 
-  // Native Google Sign-In is wired up for Android only (iOS uses Apple, and no
-  // iOS Google OAuth client / URL scheme is configured). On iOS, Apple + guest
-  // cover sign-in.
-  const showGoogle = Platform.OS === "android";
+  // Native Google Sign-In on both platforms. Android resolves its OAuth client
+  // via Play Services; iOS needs GOOGLE_IOS_CLIENT_ID (and the matching URL
+  // scheme baked into the binary). Apple's guideline 4.8 is satisfied because
+  // Sign in with Apple is always offered first on iOS.
+  const showGoogle = Platform.OS === "android" || Platform.OS === "ios";
 
   return (
     <ScreenBackground gradient="night">
@@ -93,7 +105,7 @@ export default function Onboarding() {
           {showGoogle && GOOGLE_CONFIGURED && (
             <GoogleSignInButton />
           )}
-          {showGoogle && !GOOGLE_CONFIGURED && (
+          {showGoogle && !GOOGLE_CONFIGURED && Platform.OS === "android" && (
             <Button
               title="Continue with Google"
               variant="outline"
@@ -102,6 +114,12 @@ export default function Onboarding() {
               style={styles.googleBtn}
             />
           )}
+          <Button
+            title="Continue with email"
+            variant="outline"
+            onPress={() => router.push("/email-auth")}
+            style={styles.googleBtn}
+          />
           <Text style={styles.guestLink} onPress={handleGuest}>
             Explore without an account
           </Text>
@@ -115,22 +133,30 @@ export default function Onboarding() {
 }
 
 /**
- * Native Google Sign-In (@react-native-google-signin). Uses Android's account
- * picker via Google Play Services — no browser redirect, so it avoids the
- * OAuth "invalid_request" errors of the web-based flow. Returns an ID token
- * whose audience is the Web client, which Firebase accepts.
+ * Native Google Sign-In (@react-native-google-signin). Uses the platform's
+ * native account picker (Play Services on Android, the Google iOS SDK sheet on
+ * iOS) — no browser redirect, so it avoids the OAuth "invalid_request" errors
+ * of the web-based flow. Returns an ID token whose audience is the Web client,
+ * which Firebase accepts.
  */
 function GoogleSignInButton() {
   const [signingIn, setSigningIn] = useState(false);
 
   useEffect(() => {
-    GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
+    GoogleSignin.configure({
+      webClientId: GOOGLE_WEB_CLIENT_ID,
+      // iOS-only: which OAuth client this app is. Android ignores it (its
+      // client is matched by package name + SHA-1 via Play Services).
+      iosClientId: GOOGLE_IOS_CLIENT_ID,
+    });
   }, []);
 
   const onPress = async () => {
     setSigningIn(true);
     try {
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      if (Platform.OS === "android") {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
       const res = await GoogleSignin.signIn();
       if (!isSuccessResponse(res)) return; // user cancelled the picker
       const idToken = res.data.idToken;
@@ -142,18 +168,7 @@ function GoogleSignInButton() {
       void setGuestMode(false);
       router.replace(user.displayName?.trim() ? "/(tabs)" : "/complete-profile");
     } catch (e) {
-      // Surface the Firebase error code so failures are diagnosable, and give a
-      // friendlier message for the common "can't reach Google's servers" case
-      // (slow/flaky network — which is what a near-timeout usually is).
-      const code = (e as { code?: string })?.code;
-      const raw = e instanceof Error ? e.message : String(e);
-      const friendly =
-        code === "auth/network-request-failed"
-          ? "Couldn't reach the sign-in server. Check your internet connection and try again."
-          : code
-            ? `${raw} (${code})`
-            : raw;
-      Alert.alert("Sign-in failed", friendly);
+      Alert.alert("Sign-in failed", friendlyAuthError(e));
     } finally {
       setSigningIn(false);
     }

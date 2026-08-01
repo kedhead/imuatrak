@@ -1,3 +1,17 @@
+// iOS OAuth client ID (type "iOS", matched by bundle ID) from Google Cloud
+// Console → APIs → Credentials. Google's iOS SDK requires the app to handle a
+// URL scheme that is the client ID reversed:
+//   1234-abc.apps.googleusercontent.com → com.googleusercontent.apps.1234-abc
+// The @react-native-google-signin plugin writes that scheme into Info.plist at
+// prebuild. Set EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID in EAS env (and .env for
+// local prebuilds); when unset the plugin is skipped and the app simply hides
+// the Google button on iOS (Android is unaffected — its client is resolved by
+// Play Services, no scheme needed).
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
+  ? `com.googleusercontent.apps.${GOOGLE_IOS_CLIENT_ID.replace(".apps.googleusercontent.com", "")}`
+  : undefined;
+
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
   name: "ImuaTrak",
@@ -145,6 +159,9 @@ const config = {
       },
     ],
     "expo-apple-authentication",
+    ...(googleIosUrlScheme
+      ? [["@react-native-google-signin/google-signin", { iosUrlScheme: googleIosUrlScheme }]]
+      : []),
     "expo-secure-store",
     [
       "expo-tracking-transparency",

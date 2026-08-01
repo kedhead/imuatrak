@@ -3,8 +3,11 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import {
   GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithCredential,
   signInWithCustomToken,
+  signInWithEmailAndPassword,
   signOut as fbSignOut,
   onAuthStateChanged,
   updateProfile,
@@ -127,6 +130,65 @@ export async function signInWithGoogleTokens(
   const credential = GoogleAuthProvider.credential(idToken, accessToken);
   const { user } = await signInWithCredential(auth, credential);
   return user;
+}
+
+// ── Email / password ──────────────────────────────────────────────────────────
+// Requires the Email/Password provider to be enabled in Firebase Console →
+// Authentication → Sign-in method.
+
+export async function signInWithEmail(email: string, password: string): Promise<AuthUser> {
+  const { user } = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return user;
+}
+
+export async function signUpWithEmail(
+  name: string,
+  email: string,
+  password: string,
+): Promise<AuthUser> {
+  const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const displayName = name.trim();
+  if (displayName) {
+    // Best-effort: the account exists either way, and the /complete-profile
+    // gate catches a missing name on next launch.
+    await updateProfile(user, { displayName }).catch(() => undefined);
+  }
+  return user;
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email.trim());
+}
+
+/**
+ * Turn a Firebase Auth error into a message fit for an alert. Unknown codes
+ * fall through to the raw message (with the code appended) so real failures
+ * stay diagnosable.
+ */
+export function friendlyAuthError(e: unknown): string {
+  const code = (e as { code?: string })?.code;
+  switch (code) {
+    case "auth/invalid-email":
+      return "That email address doesn't look right. Check it and try again.";
+    case "auth/email-already-in-use":
+      return "An account already exists for that email. Try signing in instead.";
+    case "auth/weak-password":
+      return "Please choose a stronger password (at least 6 characters).";
+    // With email-enumeration protection (the Firebase default), any wrong
+    // email/password combination comes back as invalid-credential.
+    case "auth/invalid-credential":
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+      return "Email or password is incorrect. Try again, or use “Forgot password?”.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Wait a few minutes and try again.";
+    case "auth/network-request-failed":
+      return "Couldn't reach the sign-in server. Check your internet connection and try again.";
+    default: {
+      const raw = e instanceof Error ? e.message : String(e);
+      return code ? `${raw} (${code})` : raw;
+    }
+  }
 }
 
 export async function updateDisplayName(name: string): Promise<void> {
