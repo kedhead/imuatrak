@@ -155,6 +155,7 @@ export default function RootLayout() {
         >
           <Stack.Screen name="index" />
           <Stack.Screen name="onboarding" />
+          <Stack.Screen name="email-auth" />
           <Stack.Screen name="complete-profile" options={{ gestureEnabled: false }} />
           <Stack.Screen name="(tabs)" options={{ headerBackTitle: "", headerBackButtonDisplayMode: "minimal" }} />
           <Stack.Screen name="record" options={{ presentation: "modal" }} />
