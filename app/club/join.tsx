@@ -93,7 +93,12 @@ export default function JoinClubScreen() {
         );
         return;
       }
-      await joinClub(club.id, user.uid, user.displayName ?? "Member");
+      // The profile write can still be in flight right after email sign-up —
+      // prefer the email prefix over the literal "Member" if the name hasn't
+      // landed yet. switchClub() below self-heals the doc once it has.
+      const displayName =
+        user.displayName?.trim() || user.email?.split("@")[0] || "Member";
+      await joinClub(club.id, user.uid, displayName);
       await switchClub(club.id, user.uid);
       Alert.alert("Joined!", `Welcome to ${club.name}!`, [
         { text: "Let's go", onPress: () => router.back() },
