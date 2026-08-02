@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { PACKAGE_TYPE, type PurchasesPackage } from "react-native-purchases";
 import { useClub } from "@/services/clubStore";
-import { useSubscription } from "@/services/subscriptionStore";
+import { CLUB_OFFERING_ID, useSubscription } from "@/services/subscriptionStore";
 import { Button } from "@/ui/Button";
 import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
@@ -43,17 +43,33 @@ const FEATURES = [
   { icon: "people-outline" as const, text: "Club feed, polls & announcements" },
 ];
 
+// Packages keep their RevenueCat identifier ("$rc_monthly", …) within each
+// offering, so the personal and club offerings can collide on identifier
+// alone — key and compare on offering + identifier.
+const pkgKey = (pkg: PurchasesPackage) => `${pkg.offeringIdentifier}:${pkg.identifier}`;
+const isClubPkg = (pkg: PurchasesPackage) => pkg.offeringIdentifier === CLUB_OFFERING_ID;
+
 export default function Paywall() {
   const isAdFree = useSubscription((s) => s.isAdFree);
   const isLoading = useSubscription((s) => s.isLoading);
   const packages = useSubscription((s) => s.packages);
+  const clubPackages = useSubscription((s) => s.clubPackages);
   const offeringsStatus = useSubscription((s) => s.offeringsStatus);
   const offeringsDiag = useSubscription((s) => s.offeringsDiag);
   const loadOfferings = useSubscription((s) => s.loadOfferings);
   const purchase = useSubscription((s) => s.purchase);
   const restore = useSubscription((s) => s.restore);
-  const clubStatus = useClub((s) => s.club?.subscriptionStatus);
+  const club = useClub((s) => s.club);
+  const role = useClub((s) => s.role);
+  const clubStatus = club?.subscriptionStatus;
   const clubAdFree = clubStatus === "active" || clubStatus === "trial";
+
+  // The club plan is offered to owners/admins whose club isn't already on a
+  // paid plan — including during the free trial, so a club can be locked in
+  // before the trial lapses.
+  const canBuyClub =
+    (role === "owner" || role === "admin") && !!club && clubStatus !== "active" && clubPackages.length > 0;
+  const canBuyPersonal = !isAdFree && !clubAdFree;
 
   const [selectedPkg, setSelectedPkg] = useState<PurchasesPackage | null>(null);
 
@@ -64,19 +80,29 @@ export default function Paywall() {
   }, [loadOfferings]);
 
   useEffect(() => {
-    if (packages.length > 0 && !selectedPkg) {
-      // Default to the first available package (usually monthly)
-      setSelectedPkg(packages[0] ?? null);
-    }
-  }, [packages, selectedPkg]);
+    if (selectedPkg) return;
+    // Default to the first buyable package: personal (usually monthly) when
+    // personal plans are on the table, else the club plan.
+    if (canBuyPersonal && packages.length > 0) setSelectedPkg(packages[0] ?? null);
+    else if (canBuyClub) setSelectedPkg(clubPackages[0] ?? null);
+  }, [packages, clubPackages, canBuyPersonal, canBuyClub, selectedPkg]);
 
   const onSubscribe = async () => {
     if (!selectedPkg) return;
+    const clubPurchase = isClubPkg(selectedPkg);
     try {
       await purchase(selectedPkg);
-      Alert.alert("Welcome to ImuaTrak+", "Ads removed. Thank you for your support!", [
-        { text: "Great!", onPress: () => router.back() },
-      ]);
+      if (clubPurchase) {
+        Alert.alert(
+          "Club plan active",
+          `Mahalo! ${club?.name ?? "Your club"} is now ad-free for every member, with unlimited channels.`,
+          [{ text: "Great!", onPress: () => router.back() }],
+        );
+      } else {
+        Alert.alert("Welcome to ImuaTrak+", "Ads removed. Thank you for your support!", [
+          { text: "Great!", onPress: () => router.back() },
+        ]);
+      }
     } catch {
       Alert.alert("Purchase failed", "Please try again or restore a previous purchase.");
     }
@@ -135,33 +161,39 @@ export default function Paywall() {
 
         {packages.length > 0 && (
           <View style={styles.packages}>
-            {packages.map((pkg) => {
-              const selected = selectedPkg?.identifier === pkg.identifier;
-              return (
-                <Pressable
-                  key={pkg.identifier}
-                  onPress={() => setSelectedPkg(pkg)}
-                  style={[styles.pkgCard, selected && styles.pkgCardSelected]}
-                >
-                  <Text style={[styles.pkgTitle, selected && styles.pkgTitleSelected]}>
-                    {pkg.product.title || pkg.packageType}
-                  </Text>
-                  <Text style={[styles.pkgPrice, selected && styles.pkgPriceSelected]}>
-                    {pkg.product.priceString}
-                  </Text>
-                  {periodLabel(pkg) ? (
-                    <Text style={[styles.pkgPeriod, selected && styles.pkgPeriodSelected]}>
-                      {periodLabel(pkg)}
-                    </Text>
-                  ) : null}
-                </Pressable>
-              );
-            })}
+            {packages.map((pkg) => (
+              <PackageCard
+                key={pkgKey(pkg)}
+                pkg={pkg}
+                selected={selectedPkg ? pkgKey(selectedPkg) === pkgKey(pkg) : false}
+                onSelect={setSelectedPkg}
+              />
+            ))}
           </View>
         )}
 
-        {!isAdFree && !clubAdFree && (
-          packages.length > 0 ? (
+        {canBuyClub && (
+          <View>
+            <Text style={styles.featuresHeading}>Club plan — {club?.name}</Text>
+            <View style={styles.packages}>
+              {clubPackages.map((pkg) => (
+                <PackageCard
+                  key={pkgKey(pkg)}
+                  pkg={pkg}
+                  selected={selectedPkg ? pkgKey(selectedPkg) === pkgKey(pkg) : false}
+                  onSelect={setSelectedPkg}
+                />
+              ))}
+            </View>
+            <Text style={styles.clubPlanNote}>
+              One subscription for the whole club: removes ads for every member and unlocks
+              unlimited channels while active.
+            </Text>
+          </View>
+        )}
+
+        {(canBuyPersonal || canBuyClub) && (
+          packages.length > 0 || clubPackages.length > 0 ? (
             // Offerings loaded — show an enabled Subscribe button.
             <Button
               title={isLoading ? "Processing…" : "Subscribe"}
@@ -217,6 +249,35 @@ export default function Paywall() {
   );
 }
 
+function PackageCard({
+  pkg,
+  selected,
+  onSelect,
+}: {
+  pkg: PurchasesPackage;
+  selected: boolean;
+  onSelect: (pkg: PurchasesPackage) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => onSelect(pkg)}
+      style={[styles.pkgCard, selected && styles.pkgCardSelected]}
+    >
+      <Text style={[styles.pkgTitle, selected && styles.pkgTitleSelected]}>
+        {pkg.product.title || pkg.packageType}
+      </Text>
+      <Text style={[styles.pkgPrice, selected && styles.pkgPriceSelected]}>
+        {pkg.product.priceString}
+      </Text>
+      {periodLabel(pkg) ? (
+        <Text style={[styles.pkgPeriod, selected && styles.pkgPeriodSelected]}>
+          {periodLabel(pkg)}
+        </Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   scroll: { padding: spacing.lg, gap: spacing.md, paddingBottom: 60 },
   activeCard: { marginBottom: spacing.xs },
@@ -243,6 +304,7 @@ const styles = StyleSheet.create({
   pkgPriceSelected: { color: colors.ocean },
   pkgPeriod: { fontSize: type.size.xs, color: colors.muted, marginTop: 2 },
   pkgPeriodSelected: { color: colors.ocean },
+  clubPlanNote: { fontSize: type.size.xs, color: colors.muted, lineHeight: 16, marginTop: spacing.sm },
   subscribeBtn: { marginTop: spacing.xs },
   loadingRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingVertical: spacing.md },
   loadingText: { color: colors.muted, fontSize: type.size.md },

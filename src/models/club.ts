@@ -26,6 +26,9 @@ export interface Club {
   subscriptionTier: SubscriptionTier;
   trialEndsAt?: string;
   subscriptionRenewsAt?: string;
+  /** Set by the syncClubPlan/revenuecatWebhook Cloud Functions when an
+   *  owner/admin's in-app club plan is keeping this club active. */
+  clubPlan?: { payerUid: string; productId?: string | null; activatedAt?: string };
   memberCount: number;
   createdAt: string;
 }
