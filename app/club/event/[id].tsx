@@ -658,6 +658,11 @@ function EventForm({
           value={startDate}
           mode="date"
           display={Platform.OS === "ios" ? "inline" : "default"}
+          // The app's screens are hardcoded light, but the native picker
+          // follows the SYSTEM appearance — on a phone in dark mode it drew
+          // white numbers on our light background, leaving the calendar
+          // unreadable. Pin it to light so it matches the surrounding UI.
+          themeVariant="light"
           onChange={(_, d) => {
             setShowDatePicker(Platform.OS === "ios");
             if (d) {
@@ -673,6 +678,7 @@ function EventForm({
           value={startDate}
           mode="time"
           display={Platform.OS === "ios" ? "spinner" : "default"}
+          themeVariant="light"
           onChange={(_, d) => {
             setShowTimePicker(Platform.OS === "ios");
             if (d) {
