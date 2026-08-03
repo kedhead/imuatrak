@@ -1,4 +1,31 @@
-import { clubGrantsAdFree } from "../club";
+import { clubGrantsAdFree, eventGoingCount, type EventRsvp } from "../club";
+
+describe("eventGoingCount", () => {
+  const rsvp = (uid: string, status: EventRsvp["status"], guests?: string[]): EventRsvp => ({
+    uid,
+    status,
+    updatedAt: "2026-07-13T12:00:00.000Z",
+    ...(guests ? { guests } : {}),
+  });
+
+  it("counts only going members", () => {
+    expect(
+      eventGoingCount([rsvp("a", "going"), rsvp("b", "maybe"), rsvp("c", "not_going")]),
+    ).toBe(1);
+  });
+
+  it("adds guests brought by going members", () => {
+    expect(eventGoingCount([rsvp("a", "going", ["Kai", "Leilani"])])).toBe(3);
+  });
+
+  it("ignores guests attached to members who are not going", () => {
+    expect(eventGoingCount([rsvp("a", "maybe", ["Kai"]), rsvp("b", "not_going", ["Noa"])])).toBe(0);
+  });
+
+  it("is zero for an event with no RSVPs", () => {
+    expect(eventGoingCount([])).toBe(0);
+  });
+});
 
 describe("clubGrantsAdFree", () => {
   const now = new Date("2026-07-13T12:00:00Z");

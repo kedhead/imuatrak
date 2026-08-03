@@ -28,6 +28,7 @@ import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { LinkifiedText } from "@/ui/LinkifiedText";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
+import { ClubSwitcher } from "@/ui/ClubSwitcher";
 import { Gradient } from "@/ui/Gradient";
 import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
@@ -140,6 +141,8 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const club = useClub((s) => s.club);
   const router = useRouter();
   const role = useClub((s) => s.role);
+  const myClubs = useClub((s) => s.myClubs);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
   const user = currentUser();
   const [posts, setPosts] = useState<ClubPost[]>([]);
   const [events, setEvents] = useState<ClubEvent[]>([]);
@@ -209,7 +212,8 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
     <ScreenBackground>
       <GradientHeader
         title={clubName}
-        subtitle="Your paddling crew"
+        subtitle={myClubs.length > 1 ? "Tap to switch clubs" : "Your paddling crew"}
+        onTitlePress={() => setSwitcherOpen(true)}
         right={
           <>
             <Pressable onPress={() => router.push("/club/channels" as never)} hitSlop={8}>
@@ -354,6 +358,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
           <Text style={styles.emptyFeed}>No posts yet. Be the first to share something!</Text>
         }
       />
+      <ClubSwitcher visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
     </ScreenBackground>
   );
 }

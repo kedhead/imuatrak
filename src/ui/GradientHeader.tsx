@@ -13,6 +13,8 @@ interface Props {
   onBack?: () => void;
   /** Element rendered on the right (icon actions, button…). */
   right?: React.ReactNode;
+  /** Makes the title tappable and appends a chevron (e.g. a club switcher). */
+  onTitlePress?: () => void;
   /** Extra content below the title row, inside the gradient. */
   children?: React.ReactNode;
   style?: ViewStyle;
@@ -25,6 +27,7 @@ export function GradientHeader({
   gradient = "ocean",
   onBack,
   right,
+  onTitlePress,
   children,
   style,
 }: Props) {
@@ -41,9 +44,18 @@ export function GradientHeader({
           </Pressable>
         ) : null}
         <Animated.View entering={FadeInDown.duration(450)} style={styles.titleCol}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
+          {onTitlePress ? (
+            <Pressable onPress={onTitlePress} hitSlop={8} style={styles.titleRow}>
+              <Text style={[styles.title, styles.titleShrink]} numberOfLines={1}>
+                {title}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={colors.white} />
+            </Pressable>
+          ) : (
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
+          )}
           {subtitle ? (
             <Animated.Text entering={FadeIn.delay(150)} style={styles.subtitle} numberOfLines={1}>
               {subtitle}
@@ -68,6 +80,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backBtn: { marginRight: spacing.sm, marginLeft: -spacing.xs },
   titleCol: { flex: 1 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  titleShrink: { flexShrink: 1 },
   title: {
     color: colors.white,
     fontSize: type.size.display,

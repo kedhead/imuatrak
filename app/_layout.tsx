@@ -16,6 +16,7 @@ import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
 import { currentUser, watchAuth } from "@/services/auth";
 import { setAppBadge, syncAppBadge } from "@/services/badge";
+import { pruneEventReminders } from "@/services/eventReminders";
 import { registerFcmToken } from "@/services/clubService";
 import { AnimatedSplash } from "@/ui/AnimatedSplash";
 import { colors } from "@/ui/theme";
@@ -65,6 +66,8 @@ export default function RootLayout() {
     void loadSettings();
     // Hide the native (static) splash immediately; our animated one takes over.
     void SplashScreen.hideAsync();
+    // Drop bookkeeping for practice reminders whose events have passed.
+    void pruneEventReminders();
   }, [loadSettings]);
 
   useEffect(() => {

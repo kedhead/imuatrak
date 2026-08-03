@@ -137,7 +137,19 @@ service cloud.firestore {
       // ── Events ─────────────────────────────────────────────────────────────
       match /events/{eventId} {
         allow read: if isClubMember(clubId);
-        allow create, update: if hasClubRole(clubId, ["owner", "admin", "coach"]);
+        allow create: if hasClubRole(clubId, ["owner", "admin", "coach"]);
+        // Event details (time, location, capacity, boat lineups) stay
+        // staff-only, but ANY member must be able to RSVP — and RSVPs live in
+        // the event doc's `rsvps` array (which also carries registered guest
+        // paddlers). Without this carve-out a plain "member" could not RSVP at
+        // all. Rules can't verify that a member only touched their own entry
+        // in an array, so this trusts club members not to edit each other's
+        // RSVPs; that matches the trust already granted elsewhere in a club
+        // (posting, commenting, chat). Moving RSVPs to a per-user
+        // subcollection is the stricter fix if that ever becomes a problem.
+        allow update: if hasClubRole(clubId, ["owner", "admin", "coach"])
+          || (isClubMember(clubId)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["rsvps"]));
         allow delete: if hasClubRole(clubId, ["owner", "admin"]);
       }
 

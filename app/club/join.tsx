@@ -31,7 +31,9 @@ function extractIdentifier(raw: string): string | null {
 export default function JoinClubScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ slug?: string; code?: string }>();
-  const switchClub = useClub((s) => s.switchClub);
+  // Full reload rather than switchClub: joining adds a membership, so the
+  // switcher's club list has to be refetched too, not just the active club.
+  const loadClubs = useClub((s) => s.load);
   const [input, setInput] = useState(params.code ?? "");
   const [loading, setLoading] = useState(false);
 
@@ -95,11 +97,13 @@ export default function JoinClubScreen() {
       }
       // The profile write can still be in flight right after email sign-up —
       // prefer the email prefix over the literal "Member" if the name hasn't
-      // landed yet. switchClub() below self-heals the doc once it has.
+      // landed yet. The reload below self-heals the doc once it has.
       const displayName =
         user.displayName?.trim() || user.email?.split("@")[0] || "Member";
       await joinClub(club.id, user.uid, displayName);
-      await switchClub(club.id, user.uid);
+      // joinClub points userClubs.activeClubId at the new club, so a reload
+      // lands on it and picks up the added membership.
+      await loadClubs(user.uid);
       Alert.alert("Joined!", `Welcome to ${club.name}!`, [
         { text: "Let's go", onPress: () => router.back() },
       ]);
