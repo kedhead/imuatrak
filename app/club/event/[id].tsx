@@ -26,12 +26,14 @@ import {
   updateBoatAssignments,
 } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
-import type {
-  BoatAssignment,
-  ClubEvent,
-  ClubMember,
-  EventType,
-  RsvpStatus,
+import { syncEventReminders } from "@/services/eventReminders";
+import {
+  eventGoingCount,
+  type BoatAssignment,
+  type ClubEvent,
+  type ClubMember,
+  type EventType,
+  type RsvpStatus,
 } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
@@ -125,12 +127,18 @@ function EventDetail({
   const [rsvpLoading, setRsvpLoading] = useState(false);
   const [assignTarget, setAssignTarget] = useState<{ boatIdx: number; seatIdx: number } | null>(null);
 
+  const [guestModal, setGuestModal] = useState(false);
+  const [guestName, setGuestName] = useState("");
+
   const me = currentUser();
-  const myRsvp = event?.rsvps.find((r) => r.uid === me?.uid)?.status ?? null;
+  const myEntry = event?.rsvps.find((r) => r.uid === me?.uid);
+  const myRsvp = myEntry?.status ?? null;
+  const myGuests = myEntry?.guests ?? [];
   const isAdmin = role === "owner" || role === "admin" || role === "coach";
 
   const goingUids = event?.rsvps.filter((r) => r.status === "going").map((r) => r.uid) ?? [];
-  const goingCount = goingUids.length;
+  // Headcount includes guests brought by going members.
+  const goingCount = eventGoingCount(event?.rsvps ?? []);
   const maybeCount = event?.rsvps.filter((r) => r.status === "maybe").length ?? 0;
   const atCapacity =
     event?.maxParticipants != null && goingCount >= event.maxParticipants && myRsvp !== "going";
@@ -138,7 +146,13 @@ function EventDetail({
   useEffect(() => {
     if (!clubId || !eventId) return;
     getEvent(clubId, eventId)
-      .then(setEvent)
+      .then((ev) => {
+        setEvent(ev);
+        // Keep local reminders honest against admin time edits: re-sync
+        // whenever a "going" paddler opens the event.
+        const mine = ev?.rsvps.find((r) => r.uid === currentUser()?.uid);
+        if (ev && mine) void syncEventReminders(ev, mine.status === "going");
+      })
       .finally(() => setLoading(false));
   }, [clubId, eventId]);
 
@@ -148,6 +162,32 @@ function EventDetail({
     await setRsvp(clubId, eventId, me.uid, status);
     const updated = await getEvent(clubId, eventId);
     setEvent(updated);
+    if (updated) void syncEventReminders(updated, status === "going");
+    setRsvpLoading(false);
+  };
+
+  const handleAddGuest = async () => {
+    const name = guestName.trim();
+    if (!name || !clubId || !eventId || !me || !event) return;
+    if (event.maxParticipants != null && goingCount >= event.maxParticipants) {
+      Alert.alert("Event is full", "There's no room left for a guest on this one.");
+      return;
+    }
+    setGuestModal(false);
+    setGuestName("");
+    setRsvpLoading(true);
+    await setRsvp(clubId, eventId, me.uid, "going", [...myGuests, name]);
+    setEvent(await getEvent(clubId, eventId));
+    setRsvpLoading(false);
+  };
+
+  const handleRemoveGuest = async (index: number) => {
+    if (!clubId || !eventId || !me || myRsvp === null) return;
+    setRsvpLoading(true);
+    const next = myGuests.filter((_, i) => i !== index);
+    // Explicit empty array clears the stored guest list.
+    await setRsvp(clubId, eventId, me.uid, myRsvp, next);
+    setEvent(await getEvent(clubId, eventId));
     setRsvpLoading(false);
   };
 
@@ -280,6 +320,35 @@ function EventDetail({
                 </Pressable>
               ))}
             </View>
+            {myRsvp === "going" && (
+              <View style={styles.guestSection}>
+                {myGuests.map((g, i) => (
+                  <Pressable
+                    key={`${g}-${i}`}
+                    style={styles.guestChip}
+                    disabled={rsvpLoading}
+                    onPress={() =>
+                      Alert.alert("Remove guest?", `Remove ${g} from this event?`, [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Remove", style: "destructive", onPress: () => void handleRemoveGuest(i) },
+                      ])
+                    }
+                  >
+                    <Ionicons name="person-add-outline" size={13} color={colors.ocean} />
+                    <Text style={styles.guestChipText}>{g}</Text>
+                    <Ionicons name="close" size={13} color={colors.muted} />
+                  </Pressable>
+                ))}
+                <Pressable
+                  style={styles.addGuestBtn}
+                  disabled={rsvpLoading}
+                  onPress={() => setGuestModal(true)}
+                >
+                  <Ionicons name="add" size={15} color={colors.ocean} />
+                  <Text style={styles.addGuestText}>Bring a guest</Text>
+                </Pressable>
+              </View>
+            )}
           </GradientCard>
         </Animated.View>
 
@@ -299,7 +368,7 @@ function EventDetail({
                 <Text style={styles.statLabel}>Maybe</Text>
               </View>
             </View>
-            {goingUids.length > 0 && (
+            {goingCount > 0 && (
               <View style={styles.rosterWrap}>
                 {goingUids.map((uid) => {
                   const m = memberByUid(uid);
@@ -315,6 +384,19 @@ function EventDetail({
                     </View>
                   );
                 })}
+                {(event.rsvps ?? [])
+                  .filter((r) => r.status === "going" && r.guests?.length)
+                  .flatMap((r) =>
+                    (r.guests ?? []).map((g, i) => (
+                      <View key={`${r.uid}-guest-${i}`} style={[styles.rosterChip, styles.guestRosterChip]}>
+                        <View style={[styles.rosterAvatar, { backgroundColor: colors.gold }]}>
+                          <Text style={styles.rosterInitial}>{(g[0] ?? "?").toUpperCase()}</Text>
+                        </View>
+                        <Text style={styles.rosterName} numberOfLines={1}>{g}</Text>
+                        <Text style={styles.guestTag}>guest</Text>
+                      </View>
+                    )),
+                  )}
               </View>
             )}
           </GradientCard>
@@ -387,6 +469,43 @@ function EventDetail({
               })}
             </ScrollView>
           </View>
+        </Pressable>
+      </Modal>
+
+      {/* Guest name modal (Alert.prompt is iOS-only, so a tiny sheet instead) */}
+      <Modal
+        visible={guestModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setGuestModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setGuestModal(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Bring a guest</Text>
+            <Text style={styles.guestModalHint}>
+              Registering a guest paddler counts them toward attendance so the coach can plan
+              boats. They don&apos;t need the app or an account.
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Guest's name"
+              placeholderTextColor={colors.muted}
+              value={guestName}
+              onChangeText={setGuestName}
+              autoFocus
+              autoCapitalize="words"
+              maxLength={40}
+              returnKeyType="done"
+              onSubmitEditing={() => void handleAddGuest()}
+            />
+            <Button
+              title="Add guest"
+              gradient="aqua"
+              disabled={!guestName.trim()}
+              onPress={() => void handleAddGuest()}
+              style={{ marginTop: spacing.md, marginBottom: spacing.lg }}
+            />
+          </Pressable>
         </Pressable>
       </Modal>
     </>
@@ -681,6 +800,16 @@ const styles = StyleSheet.create({
   rsvpBtn: { flex: 1, borderWidth: 1.5, borderColor: colors.line, borderRadius: radii.md, paddingVertical: spacing.sm, alignItems: "center" },
   rsvpBtnDisabled: { opacity: 0.4 },
   rsvpBtnText: { fontWeight: type.weight.bold, color: colors.ink, fontSize: type.size.sm },
+
+  // Guests
+  guestSection: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
+  guestChip: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.bg, borderRadius: radii.pill, paddingHorizontal: spacing.sm, paddingVertical: 5 },
+  guestChipText: { fontSize: type.size.sm, color: colors.ink },
+  addGuestBtn: { flexDirection: "row", alignItems: "center", gap: 3, borderWidth: 1.5, borderColor: colors.ocean + "55", borderStyle: "dashed", borderRadius: radii.pill, paddingHorizontal: spacing.sm, paddingVertical: 5 },
+  addGuestText: { fontSize: type.size.sm, color: colors.ocean, fontWeight: type.weight.bold },
+  guestRosterChip: { backgroundColor: colors.gold + "18" },
+  guestTag: { fontSize: 10, color: colors.muted, fontStyle: "italic" },
+  guestModalHint: { fontSize: type.size.sm, color: colors.muted, lineHeight: 19, marginBottom: spacing.md },
 
   // Attendance
   attendanceRow: { flexDirection: "row", gap: spacing.sm },

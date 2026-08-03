@@ -1,7 +1,14 @@
 import { create } from "zustand";
 import type { Club, ClubMember, MemberRole, UserClubs } from "@/models/club";
 import { currentUser } from "./auth";
-import { getUserClubs, getClub, getMyRole, getClubMembers, updateMemberDisplayName } from "./clubService";
+import {
+  getUserClubs,
+  getClub,
+  getMyRole,
+  getClubMembers,
+  setActiveClub as persistActiveClub,
+  updateMemberDisplayName,
+} from "./clubService";
 
 interface ClubState {
   // Current club context
@@ -10,12 +17,16 @@ interface ClubState {
   members: ClubMember[];
   // All clubs the user belongs to
   userClubs: UserClubs | null;
+  /** Full club docs for every membership — drives the club switcher. */
+  myClubs: Club[];
   loaded: boolean;
   /** Set when load() failed (network/Firestore error) — drives a Retry UI. */
   loadError: string | null;
 
   load(uid: string): Promise<void>;
   switchClub(clubId: string, uid: string): Promise<void>;
+  /** Switch clubs AND persist the choice as the user's active club. */
+  setActiveClub(clubId: string, uid: string): Promise<void>;
   setClub(club: Club, role: MemberRole): void;
   clearClub(): void;
 }
@@ -25,6 +36,7 @@ export const useClub = create<ClubState>((set, get) => ({
   role: null,
   members: [],
   userClubs: null,
+  myClubs: [],
   loaded: false,
   loadError: null,
 
@@ -37,11 +49,17 @@ export const useClub = create<ClubState>((set, get) => ({
     try {
       const userClubs = await getUserClubs(uid);
       if (!userClubs || !userClubs.activeClubId) {
-        set({ userClubs, loaded: true });
+        set({ userClubs, myClubs: [], loaded: true });
         return;
       }
       await get().switchClub(userClubs.activeClubId, uid);
       set({ userClubs, loaded: true });
+      // Fetch the rest of the memberships for the switcher after the active
+      // club is on screen — it's a list-only concern, never worth delaying
+      // the club tab (or failing it: a dead club id just drops out).
+      void Promise.all(userClubs.clubIds.map((id) => getClub(id).catch(() => null)))
+        .then((clubs) => set({ myClubs: clubs.filter((c): c is Club => c !== null) }))
+        .catch(() => undefined);
     } catch (e) {
       set({ loaded: true, loadError: e instanceof Error ? e.message : String(e) });
     }
@@ -71,11 +89,20 @@ export const useClub = create<ClubState>((set, get) => ({
     set({ club, role, members });
   },
 
+  async setActiveClub(clubId: string, uid: string) {
+    await get().switchClub(clubId, uid);
+    // Persist after the switch succeeds so a failed load doesn't strand the
+    // stored pointer on a club the UI never actually showed.
+    await persistActiveClub(uid, clubId).catch(() => undefined);
+    const userClubs = get().userClubs;
+    if (userClubs) set({ userClubs: { ...userClubs, activeClubId: clubId } });
+  },
+
   setClub(club: Club, role: MemberRole) {
     set({ club, role });
   },
 
   clearClub() {
-    set({ club: null, role: null, members: [], userClubs: null, loaded: false, loadError: null });
+    set({ club: null, role: null, members: [], userClubs: null, myClubs: [], loaded: false, loadError: null });
   },
 }));

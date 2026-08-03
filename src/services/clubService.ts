@@ -86,6 +86,11 @@ async function removeClubFromIndex(uid: string, clubId: string): Promise<void> {
   await setDoc(ref, { clubIds, activeClubId });
 }
 
+/** Persist which of the user's clubs the app should show (multi-club). */
+export async function setActiveClub(uid: string, clubId: string): Promise<void> {
+  await updateDoc(doc(db, "userClubs", uid), { activeClubId: clubId });
+}
+
 // ── Club CRUD ────────────────────────────────────────────────────────────────
 
 export async function createClub(
@@ -390,13 +395,23 @@ export async function setRsvp(
   eventId: string,
   uid: string,
   status: RsvpStatus,
+  guests?: string[],
 ): Promise<void> {
   const ref = doc(db, "clubs", clubId, "events", eventId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
   const event = snap.data() as Omit<ClubEvent, "id">;
+  const existing = event.rsvps.find((r) => r.uid === uid);
   const rsvps = event.rsvps.filter((r) => r.uid !== uid);
-  rsvps.push({ uid, status, updatedAt: new Date().toISOString() });
+  // Guests survive status flip-flops (going → maybe → going) unless the
+  // caller passes an explicit new list; they only count while "going".
+  const keptGuests = guests ?? existing?.guests;
+  rsvps.push({
+    uid,
+    status,
+    updatedAt: new Date().toISOString(),
+    ...(keptGuests && keptGuests.length > 0 ? { guests: keptGuests } : {}),
+  });
   await updateDoc(ref, { rsvps });
 }
 

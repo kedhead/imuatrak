@@ -67,6 +67,17 @@ export interface EventRsvp {
   uid: string;
   status: RsvpStatus;
   updatedAt: string;
+  /** Names of guest paddlers this member is bringing. Guests count toward
+   *  attendance and capacity while the member's status is "going". */
+  guests?: string[];
+}
+
+/** Going headcount including guests brought by going members. */
+export function eventGoingCount(rsvps: EventRsvp[]): number {
+  return rsvps.reduce(
+    (n, r) => (r.status === "going" ? n + 1 + (r.guests?.length ?? 0) : n),
+    0,
+  );
 }
 
 export interface SeatAssignment {

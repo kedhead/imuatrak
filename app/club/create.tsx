@@ -20,7 +20,9 @@ import { colors, spacing, radii } from "@/ui/theme";
 
 export default function CreateClubScreen() {
   const router = useRouter();
-  const switchClub = useClub((s) => s.switchClub);
+  // Reload (not switchClub): creating adds a membership the switcher's club
+  // list needs to know about.
+  const loadClubs = useClub((s) => s.load);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -44,13 +46,15 @@ export default function CreateClubScreen() {
         user.displayName?.trim() ||
         user.email?.split("@")[0] ||
         "Member";
-      const club = await createClub(user.uid, displayName, {
+      // createClub points userClubs.activeClubId at the new club, so the
+      // reload below lands on it — no need for the returned doc here.
+      await createClub(user.uid, displayName, {
         name: name.trim(),
         description: description.trim(),
         city: city.trim(),
         country: country.trim(),
       });
-      await switchClub(club.id, user.uid);
+      await loadClubs(user.uid);
       router.back();
     } catch {
       Alert.alert("Error", "Failed to create club. Please try again.");

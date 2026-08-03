@@ -10,6 +10,7 @@ import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
+import { ClubSwitcher } from "@/ui/ClubSwitcher";
 import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { Pill } from "@/ui/Pill";
@@ -30,6 +31,7 @@ export default function Settings() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const units = useSettings((s) => s.units);
   const defaultCraft = useSettings((s) => s.defaultCraft);
@@ -56,7 +58,8 @@ export default function Settings() {
   const club = useClub((s) => s.club);
   const role = useClub((s) => s.role);
   const loaded = useClub((s) => s.loaded);
-  const clearClub = useClub((s) => s.clearClub);
+  const myClubs = useClub((s) => s.myClubs);
+  const loadClubs = useClub((s) => s.load);
   const isAdFree = useSubscription((s) => s.isAdFree);
   const clubAdFree = club?.subscriptionStatus === "active" || club?.subscriptionStatus === "trial";
   const routerHook = useRouter();
@@ -147,7 +150,10 @@ export default function Settings() {
           style: "destructive",
           onPress: async () => {
             await leaveClub(club.id, user.uid);
-            clearClub();
+            // Reload rather than clear: with multiple memberships, leaving one
+            // club should drop the user into the next one, not into the
+            // "no club" empty state.
+            await loadClubs(user.uid);
           },
         },
       ],
@@ -308,6 +314,15 @@ export default function Settings() {
                     <Ionicons name="chevron-forward" size={18} color={colors.muted} />
                   </Pressable>
                 )}
+                <Pressable
+                  style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+                  onPress={() => setSwitcherOpen(true)}
+                >
+                  <Text style={styles.settingsRowText}>
+                    {myClubs.length > 1 ? `Switch club (${myClubs.length})` : "Join another club"}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                </Pressable>
                 <Button title="Leave Club" variant="danger" onPress={onLeaveClub} style={{ marginTop: spacing.md }} />
               </>
             ) : loaded ? (
@@ -469,6 +484,7 @@ export default function Settings() {
           </Pressable>
         </View>
       </ScrollView>
+      <ClubSwitcher visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
     </ScreenBackground>
   );
 }

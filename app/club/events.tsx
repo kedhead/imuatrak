@@ -5,7 +5,7 @@ import { ActivityIndicator, SectionList, StyleSheet, Text, View } from "react-na
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
 import { getUpcomingEvents, getPastEvents } from "@/services/clubService";
-import type { ClubEvent } from "@/models/club";
+import { eventGoingCount, type ClubEvent } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
@@ -101,7 +101,9 @@ export default function EventsScreen() {
 
 function EventCard({ event, onPress }: { event: ClubEvent; onPress: () => void }) {
   const color = TYPE_COLOR[event.type] ?? colors.ocean;
-  const goingCount = event.rsvps.filter((r) => r.status === "going").length;
+  // Includes guests brought by going members, so "spots left" matches the
+  // headcount shown on the event screen.
+  const goingCount = eventGoingCount(event.rsvps);
   const capacity = event.maxParticipants;
   const spotsLeft = capacity != null ? capacity - goingCount : null;
 
