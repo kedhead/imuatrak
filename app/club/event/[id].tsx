@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -479,34 +480,42 @@ function EventDetail({
         animationType="slide"
         onRequestClose={() => setGuestModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setGuestModal(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Bring a guest</Text>
-            <Text style={styles.guestModalHint}>
-              Registering a guest paddler counts them toward attendance so the coach can plan
-              boats. They don&apos;t need the app or an account.
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Guest's name"
-              placeholderTextColor={colors.muted}
-              value={guestName}
-              onChangeText={setGuestName}
-              autoFocus
-              autoCapitalize="words"
-              maxLength={40}
-              returnKeyType="done"
-              onSubmitEditing={() => void handleAddGuest()}
-            />
-            <Button
-              title="Add guest"
-              gradient="aqua"
-              disabled={!guestName.trim()}
-              onPress={() => void handleAddGuest()}
-              style={{ marginTop: spacing.md, marginBottom: spacing.lg }}
-            />
+        {/* The sheet is bottom-anchored and the input autofocuses, so without
+            this the keyboard covers the whole sheet — you can't see what
+            you're typing. Padding behavior lifts the sheet above the keyboard. */}
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setGuestModal(false)}>
+            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+              <Text style={styles.modalTitle}>Bring a guest</Text>
+              <Text style={styles.guestModalHint}>
+                Registering a guest paddler counts them toward attendance so the coach can plan
+                boats. They don&apos;t need the app or an account.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Guest's name"
+                placeholderTextColor={colors.muted}
+                value={guestName}
+                onChangeText={setGuestName}
+                autoFocus
+                autoCapitalize="words"
+                maxLength={40}
+                returnKeyType="done"
+                onSubmitEditing={() => void handleAddGuest()}
+              />
+              <Button
+                title="Add guest"
+                gradient="aqua"
+                disabled={!guestName.trim()}
+                onPress={() => void handleAddGuest()}
+                style={{ marginTop: spacing.md }}
+              />
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -777,6 +786,7 @@ function rsvpLabel(status: RsvpStatus): string {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   scrollContent: { padding: spacing.lg, gap: spacing.sm, paddingBottom: 120 },
   sectionLabel: {
