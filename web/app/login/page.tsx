@@ -1,44 +1,83 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { signInWithApple, signInWithGoogle, useAuth } from "@/lib/auth";
+import { useEffect, useState, type CSSProperties } from "react";
+import {
+  friendlyAuthError,
+  sendPasswordReset,
+  signInWithApple,
+  signInWithEmail,
+  signInWithGoogle,
+  signUpWithEmail,
+  useAuth,
+} from "@/lib/auth";
+
+type Busy = "google" | "apple" | "email" | null;
 
 export default function LoginPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [busy, setBusy] = useState<"google" | "apple" | null>(null);
+  const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // Email form
+  const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (!loading && user) router.replace("/dashboard");
   }, [user, loading, router]);
 
-  const handleGoogle = async () => {
-    setBusy("google");
+  const emailValid = /\S+@\S+\.\S+/.test(email.trim());
+  const emailFormValid =
+    emailValid && password.length >= 6 && (mode === "signIn" || name.trim().length >= 2);
+
+  const runSignIn = async (kind: Busy, fn: () => Promise<unknown>) => {
+    setBusy(kind);
     setError(null);
+    setNotice(null);
     try {
-      await signInWithGoogle();
+      await fn();
       router.replace("/dashboard");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign-in failed");
+      setError(friendlyAuthError(e));
       setBusy(null);
     }
   };
 
-  const handleApple = async () => {
-    setBusy("apple");
+  const handleGoogle = () => void runSignIn("google", signInWithGoogle);
+  const handleApple = () => void runSignIn("apple", signInWithApple);
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailFormValid || busy !== null) return;
+    void runSignIn("email", () =>
+      mode === "signIn"
+        ? signInWithEmail(email, password)
+        : signUpWithEmail(name, email, password),
+    );
+  };
+
+  const handleForgotPassword = async () => {
+    if (!emailValid) {
+      setError("Enter your email address above first, then click “Forgot password?”.");
+      return;
+    }
     setError(null);
     try {
-      await signInWithApple();
-      router.replace("/dashboard");
+      await sendPasswordReset(email);
+      setNotice(`If an account exists for ${email.trim()}, a reset link is on its way.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign-in failed");
-      setBusy(null);
+      setError(friendlyAuthError(e));
     }
   };
 
   if (loading) return null;
+
+  const signIn = mode === "signIn";
 
   return (
     <main
@@ -54,70 +93,153 @@ export default function LoginPage() {
         className="card"
         style={{ maxWidth: 380, width: "100%", textAlign: "center", padding: 40 }}
       >
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 8px" }}>Sign in</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 8px" }}>
+          {signIn ? "Sign in" : "Create an account"}
+        </h1>
         <p style={{ color: "var(--muted)", margin: "0 0 32px", fontSize: 15 }}>
           View and manage all your ImuaTrak sessions on the web.
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {/* Apple */}
-          <button
-            onClick={handleApple}
-            disabled={busy !== null}
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              padding: "14px 20px",
-              borderRadius: 12,
-              border: "none",
-              background: "#000",
-              color: "#fff",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: busy !== null ? "default" : "pointer",
-              opacity: busy !== null ? 0.6 : 1,
-            }}
-          >
+          <button onClick={handleApple} disabled={busy !== null} style={providerBtn(busy, true)}>
             <AppleIcon />
             {busy === "apple" ? "Signing in…" : "Continue with Apple"}
           </button>
 
           {/* Google */}
-          <button
-            onClick={handleGoogle}
-            disabled={busy !== null}
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              padding: "14px 20px",
-              borderRadius: 12,
-              border: "1px solid var(--line)",
-              background: "var(--bg)",
-              color: "var(--ink)",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: busy !== null ? "default" : "pointer",
-              opacity: busy !== null ? 0.6 : 1,
-            }}
-          >
+          <button onClick={handleGoogle} disabled={busy !== null} style={providerBtn(busy, false)}>
             <GoogleIcon />
             {busy === "google" ? "Signing in…" : "Continue with Google"}
           </button>
         </div>
 
-        {error && (
-          <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 16 }}>{error}</p>
+        <div style={dividerWrap}>
+          <span style={dividerLine} />
+          <span style={{ color: "var(--muted)", fontSize: 13 }}>or</span>
+          <span style={dividerLine} />
+        </div>
+
+        <form onSubmit={handleEmailSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {!signIn && (
+            <input
+              type="text"
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+              maxLength={40}
+              style={inputStyle}
+            />
+          )}
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            style={inputStyle}
+          />
+          <input
+            type="password"
+            placeholder={signIn ? "Password" : "Password (6+ characters)"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={signIn ? "current-password" : "new-password"}
+            style={inputStyle}
+          />
+          <button
+            type="submit"
+            className="btn"
+            disabled={!emailFormValid || busy !== null}
+            style={{
+              width: "100%",
+              padding: "14px 20px",
+              fontSize: 15,
+              cursor: !emailFormValid || busy !== null ? "default" : "pointer",
+              opacity: !emailFormValid || busy !== null ? 0.6 : 1,
+            }}
+          >
+            {busy === "email" ? "One moment…" : signIn ? "Sign in" : "Create account"}
+          </button>
+        </form>
+
+        {signIn && (
+          <button onClick={() => void handleForgotPassword()} style={linkBtn}>
+            Forgot password?
+          </button>
         )}
+
+        <button
+          onClick={() => {
+            setMode(signIn ? "signUp" : "signIn");
+            setError(null);
+            setNotice(null);
+          }}
+          style={{ ...linkBtn, marginTop: 4 }}
+        >
+          {signIn ? "New here? Create an account" : "Already have an account? Sign in"}
+        </button>
+
+        {error && <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 16 }}>{error}</p>}
+        {notice && <p style={{ color: "var(--success)", fontSize: 13, marginTop: 16 }}>{notice}</p>}
       </div>
     </main>
   );
 }
+
+// ── Styles ───────────────────────────────────────────────────────────────────
+
+function providerBtn(busy: Busy, dark: boolean): CSSProperties {
+  return {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    padding: "14px 20px",
+    borderRadius: 12,
+    border: dark ? "none" : "1px solid var(--line)",
+    background: dark ? "#000" : "var(--bg)",
+    color: dark ? "#fff" : "var(--ink)",
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: busy !== null ? "default" : "pointer",
+    opacity: busy !== null ? 0.6 : 1,
+  };
+}
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  padding: "13px 16px",
+  borderRadius: 12,
+  border: "1px solid var(--line)",
+  background: "var(--bg)",
+  color: "var(--ink)",
+  fontSize: 15,
+};
+
+const dividerWrap: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  margin: "24px 0",
+};
+
+const dividerLine: CSSProperties = { flex: 1, height: 1, background: "var(--line)" };
+
+const linkBtn: CSSProperties = {
+  display: "block",
+  width: "100%",
+  marginTop: 14,
+  background: "none",
+  border: "none",
+  color: "var(--blue-bright)",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  padding: 4,
+};
 
 function AppleIcon() {
   return (
