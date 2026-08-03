@@ -714,6 +714,7 @@ function PollComposer({
                   value={expiryDate}
                   mode="date"
                   minimumDate={new Date()}
+                  themeVariant="light"
                   onChange={(_, d) => {
                     setShowDatePicker(false);
                     if (d) setExpiryDate(d);
