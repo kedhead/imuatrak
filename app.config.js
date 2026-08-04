@@ -34,10 +34,21 @@ const config = {
   // 1.0.2: isolates the Google Sign-In iOS URL scheme (a native Info.plist
   // addition) from shipped 1.0.1 binaries — OTA JS that shows the iOS Google
   // button must never reach a binary without the scheme.
-  version: "1.0.2",
+  //
+  // 1.0.3: the iOS AdMob app ID changed (the verified AdMob app entry differs
+  // from the one 1.0.2 was built with) and it lives in Info.plist, so ads
+  // cannot be fixed by an OTA — this build carries the corrected ADMOB_IOS_APP_ID.
+  // Also picks up userInterfaceStyle below.
+  version: "1.0.3",
   orientation: "portrait",
   icon: "./assets/icon.png",
-  userInterfaceStyle: "automatic",
+  // Every screen is styled with hardcoded light colors — there is no dark
+  // theme. Declaring "automatic" told iOS the app adapts, so on a phone in
+  // dark mode NATIVE components (date/time pickers, alerts, action sheets)
+  // rendered dark-on-light and became unreadable. Pinning to "light" keeps
+  // system UI consistent with the app's own palette. Revisit if a real dark
+  // theme is ever built.
+  userInterfaceStyle: "light",
   splash: {
     image: "./assets/splash.png",
     resizeMode: "contain",
