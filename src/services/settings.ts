@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { create } from "zustand";
 import { WatchBridge } from "@imuatrak/watch-bridge";
+import { WearBridge } from "@imuatrak/wear-bridge";
 import type { CraftType } from "@/models";
 
 const KEY_UNITS = "imuatrak.units";
@@ -10,6 +12,18 @@ const KEY_GOAL_DIST_KM = "imuatrak.weeklyGoalDistanceKm";
 const KEY_GOAL_DUR_MIN = "imuatrak.weeklyGoalDurationMin";
 
 export type Units = "metric" | "imperial";
+
+/**
+ * Keep a paired watch showing the same units as the phone.
+ *
+ * Each bridge no-ops off its own platform, but they're dispatched explicitly
+ * rather than called back to back so it stays obvious that Apple Watch and
+ * Wear OS are both covered.
+ */
+function pushUnitsToWatch(units: Units): void {
+  if (Platform.OS === "ios") WatchBridge.setUnits(units);
+  else if (Platform.OS === "android") WearBridge.setUnits(units);
+}
 
 interface SettingsState {
   units: Units;
@@ -51,13 +65,12 @@ export const useSettings = create<SettingsState>((set) => ({
       weeklyGoalDurationMin: gt != null ? parseFloat(gt) : 0,
       loaded: true,
     });
-    // Keep the paired Apple Watch showing the same units (no-op elsewhere).
-    WatchBridge.setUnits(units);
+    pushUnitsToWatch(units);
   },
 
   async setUnits(u) {
     set({ units: u });
-    WatchBridge.setUnits(u);
+    pushUnitsToWatch(u);
     await AsyncStorage.setItem(KEY_UNITS, u);
   },
 

@@ -56,9 +56,10 @@ re-publish with step 3 above.
 
 - **OTA-able (JS/asset only):** UI, screens, business logic, copy, the club
   invite flow, guest mode, dragon boats.
-- **Needs a new native build (`npm run build:ios`) + store submit:** anything
-  touching `app.config.js` native config — new permissions, background modes,
-  `associatedDomains`/universal links, plugins, SDK bumps.
+- **Needs a new native build (`npm run build:ios` / `npm run build:android`) +
+  store submit:** anything touching `app.config.js` native config — new
+  permissions, background modes, `associatedDomains`/universal links,
+  `intentFilters`/App Links, `targetSdkVersion`, plugins, SDK bumps.
 
 ## New native version to the App Store
 
@@ -67,3 +68,51 @@ re-publish with step 3 above.
 3. Wait for the processing email (build appears in TestFlight first).
 4. In App Store Connect, create the new version (e.g. 1.0.1) with the "+" next
    to "iOS App", select the build, fill "What's New", submit.
+
+## New native version to Google Play
+
+```
+npm run build:android
+npm run submit:android
+```
+
+`build:android` produces an app bundle (`.aab`) from the `production` profile;
+`submit:android` uploads the most recent one.
+
+### Which track it lands on
+
+`eas.json` → `submit.production.android` controls this:
+
+```json
+"android": { "track": "alpha", "releaseStatus": "completed" }
+```
+
+- `track: "alpha"` is Play's built-in **closed testing** track. Change it to
+  your custom track's name if you created one in Play Console, `"beta"` for
+  open testing, `"internal"` for the internal track, or `"production"` to go
+  live.
+- `releaseStatus: "completed"` rolls the build out to that track's testers as
+  soon as Play finishes processing. Use `"draft"` instead if you'd rather
+  review and press Release yourself in Play Console.
+
+This previously read `internal` / `draft`, which meant submitted builds sat as
+an unreleased draft on the internal track and **never reached closed testers**.
+
+### versionCode
+
+Don't hand-edit it. `eas.json` sets `appVersionSource: "remote"` with
+`autoIncrement: true` on the `production` profile, so EAS increments the
+Android `versionCode` server-side on every production build. Play rejects any
+upload whose `versionCode` isn't strictly higher than the last one.
+
+Note that `version` in `app.config.js` (the user-visible `versionName`) is a
+separate value and does **not** auto-increment — bump it by hand when you want
+a new marketing version.
+
+### What Play counts during a testing phase
+
+Only builds that reach a track register in Play Console — repo commits and OTA
+updates do not. Note also that the closed-testing requirement for personal
+developer accounts is *12 testers opted in continuously for 14 days*; it does
+not measure release frequency, so extra submissions neither satisfy nor
+accelerate it.

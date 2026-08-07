@@ -39,5 +39,16 @@
             android:name=".services.ExerciseService"
             android:exported="false"
             android:foregroundServiceType="health|location" />
+
+        <!-- Receives the units preference pushed from the phone app over the
+             Wearable Data Layer, even when the watch app isn't running. -->
+        <service
+            android:name=".services.SettingsListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/imuatrak/settings" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
