@@ -22,7 +22,14 @@ WorkoutManager  — Health Services ExerciseClient (PADDLING) streams
 TransferManager — writes sessions/{id}/{session,track}.json, sends both files
                   to the phone via ChannelClient; `.sent` marker + retry of
                   unsent sessions on next app launch
+SettingsListenerService — receives the units preference the phone publishes as
+                  a DataItem at /imuatrak/settings, mirrored into the same
+                  SharedPreferences the UI reads
 ```
+
+Units are shared with the phone: changing km/mi in phone Settings pushes to the
+watch (as a DataItem, so it replays when the watch is next in range), and the
+watch's own toggle still works offline. Last write wins in either direction.
 
 The JSON schema mirrors `src/models/index.ts` exactly (see `models/Session.kt`),
 so the phone app stores received files as-is. The phone-side receiver is

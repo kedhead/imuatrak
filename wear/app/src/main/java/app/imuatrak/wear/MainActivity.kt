@@ -2,6 +2,7 @@ package app.imuatrak.wear
 
 import android.Manifest
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.wear.compose.material.*
 import app.imuatrak.wear.models.WatchSession
 import app.imuatrak.wear.services.ExerciseService
+import app.imuatrak.wear.services.SettingsListenerService
 import app.imuatrak.wear.services.TransferManager
 import app.imuatrak.wear.services.WorkoutManager
 import kotlinx.coroutines.launch
@@ -61,6 +63,9 @@ class MainActivity : ComponentActivity() {
 private fun WearApp(workout: WorkoutManager) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isRecording by workout.isRecording.collectAsStateWithLifecycle()
+    // Single source of truth for units: the pref, which either the watch toggle
+    // or a phone push (SettingsListenerService) can write.
+    val imperial by rememberImperialPref()
     var screen by remember { mutableStateOf(if (workout.isRecording.value) Screen.Recording else Screen.Start) }
     var summary by remember { mutableStateOf<WatchSession?>(null) }
     val scope = rememberCoroutineScope()
@@ -73,6 +78,8 @@ private fun WearApp(workout: WorkoutManager) {
     Scaffold(timeText = { TimeText() }) {
         when (screen) {
             Screen.Start -> StartScreen(
+                imperial = imperial,
+                onToggleImperial = { context.setImperial(!imperial) },
                 onStart = { craft ->
                     workout.currentCraft = craft
                     ExerciseService.start(context)
@@ -93,7 +100,7 @@ private fun WearApp(workout: WorkoutManager) {
             )
             Screen.Summary -> SummaryScreen(
                 session = summary,
-                imperial = context.isImperial(),
+                imperial = imperial,
                 onDone = {
                     summary = null
                     screen = Screen.Start
@@ -106,10 +113,13 @@ private fun WearApp(workout: WorkoutManager) {
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun StartScreen(onStart: (craft: String) -> Unit) {
+private fun StartScreen(
+    imperial: Boolean,
+    onToggleImperial: () -> Unit,
+    onStart: (craft: String) -> Unit,
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var craftIndex by remember { mutableStateOf(context.savedCraftIndex()) }
-    var imperial by remember { mutableStateOf(context.isImperial()) }
     var pendingStart by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -148,10 +158,7 @@ private fun StartScreen(onStart: (craft: String) -> Unit) {
 
         // Units toggle
         Chip(
-            onClick = {
-                imperial = !imperial
-                context.setImperial(imperial)
-            },
+            onClick = onToggleImperial,
             label = {
                 Text(
                     if (imperial) "Miles" else "Kilometers",
@@ -329,8 +336,36 @@ private fun formatPace(meters: Double, sec: Long, imperial: Boolean): String {
     return "%d:%02d".format((secPerUnit / 60).toInt(), (secPerUnit % 60).toInt())
 }
 
-private fun Context.prefs() = getSharedPreferences("settings", Context.MODE_PRIVATE)
-private fun Context.isImperial() = prefs().getBoolean("imperial", false)
-private fun Context.setImperial(v: Boolean) = prefs().edit().putBoolean("imperial", v).apply()
+private fun Context.prefs() =
+    getSharedPreferences(SettingsListenerService.PREFS_NAME, Context.MODE_PRIVATE)
+
+private fun Context.isImperial() =
+    prefs().getBoolean(SettingsListenerService.KEY_IMPERIAL, false)
+
+private fun Context.setImperial(v: Boolean) =
+    prefs().edit().putBoolean(SettingsListenerService.KEY_IMPERIAL, v).apply()
+
+/**
+ * Units as observable state, backed by the pref rather than a one-shot read:
+ * the phone can push a change at any time (SettingsListenerService writes the
+ * same pref from a Data Layer event), including while this screen is open.
+ */
+@Composable
+private fun rememberImperialPref(): State<Boolean> {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val state = remember { mutableStateOf(context.isImperial()) }
+    DisposableEffect(context) {
+        val prefs = context.prefs()
+        // Held in a local so SharedPreferences' weak listener ref stays alive.
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
+            if (key == null || key == SettingsListenerService.KEY_IMPERIAL) {
+                state.value = p.getBoolean(SettingsListenerService.KEY_IMPERIAL, false)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    return state
+}
 private fun Context.savedCraftIndex() = prefs().getInt("craft", 0).coerceIn(0, CRAFTS.size - 1)
 private fun Context.saveCraftIndex(i: Int) = prefs().edit().putInt("craft", i).apply()
