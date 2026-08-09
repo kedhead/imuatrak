@@ -51,8 +51,12 @@ Both of these should be present:
 4. **Not signed in** → the invite is stored and the join screen sends them to
    sign-in; the Home tab resumes the join automatically right after
    (`src/services/pendingInvite.ts`).
-5. **QR** → scanning it with the phone camera opens the same link, so it
-   depends on the verified files above having propagated.
+5. **QR** → either scan it with the phone camera (which needs the verified
+   files above) or, more reliably, in-app: Club → Join a club → **Scan QR
+   code**. The in-app scanner reads the same link and joins directly, so it
+   works even where app-link verification hasn't propagated. It needs the
+   1.0.3 binary or newer — the shipped 1.0.2 build shows an "update required"
+   prompt.
 
 ### Things that used to break this
 

@@ -39,18 +39,19 @@ const config = {
   // users actually have installed, NOT the version you intend to build next.
   // Bump it in the same commit that produces a native build, never before.
   //
-  // 1.0.3 was set here on 2026-08-03 (#62) in preparation for a build that was
-  // never made — the eas-build workflow has never run. That silently retargeted
-  // every OTA from that day onward at runtime 1.0.3, which no device has, so
-  // updates published against it reached nobody while still reporting success.
-  // The live iOS build is 1.0.2, so this is 1.0.2 again and OTAs land.
+  // 1.0.3 was set on main on 2026-08-03 (#62) in preparation for a build that
+  // was never made — the eas-build workflow has never run. That silently
+  // retargeted every OTA from that day onward at runtime 1.0.3, which no
+  // device has, so updates reached nobody while still reporting success. main
+  // is back to 1.0.2, the live iOS build, so OTAs land again.
   //
-  // Still queued for whenever the next native build happens (all Info.plist /
-  // native config, none of it OTA-able): the corrected ADMOB_IOS_APP_ID, the
-  // userInterfaceStyle pin below, and expo-camera for invite QR scanning on
-  // the QR branch. That build must raise this to 1.0.3 or higher — the store
-  // rejects a submission whose version does not strictly increase.
-  version: "1.0.2",
+  // 1.0.3 HERE is that never-built number reclaimed for the next real build.
+  // It carries everything queued up behind it, none of it OTA-able: the
+  // corrected ADMOB_IOS_APP_ID, the userInterfaceStyle pin below, and
+  // expo-camera for in-app invite QR scanning. The scanner is loaded through a
+  // dynamic import, so the shipped 1.0.2 binary shows an "update required"
+  // prompt instead of crashing if this JS ever reaches it.
+  version: "1.0.3",
   orientation: "portrait",
   icon: "./assets/icon.png",
   // Every screen is styled with hardcoded light colors — there is no dark
@@ -177,6 +178,21 @@ const config = {
   plugins: [
     "expo-router",
     "expo-notifications",
+    [
+      "expo-camera",
+      {
+        // Invite QR scanning only — no video capture anywhere in the app.
+        cameraPermission:
+          "ImuaTrak uses the camera to scan a club's invite QR code so you can join.",
+        // `false` DELETES NSMicrophoneUsageDescription; leaving it undefined
+        // makes the plugin add its own default string, which would re-declare
+        // the microphone permission the app deliberately dropped (no audio
+        // feature exists yet — Guideline 5.1.1 / 2.5.1). Same for Android's
+        // RECORD_AUDIO, which is why recordAudioAndroid is off.
+        microphonePermission: false,
+        recordAudioAndroid: false,
+      },
+    ],
     [
       "react-native-google-mobile-ads",
       {

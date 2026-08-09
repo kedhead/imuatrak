@@ -1,9 +1,11 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -20,6 +22,10 @@ import { resolveInviteToken, joinClub, getClub, getClubBySlug } from "@/services
 import { useClub } from "@/services/clubStore";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
+/** Loaded on demand — see openScanner below. Type-only, so expo-camera is not
+ *  pulled into this screen's bundle. */
+type ScannerModule = typeof import("@/ui/QrScanner");
+
 export default function JoinClubScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ slug?: string; code?: string }>();
@@ -28,6 +34,8 @@ export default function JoinClubScreen() {
   const loadClubs = useClub((s) => s.load);
   const [input, setInput] = useState(params.code ?? "");
   const [loading, setLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [Scanner, setScanner] = useState<ScannerModule | null>(null);
   // A deep link can re-render this screen; without the latch the auto-join
   // would fire twice and the second attempt would report "already a member".
   const autoJoined = useRef(false);
@@ -150,6 +158,41 @@ export default function JoinClubScreen() {
     await handleJoinWithIdentifier(identifier);
   };
 
+  /**
+   * Open the scanner, loading expo-camera on demand. The dynamic import keeps
+   * binaries built before the camera module shipped from crashing at bundle
+   * load — they get an upgrade prompt instead, same as GPX import.
+   */
+  const openScanner = async () => {
+    if (!Scanner) {
+      try {
+        const mod = await import("@/ui/QrScanner");
+        setScanner(mod);
+      } catch {
+        Alert.alert(
+          "Update required",
+          "QR scanning needs the newest version of ImuaTrak. Update from the store, or paste the invite link instead.",
+        );
+        return;
+      }
+    }
+    setScanning(true);
+  };
+
+  const onScanned = (data: string) => {
+    setScanning(false);
+    const identifier = extractInviteIdentifier(data);
+    if (!identifier) {
+      Alert.alert(
+        "Not an ImuaTrak invite",
+        "That QR code doesn't point at a club. Ask for the club's invite QR from Club → Invite.",
+      );
+      return;
+    }
+    setInput(identifier);
+    void handleJoinWithIdentifier(identifier);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <KeyboardAvoidingView
@@ -159,8 +202,23 @@ export default function JoinClubScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>Join a club</Text>
           <Text style={styles.subtitle}>
-            Paste the invite link your club shared, or type the invite code.
+            Scan the club&apos;s QR code, paste the invite link, or type the invite code.
           </Text>
+
+          <Pressable
+            style={({ pressed }) => [styles.scanBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => void openScanner()}
+            disabled={loading}
+          >
+            <Ionicons name="qr-code-outline" size={20} color={colors.ocean} />
+            <Text style={styles.scanBtnText}>Scan QR code</Text>
+          </Pressable>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           <TextInput
             style={styles.input}
@@ -185,6 +243,12 @@ export default function JoinClubScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {scanning && Scanner && (
+        <Modal visible animationType="slide" onRequestClose={() => setScanning(false)}>
+          <Scanner.QrScanner onScanned={onScanned} onCancel={() => setScanning(false)} />
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -194,13 +258,28 @@ const styles = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.md },
   title: { fontSize: type.size.xxl, fontWeight: type.weight.heavy, color: colors.ink },
   subtitle: { fontSize: type.size.md, color: colors.muted, lineHeight: 22 },
+  scanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.white,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: spacing.md + 2,
+    marginTop: spacing.md,
+  },
+  scanBtnText: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ocean },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.line },
+  dividerText: { fontSize: type.size.xs, color: colors.muted, textTransform: "uppercase" },
   input: {
     backgroundColor: colors.white,
     borderRadius: radii.md,
     padding: spacing.md,
     fontSize: type.size.md,
     color: colors.ink,
-    marginTop: spacing.md,
     borderWidth: 1,
     borderColor: colors.line,
   },
