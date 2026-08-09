@@ -35,10 +35,28 @@ variables automatically). Local `eas update` does **not**, unless you pass
    ```
    npm run deploy:ota -- --message "Fix club invite flow for new users"
    ```
-4. Check the CLI output: **Runtime version must match the live build** (build
-   78 → `0.1.0`). A mismatch means the update will never apply.
+4. Check the CLI output: **Runtime version must match the version of the app
+   users have installed** — currently **1.0.2** (the live iOS build). A
+   mismatch means the update reaches nobody, and the publish still says
+   "success", so this line is the only warning you get.
 5. **Verify on a real device**: install the update, confirm Sign in with Apple
-   works, before telling anyone it's fixed.
+   works, before telling anyone it's fixed. If the device shows no change,
+   suspect the runtime before you suspect the code.
+
+### The runtime trap
+
+`app.config.js` sets `runtimeVersion: { policy: "appVersion" }`, so the
+`version` field IS the OTA runtime. Raising it in anticipation of a build
+retargets every subsequent OTA at a runtime no device has.
+
+That is exactly what happened between 2026-08-03 and 2026-08-09: #62 set
+`version: "1.0.3"` for a build that was never made, and six days of OTAs — the
+Android release path in #63 among them — were published to runtime 1.0.3 while
+every user sat on the 1.0.2 binary. Each one reported success.
+
+**Only raise `version` in the commit that actually produces the native build.**
+To check what is really installed: expo.dev → project → Builds, or read the
+version on the phone's app listing.
 
 ## Emergency rollback
 

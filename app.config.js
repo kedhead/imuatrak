@@ -35,11 +35,22 @@ const config = {
   // addition) from shipped 1.0.1 binaries — OTA JS that shows the iOS Google
   // button must never reach a binary without the scheme.
   //
-  // 1.0.3: the iOS AdMob app ID changed (the verified AdMob app entry differs
-  // from the one 1.0.2 was built with) and it lives in Info.plist, so ads
-  // cannot be fixed by an OTA — this build carries the corrected ADMOB_IOS_APP_ID.
-  // Also picks up userInterfaceStyle below.
-  version: "1.0.3",
+  // ⚠️ THIS VALUE IS THE OTA RUNTIME. It must equal the version of the binary
+  // users actually have installed, NOT the version you intend to build next.
+  // Bump it in the same commit that produces a native build, never before.
+  //
+  // 1.0.3 was set here on 2026-08-03 (#62) in preparation for a build that was
+  // never made — the eas-build workflow has never run. That silently retargeted
+  // every OTA from that day onward at runtime 1.0.3, which no device has, so
+  // updates published against it reached nobody while still reporting success.
+  // The live iOS build is 1.0.2, so this is 1.0.2 again and OTAs land.
+  //
+  // Still queued for whenever the next native build happens (all Info.plist /
+  // native config, none of it OTA-able): the corrected ADMOB_IOS_APP_ID, the
+  // userInterfaceStyle pin below, and expo-camera for invite QR scanning on
+  // the QR branch. That build must raise this to 1.0.3 or higher — the store
+  // rejects a submission whose version does not strictly increase.
+  version: "1.0.2",
   orientation: "portrait",
   icon: "./assets/icon.png",
   // Every screen is styled with hardcoded light colors — there is no dark
