@@ -32,6 +32,7 @@ import {
 import { setAppBadge } from "@/services/badge";
 import {
   applyMention,
+  caretAfterEdit,
   matchMentionCandidates,
   mentionQueryAt,
   resolveMentions,
@@ -347,12 +348,20 @@ export default function ChannelChatScreen() {
             ref={inputRef}
             style={styles.input}
             value={text}
-            onChangeText={setText}
-            // The caret is the single source of truth for which token the
-            // mention picker is completing. iOS and Android disagree on
-            // whether this fires before or after onChangeText, so the two
-            // states can be one render out of step — the query is clamped
-            // below, and the next render settles it.
+            onChangeText={(next) => {
+              // Derive the caret from the edit itself wherever possible, so
+              // the mention picker still works if onSelectionChange never
+              // fires — relying on that event alone left the caret at 0 and
+              // the picker could never open.
+              const caret = caretAfterEdit(text, next);
+              setText(next);
+              if (caret !== null) setCursor(caret);
+            }}
+            // Authoritative when it fires, and the only way to know the caret
+            // after a tap or a mid-text edit. iOS and Android disagree on
+            // whether it arrives before or after onChangeText, so the two
+            // states can be one render out of step; the query is clamped
+            // below and the next render settles it.
             onSelectionChange={(e) => setCursor(e.nativeEvent.selection.end)}
             placeholder="Message..."
             placeholderTextColor={colors.muted}

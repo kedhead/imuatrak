@@ -95,6 +95,27 @@ export function mentionQueryAt(
 }
 
 /**
+ * Where the caret ended up after a text edit, or null when it can't be known
+ * from the text alone.
+ *
+ * TextInput's onSelectionChange is the authoritative source, but it is not
+ * guaranteed to fire on every platform and keyboard combination — and a
+ * mention picker driven ONLY by that event silently never opens when it
+ * doesn't, because the caret stays pinned at 0. Typing or deleting at the end
+ * of the message covers nearly all chat input and can be derived from the two
+ * strings, so that path never depends on the event at all. Mid-text edits
+ * return null and fall back to whatever the selection reported.
+ */
+export function caretAfterEdit(prev: string, next: string): number | null {
+  if (next.length === 0) return 0;
+  // Appended at the end (typing, pasting).
+  if (next.length > prev.length && next.startsWith(prev)) return next.length;
+  // Deleted from the end (backspace).
+  if (next.length < prev.length && prev.startsWith(next)) return next.length;
+  return null;
+}
+
+/**
  * Replace the in-progress query with the chosen name, leaving the caret after
  * the trailing space so the user can keep typing.
  */

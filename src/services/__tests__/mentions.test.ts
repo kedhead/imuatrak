@@ -1,5 +1,6 @@
 import {
   applyMention,
+  caretAfterEdit,
   findMentionSpans,
   matchMentionCandidates,
   mentionQueryAt,
@@ -105,6 +106,39 @@ describe("applyMention", () => {
     const next = applyMention(text, 0, 3, "Kendall");
     expect(next.text).toBe("@Kendall are you in");
     expect(next.cursor).toBe("@Kendall".length);
+  });
+});
+
+describe("caretAfterEdit", () => {
+  it("puts the caret at the end when a character is typed there", () => {
+    expect(caretAfterEdit("", "@")).toBe(1);
+    expect(caretAfterEdit("hey", "hey ")).toBe(4);
+    expect(caretAfterEdit("hey @", "hey @K")).toBe(6);
+  });
+
+  it("handles a paste at the end", () => {
+    expect(caretAfterEdit("hey ", "hey @Kendall")).toBe(12);
+  });
+
+  it("follows a backspace at the end", () => {
+    expect(caretAfterEdit("hey @K", "hey @")).toBe(5);
+    expect(caretAfterEdit("@", "")).toBe(0);
+  });
+
+  it("declines to guess on a mid-text edit", () => {
+    // Inserting before existing text — only the selection event knows where
+    // the caret landed, so this must not claim the end of the string.
+    expect(caretAfterEdit("hey there", "hey @ there")).toBeNull();
+    expect(caretAfterEdit("hey there", "oh hey there")).toBeNull();
+    // Same-length replacement (autocorrect).
+    expect(caretAfterEdit("teh", "the")).toBeNull();
+  });
+
+  it("drives the picker from the first keystroke without a selection event", () => {
+    // The regression: cursor pinned at 0 meant mentionQueryAt never saw the @.
+    const text = "@";
+    const caret = caretAfterEdit("", text)!;
+    expect(mentionQueryAt(text, caret)).toEqual({ query: "", start: 0 });
   });
 });
 
