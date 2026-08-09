@@ -824,6 +824,26 @@ export async function markChannelRead(uid: string, channelId: string): Promise<n
   });
 }
 
+/**
+ * Live per-channel unread counts for one user, keyed by channel id.
+ *
+ * The app-icon badge uses the single `unreadTotal` on the user doc, but that
+ * is global across every club someone belongs to — fine for a badge, wrong for
+ * a per-club indicator. Callers sum only the channels they care about.
+ */
+export function subscribeChannelUnread(
+  uid: string,
+  onUpdate: (unreadByChannel: Record<string, number>) => void,
+): () => void {
+  return onSnapshot(collection(db, "users", uid, "channelPreferences"), (snap) => {
+    const counts: Record<string, number> = {};
+    for (const d of snap.docs) {
+      counts[d.id] = Math.max(0, (d.data() as ChannelPreference).unreadCount ?? 0);
+    }
+    onUpdate(counts);
+  });
+}
+
 /** Current global unread total for the app-icon badge (0 if unset). */
 export async function getUnreadTotal(uid: string): Promise<number> {
   const snap = await getDoc(doc(db, "users", uid));

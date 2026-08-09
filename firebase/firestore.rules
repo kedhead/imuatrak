@@ -195,11 +195,24 @@ service cloud.firestore {
       // ── Posts ──────────────────────────────────────────────────────────────
       match /posts/{postId} {
         allow read: if isClubMember(clubId);
-        allow create: if isClubMember(clubId)
+        // The feed is an announcements board — only staff start threads. Any
+        // member can still read, like, comment, and vote in polls (see the
+        // update carve-out below and the comments rules). The app hides the
+        // composer for members; this is the half that actually enforces it.
+        allow create: if hasClubRole(clubId, ["owner", "admin", "coach"])
           && request.resource.data.authorId == request.auth.uid;
+        // Engagement lives ON the post doc — toggleLike writes likedBy and
+        // likeCount, addComment bumps commentCount — so members need these
+        // narrow carve-outs to like or comment on a post they didn't write.
+        // Without them, restricting authorship to staff would have silently
+        // broken liking and commenting for every ordinary member.
         allow update: if isClubMember(clubId)
           && (resource.data.authorId == request.auth.uid
               || hasClubRole(clubId, ["owner", "admin"])
+              || request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(["likedBy", "likeCount"])
+              || request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(["commentCount"])
               || (resource.data.type == "poll"
                   && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pollVotes"])));
         allow delete: if isClubMember(clubId)

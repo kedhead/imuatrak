@@ -23,6 +23,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
 import { getPosts, createPost, deletePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
+import { useClubUnreadCount } from "@/services/unread";
 import type { ClubPost, ClubEvent, ClubComment, PollOption } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { LinkifiedText } from "@/ui/LinkifiedText";
@@ -150,6 +151,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const [posting, setPosting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showPollComposer, setShowPollComposer] = useState(false);
+  const unread = useClubUnreadCount(clubId, user?.uid, role);
 
   useEffect(() => {
     const load = async () => {
@@ -207,6 +209,9 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   };
 
   const isAdmin = role === "owner" || role === "admin";
+  // The club feed is an announcements board, not an open wall: only staff
+  // start threads. Everyone can still like, comment and vote in polls.
+  const canPost = isAdmin || role === "coach";
 
   return (
     <ScreenBackground>
@@ -217,7 +222,16 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
         right={
           <>
             <Pressable onPress={() => router.push("/club/channels" as never)} hitSlop={8}>
-              <Ionicons name="chatbubbles-outline" size={23} color={colors.white} />
+              <Ionicons
+                name={unread > 0 ? "chatbubbles" : "chatbubbles-outline"}
+                size={23}
+                color={unread > 0 ? colors.gold : colors.white}
+              />
+              {unread > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>{unread > 9 ? "9+" : unread}</Text>
+                </View>
+              )}
             </Pressable>
             <Pressable onPress={() => router.push("/club/events" as never)} hitSlop={8}>
               <Ionicons name="calendar-outline" size={23} color={colors.white} />
@@ -283,42 +297,44 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
               </View>
             )}
 
-            <View style={styles.composerWrap}>
-              <GradientCard padded>
-                <View style={styles.composerRow}>
-                  <TextInput
-                    style={styles.composerInput}
-                    placeholder="Share something with the club…"
-                    placeholderTextColor={colors.muted}
-                    value={postText}
-                    onChangeText={setPostText}
-                    multiline
-                    maxLength={2000}
-                  />
-                  {postText.trim().length > 0 ? (
-                    <AnimatedPressable
-                      onPress={() => void handlePost()}
-                      disabled={posting}
-                      haptic
-                      style={[styles.postSendBtn, posting && { opacity: 0.5 }]}
-                    >
-                      {posting
-                        ? <ActivityIndicator size="small" color={colors.white} />
-                        : <Ionicons name="send" size={18} color={colors.white} />
-                      }
-                    </AnimatedPressable>
-                  ) : (
-                    <AnimatedPressable
-                      onPress={() => setShowPollComposer(true)}
-                      haptic
-                      style={styles.pollIconBtn}
-                    >
-                      <Ionicons name="bar-chart-outline" size={20} color={colors.ocean} />
-                    </AnimatedPressable>
-                  )}
-                </View>
-              </GradientCard>
-            </View>
+            {canPost && (
+              <View style={styles.composerWrap}>
+                <GradientCard padded>
+                  <View style={styles.composerRow}>
+                    <TextInput
+                      style={styles.composerInput}
+                      placeholder="Share something with the club…"
+                      placeholderTextColor={colors.muted}
+                      value={postText}
+                      onChangeText={setPostText}
+                      multiline
+                      maxLength={2000}
+                    />
+                    {postText.trim().length > 0 ? (
+                      <AnimatedPressable
+                        onPress={() => void handlePost()}
+                        disabled={posting}
+                        haptic
+                        style={[styles.postSendBtn, posting && { opacity: 0.5 }]}
+                      >
+                        {posting
+                          ? <ActivityIndicator size="small" color={colors.white} />
+                          : <Ionicons name="send" size={18} color={colors.white} />
+                        }
+                      </AnimatedPressable>
+                    ) : (
+                      <AnimatedPressable
+                        onPress={() => setShowPollComposer(true)}
+                        haptic
+                        style={styles.pollIconBtn}
+                      >
+                        <Ionicons name="bar-chart-outline" size={20} color={colors.ocean} />
+                      </AnimatedPressable>
+                    )}
+                  </View>
+                </GradientCard>
+              </View>
+            )}
             {showPollComposer && (
               <PollComposer
                 clubId={clubId}
@@ -852,6 +868,25 @@ const styles = StyleSheet.create({
   eventTitle: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ink, marginTop: spacing.xs },
   eventDateRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   eventDate: { fontSize: type.size.xs, color: colors.muted },
+  // Unread chat indicator on the header icon. Sits on the icon's top-right
+  // corner; the negative offsets keep it from widening the icon row.
+  unreadBadge: {
+    position: "absolute",
+    top: -5,
+    right: -7,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    backgroundColor: colors.coral,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadBadgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: type.weight.heavy,
+  },
   composerWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.sm },
   composerRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
   composerInput: { flex: 1, fontSize: type.size.md, color: colors.ink, minHeight: 56 },
