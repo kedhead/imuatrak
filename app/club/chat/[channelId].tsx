@@ -25,6 +25,7 @@ import {
   sendMessage,
   uploadMessageMedia,
   getChannel,
+  getClubMembers,
   markChannelRead,
   deleteChannelMessage,
   toggleMessageReaction,
@@ -40,7 +41,7 @@ import {
 } from "@/services/mentions";
 import { extractImageUrls, LinkifiedText } from "@/ui/LinkifiedText";
 import { useClub } from "@/services/clubStore";
-import type { ClubChannel, ClubMessage, MemberRole } from "@/models/club";
+import type { ClubChannel, ClubMember, ClubMessage, MemberRole } from "@/models/club";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ChannelIcon } from "../channels";
 
@@ -65,6 +66,10 @@ export default function ChannelChatScreen() {
   const [actionTarget, setActionTarget] = useState<ClubMessage | null>(null);
   const [replyTarget, setReplyTarget] = useState<NonNullable<ClubMessage["replyTo"]> | null>(null);
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
+  // Roster fallback for @-mentions. The club store's copy is filled by the
+  // club loader; if that hasn't run for this club the picker would have
+  // nobody to offer and could never open, with no visible reason why.
+  const [fetchedMembers, setFetchedMembers] = useState<ClubMember[]>([]);
 
   useEffect(() => {
     if (!club || !channelId) return;
@@ -93,6 +98,12 @@ export default function ChannelChatScreen() {
     void markChannelRead(user.uid, channelId).then(setAppBadge).catch(() => undefined);
   }, [user?.uid, channelId]);
 
+  useEffect(() => {
+    if (!club || members.length > 0) return;
+    void getClubMembers(club.id).then(setFetchedMembers).catch(() => undefined);
+  }, [club?.id, members.length]);
+  const roster = members.length > 0 ? members : fetchedMembers;
+
   const reversed = useMemo(() => [...messages].reverse(), [messages]);
 
   // Look up each sender's CURRENT club role by uid — roles aren't stored on
@@ -109,12 +120,12 @@ export default function ChannelChatScreen() {
   // the message would tag them into silence.
   const mentionTargets = useMemo<MentionTarget[]>(() => {
     const allowed = channel?.isPrivate
-      ? members.filter((m) => channel.memberIds.includes(m.uid))
-      : members;
+      ? roster.filter((m) => channel.memberIds.includes(m.uid))
+      : roster;
     return allowed
       .filter((m) => m.displayName?.trim())
       .map((m) => ({ uid: m.uid, name: m.displayName.trim() }));
-  }, [members, channel?.isPrivate, channel?.memberIds]);
+  }, [roster, channel?.isPrivate, channel?.memberIds]);
 
   // Candidates for the mention picker, or null when no @query is being typed.
   const mentionQuery = mentionQueryAt(text, Math.min(cursor, text.length));
@@ -124,6 +135,18 @@ export default function ChannelChatScreen() {
         mentionTargets.filter((t) => t.uid !== user?.uid),
       )
     : [];
+
+  /**
+   * Open the picker explicitly. Typing "@" should do this on its own, but that
+   * relies on inferring the caret from keyboard events; this button is the
+   * deterministic path and makes the feature discoverable besides.
+   */
+  const onOpenMentions = () => {
+    const next = `${text}${text.length > 0 && !/\s$/.test(text) ? " " : ""}@`;
+    setText(next);
+    setCursor(next.length);
+    inputRef.current?.focus();
+  };
 
   const onPickMention = (target: MentionTarget) => {
     if (!mentionQuery) return;
@@ -321,28 +344,39 @@ export default function ChannelChatScreen() {
 
         {/* @-mention picker — sits directly above the composer, like the
             reply bar, and only while an @query is being typed. */}
-        {mentionCandidates.length > 0 && (
+        {mentionQuery && (
           <View style={styles.mentionBar}>
-            <FlatList
-              horizontal
-              keyboardShouldPersistTaps="always"
-              showsHorizontalScrollIndicator={false}
-              data={mentionCandidates}
-              keyExtractor={(m) => m.uid}
-              contentContainerStyle={styles.mentionList}
-              renderItem={({ item }) => (
-                <Pressable style={styles.mentionChip} onPress={() => onPickMention(item)}>
-                  <Ionicons name="at" size={14} color={colors.ocean} />
-                  <Text style={styles.mentionChipText} numberOfLines={1}>{item.name}</Text>
-                </Pressable>
-              )}
-            />
+            {mentionCandidates.length === 0 ? (
+              <Text style={styles.mentionEmpty}>
+                {mentionTargets.length <= 1
+                  ? "No one else in this channel to mention yet."
+                  : `No one matching "${mentionQuery.query}".`}
+              </Text>
+            ) : (
+              <FlatList
+                horizontal
+                keyboardShouldPersistTaps="always"
+                showsHorizontalScrollIndicator={false}
+                data={mentionCandidates}
+                keyExtractor={(m) => m.uid}
+                contentContainerStyle={styles.mentionList}
+                renderItem={({ item }) => (
+                  <Pressable style={styles.mentionChip} onPress={() => onPickMention(item)}>
+                    <Ionicons name="at" size={14} color={colors.ocean} />
+                    <Text style={styles.mentionChipText} numberOfLines={1}>{item.name}</Text>
+                  </Pressable>
+                )}
+              />
+            )}
           </View>
         )}
 
         <View style={styles.composer}>
           <Pressable onPress={onPickMedia} hitSlop={8} style={styles.mediaBtn}>
             <Ionicons name="image-outline" size={26} color={colors.ocean} />
+          </Pressable>
+          <Pressable onPress={onOpenMentions} hitSlop={8} style={styles.mediaBtn}>
+            <Ionicons name="at" size={24} color={colors.ocean} />
           </Pressable>
           <TextInput
             ref={inputRef}
@@ -759,6 +793,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs + 2,
   },
   mentionChipText: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.ink },
+  mentionEmpty: {
+    fontSize: type.size.sm,
+    color: colors.muted,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
   timestamp: { fontSize: 10, color: colors.muted, marginTop: 2, alignSelf: "flex-end" },
   timestampMe: { color: "rgba(255,255,255,0.65)" },
   mediaWrap: { position: "relative", marginBottom: spacing.xs },
