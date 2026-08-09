@@ -9,7 +9,7 @@ export default function PrivacyPolicy() {
   return (
     <main style={{ maxWidth: 760, margin: "0 auto", padding: "48px 24px", lineHeight: 1.7, color: "var(--ink, #1a1a1a)" }}>
       <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>Privacy Policy</h1>
-      <p style={{ color: "var(--muted)", marginBottom: 40 }}>Last updated: June 8, 2026</p>
+      <p style={{ color: "var(--muted)", marginBottom: 40 }}>Last updated: August 9, 2026</p>
 
       <h2>Overview</h2>
       <p>
@@ -21,7 +21,8 @@ export default function PrivacyPolicy() {
 
       <h3>Account data</h3>
       <p>
-        Name and email address via Apple Sign In. We receive only what Apple shares based on your privacy settings.
+        Name and email address, provided when you sign in with Apple or with Google. We receive only what
+        Apple or Google shares based on your privacy settings.
       </p>
 
       <h3>Location data</h3>
@@ -96,10 +97,48 @@ export default function PrivacyPolicy() {
       </p>
 
       <h2>Data Retention &amp; Deletion</h2>
+
+      <h3>How long we keep your data</h3>
       <p>
-        You may delete your account and all associated data at any time by contacting us at{" "}
-        <a href="mailto:support@imuatrak.app">support@imuatrak.app</a>. Club content you authored will be removed.
-        Location and fitness data stored on your device is controlled by you through your device settings.
+        We retain the data described above for as long as your account exists. Your account data, sessions
+        (including GPS routes and fitness metrics), and club content are not deleted automatically and have
+        no fixed expiry date — we keep them so your training history stays available to you across devices.
+        We delete them when you delete your account, as described below.
+      </p>
+      <p>Two exceptions expire on their own:</p>
+      <ul>
+        <li><strong>Club invite links</strong> expire 7 days after they are created.</li>
+        <li>
+          <strong>Session data cached on your device</strong> is removed when you uninstall the app or clear
+          its storage through your device settings.
+        </li>
+      </ul>
+
+      <h3>Deleting your account</h3>
+      <p>
+        You can delete your account and its data at any time from within the app, under{" "}
+        <strong>Settings → Delete Account</strong>. You can also request deletion by emailing{" "}
+        <a href="mailto:support@imuatrak.app">support@imuatrak.app</a>. Deletion is immediate and cannot be
+        undone. It removes:
+      </p>
+      <ul>
+        <li>Your profile and sign-in account</li>
+        <li>All recorded sessions, including GPS routes and fitness metrics</li>
+        <li>Any sessions you shared publicly, including their share links</li>
+        <li>GPX files and share images stored in your account</li>
+        <li>Push notification tokens and notification preferences</li>
+        <li>Your membership in every club you belong to</li>
+      </ul>
+      <p>
+        <strong>Club content is not removed by account deletion.</strong> Posts, chat messages, and event
+        RSVPs you created remain visible to that club after you leave or delete your account, so the club&rsquo;s
+        conversation history stays intact for its other members. If you want that content removed as well,
+        email <a href="mailto:support@imuatrak.app">support@imuatrak.app</a> and we will delete it.
+      </p>
+      <p>
+        After deletion, residual copies may persist briefly in our service providers&rsquo; encrypted backups
+        before being overwritten in the ordinary course of their backup rotation. They are not accessible
+        through the app and are not used for any purpose.
       </p>
 
       <h2>Children&rsquo;s Privacy</h2>
