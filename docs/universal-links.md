@@ -37,17 +37,37 @@ Both of these should be present:
 
 ## How the whole invite chain works now
 
-1. Admin shares the permanent link / QR / one-time code (Club → Invite).
-   Share text includes the App Store link.
+1. **Any member** shares the permanent link or QR from Club → Invite
+   (`app/club/invite.tsx`, reachable from the Club tab header, Settings → My
+   Club, and Club Settings). One-time expiring codes stay owner/admin-only —
+   the `createClubInvite` callable enforces that server-side.
 2. **App installed** → tapping the link opens the app straight to the join
    screen (universal link → `app/join/[slug].tsx` → auto-join).
 3. **App not installed** → link opens the web invite page (club name, logo,
-   member count). "Get it on the App Store" **copies the invite link to the
+   member count). The download button sends iOS visitors to the App Store and
+   Android visitors to Google Play, and **copies the invite link to the
    clipboard** first; after install, the app's join screen finds it in the
    clipboard and pre-fills.
 4. **Not signed in** → the invite is stored and the join screen sends them to
    sign-in; the Home tab resumes the join automatically right after
    (`src/services/pendingInvite.ts`).
+5. **QR** → scanning it with the phone camera opens the same link, so it
+   depends on the verified files above having propagated.
+
+### Things that used to break this
+
+- **The auth race.** The join screen read `auth.currentUser` synchronously.
+  On a cold start Firebase hasn't restored the session from AsyncStorage yet,
+  so a signed-in user tapping a link got "Sign in to join" — the same link
+  worked on the second tap. All invite entry points now await
+  `waitForAuth()` (`src/services/auth.ts`).
+- **Link parsing.** Identifier extraction lives in `src/services/invite.ts`
+  with tests; it accepts the full share message, a scheme-less link, a link
+  with a query string or trailing punctuation, the `imuatrak://` deep link,
+  and a bare ID/slug/code.
+- **Nowhere to go afterwards.** A link tapped from a killed app opens the
+  join screen with an empty stack, so the old `router.back()` did nothing and
+  stranded the new member on the join form. It now falls back to the Club tab.
 
 ## Verify after deploying
 

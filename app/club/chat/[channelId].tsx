@@ -30,6 +30,13 @@ import {
   toggleMessageReaction,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
+import {
+  applyMention,
+  matchMentionCandidates,
+  mentionQueryAt,
+  resolveMentions,
+  type MentionTarget,
+} from "@/services/mentions";
 import { extractImageUrls, LinkifiedText } from "@/ui/LinkifiedText";
 import { useClub } from "@/services/clubStore";
 import type { ClubChannel, ClubMessage, MemberRole } from "@/models/club";
@@ -48,6 +55,10 @@ export default function ChannelChatScreen() {
   const [messages, setMessages] = useState<ClubMessage[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  // Caret position, tracked so the @-autocomplete knows which token is being
+  // typed rather than always looking at the end of the message.
+  const [cursor, setCursor] = useState(0);
+  const inputRef = useRef<TextInput>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   // Long-press action sheet target, reply-compose target, full-screen viewer.
   const [actionTarget, setActionTarget] = useState<ClubMessage | null>(null);
@@ -91,6 +102,35 @@ export default function ChannelChatScreen() {
     return map;
   }, [members]);
   const myRole = user ? roleByUid.get(user.uid) : undefined;
+
+  // Who can be @-mentioned: the whole roster for a public channel, only the
+  // channel's own members for a private one — offering someone who can't read
+  // the message would tag them into silence.
+  const mentionTargets = useMemo<MentionTarget[]>(() => {
+    const allowed = channel?.isPrivate
+      ? members.filter((m) => channel.memberIds.includes(m.uid))
+      : members;
+    return allowed
+      .filter((m) => m.displayName?.trim())
+      .map((m) => ({ uid: m.uid, name: m.displayName.trim() }));
+  }, [members, channel?.isPrivate, channel?.memberIds]);
+
+  // Candidates for the mention picker, or null when no @query is being typed.
+  const mentionQuery = mentionQueryAt(text, Math.min(cursor, text.length));
+  const mentionCandidates = mentionQuery
+    ? matchMentionCandidates(
+        mentionQuery.query,
+        mentionTargets.filter((t) => t.uid !== user?.uid),
+      )
+    : [];
+
+  const onPickMention = (target: MentionTarget) => {
+    if (!mentionQuery) return;
+    const next = applyMention(text, mentionQuery.start, cursor, target.name);
+    setText(next.text);
+    setCursor(next.cursor);
+    inputRef.current?.focus();
+  };
 
   const onDeleteMessage = (message: ClubMessage) => {
     if (!club || !channelId) return;
@@ -137,12 +177,17 @@ export default function ChannelChatScreen() {
     const content = text.trim();
     if (!content || !club || !channelId || !user) return;
     const replyTo = replyTarget ?? undefined;
+    // Resolve against the final text, so a mention the author typed and then
+    // deleted never fires a notification.
+    const mentions = resolveMentions(content, mentionTargets);
     setText("");
+    setCursor(0);
     setReplyTarget(null);
     setSending(true);
     try {
       await sendMessage(
-        club.id, channelId, user.uid, user.displayName ?? "Member", content, undefined, replyTo,
+        club.id, channelId, user.uid, user.displayName ?? "Member", content,
+        { replyTo, mentions },
       );
     } catch {
       Alert.alert("Error", "Failed to send message.");
@@ -176,7 +221,7 @@ export default function ChannelChatScreen() {
       // Each video is its own message (single-attachment flow).
       for (const v of videos) {
         const mime = v.mimeType ?? "video/mp4";
-        const msg = await sendMessage(club.id, channelId, user.uid, name, "", "video");
+        const msg = await sendMessage(club.id, channelId, user.uid, name, "", { mediaType: "video" });
         setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: v.uri } : m)));
         setUploadingId(msg.id);
         const url = await uploadMessageMedia(club.id, channelId, msg.id, v.uri, mime);
@@ -187,14 +232,14 @@ export default function ChannelChatScreen() {
       if (images.length === 1) {
         const img = images[0]!;
         const mime = img.mimeType ?? "image/jpeg";
-        const msg = await sendMessage(club.id, channelId, user.uid, name, "", "photo");
+        const msg = await sendMessage(club.id, channelId, user.uid, name, "", { mediaType: "photo" });
         setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: img.uri } : m)));
         setUploadingId(msg.id);
         const url = await uploadMessageMedia(club.id, channelId, msg.id, img.uri, mime);
         setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: url } : m)));
       } else if (images.length > 1) {
         // One message carrying all images — rendered as a WhatsApp-style grid.
-        const msg = await sendMessage(club.id, channelId, user.uid, name, "", "photo");
+        const msg = await sendMessage(club.id, channelId, user.uid, name, "", { mediaType: "photo" });
         const localUris = images.map((i) => i.uri);
         setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrls: localUris } : m)));
         setUploadingId(msg.id);
@@ -248,6 +293,7 @@ export default function ChannelChatScreen() {
               role={roleByUid.get(item.authorId)}
               uploading={uploadingId === item.id}
               myUid={user?.uid}
+              mentionTargets={mentionTargets}
               onLongPress={() => setActionTarget(item)}
               onToggleReaction={(emoji) => onToggleReaction(item, emoji)}
               onPressImage={(urls, index) => setViewer({ urls, index })}
@@ -272,14 +318,42 @@ export default function ChannelChatScreen() {
           </View>
         )}
 
+        {/* @-mention picker — sits directly above the composer, like the
+            reply bar, and only while an @query is being typed. */}
+        {mentionCandidates.length > 0 && (
+          <View style={styles.mentionBar}>
+            <FlatList
+              horizontal
+              keyboardShouldPersistTaps="always"
+              showsHorizontalScrollIndicator={false}
+              data={mentionCandidates}
+              keyExtractor={(m) => m.uid}
+              contentContainerStyle={styles.mentionList}
+              renderItem={({ item }) => (
+                <Pressable style={styles.mentionChip} onPress={() => onPickMention(item)}>
+                  <Ionicons name="at" size={14} color={colors.ocean} />
+                  <Text style={styles.mentionChipText} numberOfLines={1}>{item.name}</Text>
+                </Pressable>
+              )}
+            />
+          </View>
+        )}
+
         <View style={styles.composer}>
           <Pressable onPress={onPickMedia} hitSlop={8} style={styles.mediaBtn}>
             <Ionicons name="image-outline" size={26} color={colors.ocean} />
           </Pressable>
           <TextInput
+            ref={inputRef}
             style={styles.input}
             value={text}
             onChangeText={setText}
+            // The caret is the single source of truth for which token the
+            // mention picker is completing. iOS and Android disagree on
+            // whether this fires before or after onChangeText, so the two
+            // states can be one render out of step — the query is clamped
+            // below, and the next render settles it.
+            onSelectionChange={(e) => setCursor(e.nativeEvent.selection.end)}
             placeholder="Message..."
             placeholderTextColor={colors.muted}
             multiline
@@ -397,6 +471,7 @@ function MessageBubble({
   role,
   uploading,
   myUid,
+  mentionTargets,
   onLongPress,
   onToggleReaction,
   onPressImage,
@@ -406,6 +481,7 @@ function MessageBubble({
   role?: MemberRole;
   uploading: boolean;
   myUid?: string;
+  mentionTargets: MentionTarget[];
   onLongPress: () => void;
   onToggleReaction: (emoji: string) => void;
   onPressImage: (urls: string[], index: number) => void;
@@ -495,6 +571,10 @@ function MessageBubble({
             text={message.content}
             style={[styles.msgText, isMe && styles.msgTextMe]}
             linkStyle={[styles.msgLink, isMe && styles.msgLinkMe]}
+            mentions={mentionTargets}
+            mentionStyle={[styles.mention, isMe && styles.mentionMe]}
+            selfMentionStyle={isMe ? styles.selfMentionMe : styles.selfMention}
+            selfUid={myUid}
           />
         )}
 
@@ -637,6 +717,39 @@ const styles = StyleSheet.create({
   msgTextMe: { color: colors.white },
   msgLink: { color: colors.ocean, textDecorationLine: "underline" },
   msgLinkMe: { color: "#BFE0FF", textDecorationLine: "underline" },
+  // A mention of someone else is a tinted name; a mention of YOU also gets a
+  // filled chip, so being tagged stands out while scrolling a busy channel.
+  mention: { color: colors.ocean, fontWeight: type.weight.bold },
+  mentionMe: { color: "#BFE0FF", fontWeight: type.weight.bold },
+  selfMention: {
+    color: colors.oceanDeep,
+    fontWeight: type.weight.heavy,
+    backgroundColor: "rgba(14,95,165,0.16)",
+  },
+  selfMentionMe: {
+    color: colors.white,
+    fontWeight: type.weight.heavy,
+    backgroundColor: "rgba(255,255,255,0.22)",
+  },
+  mentionBar: {
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    backgroundColor: colors.bgSoft,
+  },
+  mentionList: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm },
+  mentionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    maxWidth: 180,
+    backgroundColor: colors.white,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+  },
+  mentionChipText: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.ink },
   timestamp: { fontSize: 10, color: colors.muted, marginTop: 2, alignSelf: "flex-end" },
   timestampMe: { color: "rgba(255,255,255,0.65)" },
   mediaWrap: { position: "relative", marginBottom: spacing.xs },

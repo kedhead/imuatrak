@@ -225,6 +225,11 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             <Pressable onPress={() => router.push("/club/members")} hitSlop={8}>
               <Ionicons name="people" size={24} color={colors.white} />
             </Pressable>
+            {/* Any member can invite — recruiting happens at the beach, not
+                in the admin screen. */}
+            <Pressable onPress={() => router.push("/club/invite" as never)} hitSlop={8}>
+              <Ionicons name="person-add-outline" size={22} color={colors.white} />
+            </Pressable>
             {isAdmin && (
               <Pressable onPress={() => router.push("/club/admin")} hitSlop={8}>
                 <Ionicons name="settings-sharp" size={22} color={colors.white} />

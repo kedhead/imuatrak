@@ -27,6 +27,33 @@ export function currentUser(): AuthUser | null {
   return auth.currentUser;
 }
 
+/**
+ * Resolve once Firebase has restored the persisted session — or confirmed
+ * there isn't one.
+ *
+ * `auth.currentUser` is null for the first few hundred milliseconds of a cold
+ * start while the SDK reads the session back out of AsyncStorage. Anything
+ * that runs at launch and branches on "signed in?" must await this instead of
+ * reading currentUser() directly, or it sees a signed-in user as signed out.
+ * That is exactly what happened to invite links: tapping one from a killed app
+ * landed on the join screen before auth had settled and demanded a sign-in the
+ * user had already done, so the same link "worked" warm and failed cold.
+ */
+export function waitForAuth(): Promise<AuthUser | null> {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser);
+  return new Promise((resolve) => {
+    let unsub: (() => void) | undefined;
+    let settled = false;
+    unsub = onAuthStateChanged(auth, (user) => {
+      settled = true;
+      unsub?.();
+      resolve(user);
+    });
+    // onAuthStateChanged can fire synchronously, before `unsub` is assigned.
+    if (settled) unsub();
+  });
+}
+
 export async function signOut(): Promise<void> {
   await fbSignOut(auth);
 }

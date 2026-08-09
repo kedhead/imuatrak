@@ -221,11 +221,12 @@ export default function ClubAdminScreen() {
         </Pressable>
         <Text style={styles.logoHint}>Tap to upload a square logo (JPG or PNG)</Text>
 
-        {/* Invite */}
+        {/* Invite — the screen itself is open to every member; staff also get
+            the one-time expiring code section on it. */}
         <Text style={styles.sectionLabel}>INVITE MEMBERS</Text>
-        <Pressable style={styles.inviteBtn} onPress={() => router.push("/club/admin/invite")}>
+        <Pressable style={styles.inviteBtn} onPress={() => router.push("/club/invite")}>
           <Ionicons name="link-outline" size={18} color={colors.blue} />
-          <Text style={styles.inviteBtnText}>Generate Invite Link</Text>
+          <Text style={styles.inviteBtnText}>Invite Link & QR Code</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: "auto" }} />
         </Pressable>
 

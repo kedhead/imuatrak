@@ -491,6 +491,7 @@ export const onChannelMessageCreate = onDocumentCreated(
       authorId: string;
       authorName: string;
       content: string;
+      mentions?: string[];
     } | undefined;
     if (!messageData) return;
 
@@ -519,11 +520,24 @@ export const onChannelMessageCreate = onDocumentCreated(
       ? messageData.content.slice(0, 200)
       : "Sent a photo";
     const title = `${messageData.authorName} in #${channel.name}`;
+    const mentionTitle = `${messageData.authorName} mentioned you in #${channel.name}`;
+
+    // Who was @-mentioned. Intersected with the recipient list so a mention
+    // can never reach someone outside a private channel, and so a client that
+    // sent a bogus uid just gets ignored.
+    const recipientSet = new Set(recipientUids);
+    const mentioned = new Set(
+      (Array.isArray(messageData.mentions) ? messageData.mentions : [])
+        .filter((uid): uid is string => typeof uid === "string" && recipientSet.has(uid)),
+    );
 
     // Per recipient: atomically bump this channel's unread count and the
     // user's global unread total (drives the app-icon badge), then push with
     // that real total as the badge. Muted recipients are still counted (they
     // have unread) but get no alert — their badge syncs on next app open.
+    // The one exception is being @-mentioned: a direct tag is addressed to
+    // you personally, so it cuts through a muted channel the way it does in
+    // every other chat app.
     interface ExpoPushMessage {
       to: string[];
       title: string;
@@ -549,7 +563,8 @@ export const onChannelMessageCreate = onDocumentCreated(
           return { newTotal: total, muted: isMuted };
         });
 
-        if (muted) return;
+        const isMention = mentioned.has(userId);
+        if (muted && !isMention) return;
 
         // Only Expo push tokens are sendable. Legacy docs hold raw APNs hex
         // tokens (from getDevicePushTokenAsync) which FCM silently rejected —
@@ -562,12 +577,17 @@ export const onChannelMessageCreate = onDocumentCreated(
 
         pushMessages.push({
           to: tokens,
-          title,
+          title: isMention ? mentionTitle : title,
           body,
           sound: "default",
           badge: newTotal,
           priority: "high",
-          data: { clubId, channelId, screen: "club/chat" },
+          data: {
+            clubId,
+            channelId,
+            screen: "club/chat",
+            ...(isMention ? { mention: "1" } : {}),
+          },
         });
       }),
     );

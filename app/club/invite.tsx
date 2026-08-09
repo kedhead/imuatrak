@@ -1,41 +1,69 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 import { useClub } from "@/services/clubStore";
 import { createInviteToken } from "@/services/clubService";
+import { inviteLink, inviteShareMessage } from "@/services/invite";
 import { Button } from "@/ui/Button";
 import { GradientCard } from "@/ui/GradientCard";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
-const BASE_URL = "https://imuatrak.app/join";
-
+/**
+ * Invite screen. Open to EVERY member of the club, not just staff: growing the
+ * club is something paddlers do at the beach, and the permanent link is a
+ * public capability anyway (the club doc is world-readable so the web landing
+ * page can render it, and joining always requires the invitee to sign in).
+ *
+ * The one-time expiring code stays owner/admin-only — it is minted by the
+ * createClubInvite Cloud Function, which enforces the same rule server-side.
+ */
 export default function InviteScreen() {
   const club = useClub((s) => s.club);
+  const role = useClub((s) => s.role);
+  const isStaff = role === "owner" || role === "admin";
   const [generatingToken, setGeneratingToken] = useState(false);
   const [lastToken, setLastToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  if (!club) return null;
+  if (!club) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.emptyText}>No club selected.</Text>
+      </View>
+    );
+  }
 
   // Use the club's unique document ID (not the slug) so the link is always
   // specific to this club and never stale — slugs can collide or go out of
   // date if the club is renamed.
-  const permanentLink = `${BASE_URL}/${club.id}`;
+  const permanentLink = inviteLink(club.id);
 
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(permanentLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await Clipboard.setStringAsync(permanentLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      Alert.alert("Couldn't copy", "Copy the link from the box above instead.");
+    }
   };
 
   const handleShare = async () => {
-    await Share.share({
-      message: `Join ${club.name} on ImuaTrak!\n\n${permanentLink}\n\nDon't have the app? Get it here: https://apps.apple.com/us/app/imuatrak/id6774396124`,
-      url: Platform.OS === "ios" ? permanentLink : undefined,
-    });
+    try {
+      // Message only, no separate `url`: iOS hands both to the share sheet as
+      // two activity items and several targets (Mail, Twitter, some keyboards)
+      // keep one and silently drop the other — which is how invites went out
+      // with the explanation but no link, or the link with no context.
+      await Share.share(
+        { message: inviteShareMessage(club.name, permanentLink) },
+        { dialogTitle: `Invite people to ${club.name}` },
+      );
+    } catch (e) {
+      Alert.alert("Couldn't open the share sheet", e instanceof Error ? e.message : "Try copying the link instead.");
+    }
   };
 
   const handleGenerateToken = async () => {
@@ -72,7 +100,7 @@ export default function InviteScreen() {
           </View>
           <View style={styles.linkActions}>
             <Pressable
-              onPress={handleCopy}
+              onPress={() => void handleCopy()}
               style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
             >
               <Ionicons
@@ -85,7 +113,7 @@ export default function InviteScreen() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={handleShare}
+              onPress={() => void handleShare()}
               style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
             >
               <Ionicons name="share-outline" size={18} color={colors.ocean} />
@@ -111,27 +139,31 @@ export default function InviteScreen() {
           </View>
         </GradientCard>
 
-        {/* One-time code (secondary option) */}
-        <Text style={[styles.sectionLabel, { marginTop: spacing.lg }]}>One-Time Code</Text>
-        <GradientCard>
-          <Text style={styles.cardTitle}>Expiring invite code</Text>
-          <Text style={styles.cardBody}>
-            Generates a single-use code valid for 7 days. Useful when you want a link that expires.
-          </Text>
-          {lastToken && (
-            <View style={styles.tokenBox}>
-              <Text style={styles.tokenLabel}>LAST CODE</Text>
-              <Text style={styles.tokenText}>{lastToken}</Text>
-            </View>
-          )}
-          <Button
-            title={generatingToken ? "Generating…" : "Generate & share code"}
-            variant="outline"
-            disabled={generatingToken}
-            onPress={handleGenerateToken}
-            style={{ marginTop: spacing.md }}
-          />
-        </GradientCard>
+        {/* One-time code (staff only) */}
+        {isStaff && (
+          <>
+            <Text style={[styles.sectionLabel, { marginTop: spacing.lg }]}>One-Time Code</Text>
+            <GradientCard>
+              <Text style={styles.cardTitle}>Expiring invite code</Text>
+              <Text style={styles.cardBody}>
+                Generates a single-use code valid for 7 days. Useful when you want a link that expires.
+              </Text>
+              {lastToken && (
+                <View style={styles.tokenBox}>
+                  <Text style={styles.tokenLabel}>LAST CODE</Text>
+                  <Text style={styles.tokenText}>{lastToken}</Text>
+                </View>
+              )}
+              <Button
+                title={generatingToken ? "Generating…" : "Generate & share code"}
+                variant="outline"
+                disabled={generatingToken}
+                onPress={() => void handleGenerateToken()}
+                style={{ marginTop: spacing.md }}
+              />
+            </GradientCard>
+          </>
+        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -141,6 +173,8 @@ export default function InviteScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bgSoft },
   scroll: { padding: spacing.lg, gap: spacing.sm, paddingBottom: 60 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgSoft },
+  emptyText: { color: colors.muted, fontSize: type.size.md },
   sectionLabel: {
     fontSize: type.size.xs,
     fontWeight: type.weight.heavy,

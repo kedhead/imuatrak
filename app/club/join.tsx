@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,20 +13,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
-import { currentUser } from "@/services/auth";
+import { waitForAuth } from "@/services/auth";
 import { setPendingInvite } from "@/services/pendingInvite";
+import { extractInviteIdentifier, looksLikeInvite } from "@/services/invite";
 import { resolveInviteToken, joinClub, getClub, getClubBySlug } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { colors, radii, spacing, type } from "@/ui/theme";
-
-function extractIdentifier(raw: string): string | null {
-  // Full URL: https://imuatrak.app/join/{clubId-or-slug}
-  const match = raw.match(/imuatrak\.app\/join\/([a-z0-9-]+)/i);
-  if (match) return match[1] ?? null;
-  // Bare club ID (Firestore auto-ID, alphanumeric) or slug (with hyphens)
-  if (/^[a-z0-9-]{2,60}$/i.test(raw)) return raw;
-  return null;
-}
 
 export default function JoinClubScreen() {
   const router = useRouter();
@@ -36,33 +28,27 @@ export default function JoinClubScreen() {
   const loadClubs = useClub((s) => s.load);
   const [input, setInput] = useState(params.code ?? "");
   const [loading, setLoading] = useState(false);
+  // A deep link can re-render this screen; without the latch the auto-join
+  // would fire twice and the second attempt would report "already a member".
+  const autoJoined = useRef(false);
+  const prefilled = useRef(false);
 
-  // Auto-join when opened via deep link with a slug/id param. Otherwise,
-  // pre-fill from the clipboard — the "get the app" flow on the web invite
-  // page copies the link, so a fresh install lands here with it ready.
-  useEffect(() => {
-    if (params.slug) {
-      setInput(params.slug);
-      void handleJoinWithIdentifier(params.slug);
-      return;
-    }
-    if (!params.code) {
-      void (async () => {
-        try {
-          const clip = (await Clipboard.getStringAsync()).trim();
-          if (extractIdentifier(clip) && clip.includes("imuatrak.app/join")) {
-            setInput(clip);
-          }
-        } catch {
-          // Clipboard access denied — nothing to prefill.
-        }
-      })();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  /**
+   * Where to go once the join is done. A link tapped from a killed app opens
+   * this screen with nothing beneath it, so router.back() had nowhere to go
+   * and left the new member staring at the Join Club form.
+   */
+  const leaveJoinScreen = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)/club");
+  }, [router]);
 
-  const handleJoinWithIdentifier = async (identifier: string) => {
-    const user = currentUser();
+  const handleJoinWithIdentifier = useCallback(async (identifier: string) => {
+    // Wait for Firebase to restore the persisted session before deciding
+    // whether anyone is signed in. Reading currentUser() directly here is what
+    // made invite links fail from a cold start: the app opened straight onto
+    // this screen and demanded a sign-in the user had already done.
+    const user = await waitForAuth();
     if (!user) {
       // Keep the invite so the join resumes automatically after sign-in —
       // the invitee shouldn't have to dig the link out of their chat again.
@@ -91,7 +77,7 @@ export default function JoinClubScreen() {
       if (!club) {
         Alert.alert(
           "Club not found",
-          "This link or code may be invalid or expired. Ask your admin for a new one.",
+          "This link or code may be invalid or expired. Ask your club for a new one.",
         );
         return;
       }
@@ -100,26 +86,68 @@ export default function JoinClubScreen() {
       // landed yet. The reload below self-heals the doc once it has.
       const displayName =
         user.displayName?.trim() || user.email?.split("@")[0] || "Member";
-      await joinClub(club.id, user.uid, displayName);
+      const result = await joinClub(club.id, user.uid, displayName);
       // joinClub points userClubs.activeClubId at the new club, so a reload
       // lands on it and picks up the added membership.
       await loadClubs(user.uid);
-      Alert.alert("Joined!", `Welcome to ${club.name}!`, [
-        { text: "Let's go", onPress: () => router.back() },
-      ]);
-    } catch {
-      Alert.alert("Error", "Failed to join. Please try again.");
+      Alert.alert(
+        result === "already-a-member" ? "You're already in" : "Joined!",
+        result === "already-a-member"
+          ? `${club.name} is already one of your clubs.`
+          : `Welcome to ${club.name}!`,
+        [{ text: "Let's go", onPress: leaveJoinScreen }],
+      );
+    } catch (e) {
+      // Surface the real reason. The old blanket message hid permission and
+      // network errors behind "please try again", which is why a failing
+      // invite was impossible to tell apart from a wrong code.
+      Alert.alert("Couldn't join", e instanceof Error ? e.message : "Please try again.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadClubs, router, leaveJoinScreen]);
+
+  // Auto-join when opened via deep link with a slug/id param. Otherwise,
+  // pre-fill from the clipboard — the "get the app" flow on the web invite
+  // page copies the link, so a fresh install lands here with it ready.
+  useEffect(() => {
+    if (params.slug) {
+      if (autoJoined.current) return;
+      autoJoined.current = true;
+      const identifier = extractInviteIdentifier(params.slug) ?? params.slug;
+      setInput(identifier);
+      void handleJoinWithIdentifier(identifier);
+      return;
+    }
+    if (!params.code && !prefilled.current) {
+      prefilled.current = true;
+      void (async () => {
+        try {
+          const clip = (await Clipboard.getStringAsync()).trim();
+          // Only fill an untouched field — a re-run must never overwrite what
+          // the user is in the middle of typing.
+          if (looksLikeInvite(clip)) {
+            setInput((current) => current || extractInviteIdentifier(clip) || clip);
+          }
+        } catch {
+          // Clipboard access denied — nothing to prefill.
+        }
+      })();
+    }
+  }, [params.slug, params.code, handleJoinWithIdentifier]);
 
   const handleSubmit = async () => {
     const raw = input.trim();
     if (!raw) { Alert.alert("Enter an invite code or paste a link"); return; }
-    // extractIdentifier strips a full URL down to the id/slug; otherwise the
-    // raw text (id, slug, or one-time code) is resolved directly.
-    await handleJoinWithIdentifier(extractIdentifier(raw) ?? raw);
+    const identifier = extractInviteIdentifier(raw);
+    if (!identifier) {
+      Alert.alert(
+        "That doesn't look like an invite",
+        "Paste the full imuatrak.app/join link, or type just the invite code.",
+      );
+      return;
+    }
+    await handleJoinWithIdentifier(identifier);
   };
 
   return (
@@ -131,8 +159,9 @@ export default function JoinClubScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>Join a club</Text>
           <Text style={styles.subtitle}>
-            Paste the invite link your admin shared, or type the invite code.
+            Paste the invite link your club shared, or type the invite code.
           </Text>
+
           <TextInput
             style={styles.input}
             placeholder="Link or invite code"
@@ -142,11 +171,11 @@ export default function JoinClubScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="join"
-            onSubmitEditing={handleSubmit}
+            onSubmitEditing={() => void handleSubmit()}
           />
           <Pressable
             style={[styles.btn, (loading || !input.trim()) && { opacity: 0.5 }]}
-            onPress={handleSubmit}
+            onPress={() => void handleSubmit()}
             disabled={loading || !input.trim()}
           >
             {loading

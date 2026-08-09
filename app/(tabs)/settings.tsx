@@ -305,6 +305,15 @@ export default function Settings() {
                     <Badge label={role} color={colors.ocean} variant="soft" />
                   )}
                 </View>
+                {/* Open to every member, not just staff — sharing the club's
+                    permanent link is how most people recruit. */}
+                <Pressable
+                  style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+                  onPress={() => routerHook.push("/club/invite")}
+                >
+                  <Text style={styles.settingsRowText}>Invite members</Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                </Pressable>
                 {(role === "owner" || role === "admin") && (
                   <Pressable
                     style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}

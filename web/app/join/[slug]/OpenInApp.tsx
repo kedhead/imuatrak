@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 const APP_STORE_URL = "https://apps.apple.com/us/app/imuatrak/id6774396124";
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.imuatrak";
 
 /**
  * Bounces a visitor from the web invite link into the native app via the
@@ -18,6 +19,15 @@ export default function OpenInApp({ identifier }: { identifier: string }) {
   const inviteLink = `https://imuatrak.app/join/${encodeURIComponent(identifier)}`;
   const [triedAuto, setTriedAuto] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Store to fall back to. Resolved after mount so the server-rendered markup
+  // stays identical for every visitor; defaults to iOS, which is where the
+  // link most often lands. Android invitees used to be sent to the App Store,
+  // which simply dead-ended them.
+  const [store, setStore] = useState<"ios" | "android">("ios");
+
+  useEffect(() => {
+    if (/android/i.test(navigator.userAgent)) setStore("android");
+  }, []);
 
   // Attempt to open the app automatically on first load. If the app isn't
   // installed nothing happens and the buttons below remain.
@@ -37,7 +47,7 @@ export default function OpenInApp({ identifier }: { identifier: string }) {
       // Clipboard blocked — the store link still works, the user just
       // re-taps the invite afterwards.
     }
-    window.location.href = APP_STORE_URL;
+    window.location.href = store === "android" ? PLAY_STORE_URL : APP_STORE_URL;
   };
 
   return (
@@ -50,7 +60,8 @@ export default function OpenInApp({ identifier }: { identifier: string }) {
         onClick={handleGetApp}
         style={{ display: "block", textAlign: "center", width: "100%", cursor: "pointer" }}
       >
-        Don&apos;t have the app? Get it on the App Store
+        Don&apos;t have the app? Get it on{" "}
+        {store === "android" ? "Google Play" : "the App Store"}
       </button>
       {copied && (
         <p className="muted" style={{ fontSize: 13, textAlign: "center", margin: 0 }}>

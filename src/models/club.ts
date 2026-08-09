@@ -158,6 +158,13 @@ export interface ClubMessage {
   mediaUrls?: string[];
   /** Emoji reactions: emoji → uids of members who reacted. */
   reactions?: Record<string, string[]>;
+  /**
+   * Uids of members @-mentioned in `content`. Stored explicitly rather than
+   * re-parsed from the text: display names change, and a mention has to keep
+   * pointing at the person who was actually tagged. Drives the highlight in
+   * the bubble and the push alert that ignores a muted channel.
+   */
+  mentions?: string[];
   /** Set when this message is a reply to another. */
   replyTo?: { messageId: string; authorName: string; preview: string };
   createdAt: string;

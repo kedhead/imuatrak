@@ -136,7 +136,11 @@ export async function createClub(
 export async function getClub(clubId: string): Promise<Club | null> {
   const snap = await getDoc(doc(db, "clubs", clubId));
   if (!snap.exists()) return null;
-  return snap.data() as Club;
+  // Take `id` from the document path, not the stored field. They agree for
+  // every club createClub wrote, but a club restored from an export or seeded
+  // by hand can be missing it — and an undefined id turns a perfectly good
+  // invite into an unexplained Firestore error at join time.
+  return { ...(snap.data() as Omit<Club, "id">), id: snap.id };
 }
 
 export async function updateClub(
@@ -182,15 +186,26 @@ export async function getMyRole(clubId: string, uid: string): Promise<MemberRole
   return (snap.data() as ClubMember).role;
 }
 
+/**
+ * Add the user to a club. Returns which of the two things happened so the
+ * join screen can say "welcome" or "you're already in" instead of claiming a
+ * fresh join every time someone re-taps an invite they already used.
+ */
 export async function joinClub(
   clubId: string,
   uid: string,
   displayName: string,
   invitedBy?: string,
-): Promise<void> {
+): Promise<"joined" | "already-a-member"> {
   const memberRef = doc(db, "clubs", clubId, "members", uid);
   const existing = await getDoc(memberRef);
-  if (existing.exists()) return; // Already a member — never overwrite an existing role
+  if (existing.exists()) {
+    // Never overwrite an existing role — but still point the app at this club,
+    // otherwise tapping an invite for a club you already belong to appears to
+    // do nothing at all.
+    await addClubToIndex(uid, clubId);
+    return "already-a-member";
+  }
 
   const member: ClubMember = {
     uid,
@@ -205,6 +220,7 @@ export async function joinClub(
   // memberCount is incremented server-side by the onMemberJoin trigger when the
   // member doc is created above. Do not also increment here — increment() is
   // additive, not idempotent, so a client increment would double-count joins.
+  return "joined";
 }
 
 export async function leaveClub(clubId: string, uid: string): Promise<void> {
@@ -637,9 +653,14 @@ export async function sendMessage(
   uid: string,
   displayName: string,
   content: string,
-  mediaType?: "photo" | "video",
-  replyTo?: ClubMessage["replyTo"],
+  opts: {
+    mediaType?: "photo" | "video";
+    replyTo?: ClubMessage["replyTo"];
+    /** Uids @-mentioned in `content` — see ClubMessage.mentions. */
+    mentions?: string[];
+  } = {},
 ): Promise<ClubMessage> {
+  const { mediaType, replyTo, mentions } = opts;
   const now = new Date().toISOString();
   const msg: Omit<ClubMessage, "id"> = {
     clubId,
@@ -648,6 +669,8 @@ export async function sendMessage(
     authorId: uid,
     authorName: displayName,
     ...(replyTo ? { replyTo } : {}),
+    // Never mention yourself into your own notification.
+    ...(mentions?.length ? { mentions: mentions.filter((m) => m !== uid) } : {}),
     createdAt: now,
     ...(mediaType ? { mediaType } : {}),
   };
