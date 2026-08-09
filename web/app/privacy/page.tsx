@@ -136,9 +136,10 @@ export default function PrivacyPolicy() {
         email <a href="mailto:support@imuatrak.app">support@imuatrak.app</a> and we will delete it.
       </p>
       <p>
-        After deletion, residual copies may persist briefly in our service providers&rsquo; encrypted backups
-        before being overwritten in the ordinary course of their backup rotation. They are not accessible
-        through the app and are not used for any purpose.
+        We do not keep our own backup copies of your data, so deletion is permanent — we cannot restore an
+        account once it has been deleted. Any residual copies held transiently within Google Cloud&rsquo;s
+        infrastructure are removed under Google&rsquo;s own data deletion practices; they are not accessible
+        through the app and we do not use them for any purpose.
       </p>
 
       <h2>Children&rsquo;s Privacy</h2>
