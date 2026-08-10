@@ -878,6 +878,85 @@ export const expireClubTrials = onSchedule("every day 06:00", async () => {
 // cutoff comparisons are plain string operations.
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
+// openDmThread — find or create the direct-message thread for two users.
+//
+// Client can't create threads directly (rules deny it) because the pairing has
+// to be checked: you may only DM someone you share a club with. That's the
+// contact graph the app already has, and it means nobody can be messaged by a
+// stranger without a user directory existing.
+//
+// The thread id is derived from the sorted uid pair, so both people resolve to
+// the same document and a conversation can't fork into two threads.
+//
+// NOTE ON THE PAYWALL: starting a DM is meant to be a paid feature, but there
+// is currently no server-side record of a personal entitlement to check —
+// revenuecat.ts is parked and undeployed (see its header), so RevenueCat state
+// never reaches Firestore. The gate is enforced in the client for now. When the
+// webhook is live and writes an entitlement onto users/{uid}, add the check
+// here; this is the only place thread creation can happen, so it is the right
+// choke point.
+// ---------------------------------------------------------------------------
+export const openDmThread = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { otherUid } = request.data ?? {};
+  if (typeof otherUid !== "string" || !otherUid) {
+    throw new HttpsError("invalid-argument", "otherUid is required");
+  }
+  if (otherUid === uid) {
+    throw new HttpsError("invalid-argument", "Can't message yourself");
+  }
+
+  const db = getFirestore();
+  const threadId = [uid, otherUid].sort().join("__");
+  const threadRef = db.doc(`dms/${threadId}`);
+
+  const existing = await threadRef.get();
+  if (existing.exists) return { threadId };
+
+  // Must share at least one club. Compared through each side's userClubs index
+  // rather than a collection-group query, so no extra index is needed.
+  const [mine, theirs] = await Promise.all([
+    db.doc(`userClubs/${uid}`).get(),
+    db.doc(`userClubs/${otherUid}`).get(),
+  ]);
+  const myClubs: string[] = (mine.data() as { clubIds?: string[] } | undefined)?.clubIds ?? [];
+  const theirClubs: string[] =
+    (theirs.data() as { clubIds?: string[] } | undefined)?.clubIds ?? [];
+  const shared = myClubs.find((c) => theirClubs.includes(c));
+  if (!shared) {
+    throw new HttpsError("permission-denied", "You can only message people in your clubs");
+  }
+
+  // Names come from the shared club's roster — the only profile source the
+  // caller is entitled to read for another user.
+  const [meMember, themMember] = await Promise.all([
+    db.doc(`clubs/${shared}/members/${uid}`).get(),
+    db.doc(`clubs/${shared}/members/${otherUid}`).get(),
+  ]);
+  const nameOf = (s: FirebaseFirestore.DocumentSnapshot): string =>
+    (s.data() as { displayName?: string } | undefined)?.displayName ?? "Member";
+  const avatarOf = (s: FirebaseFirestore.DocumentSnapshot): string | undefined =>
+    (s.data() as { avatarUrl?: string } | undefined)?.avatarUrl;
+
+  const participantAvatars: Record<string, string> = {};
+  const myAvatar = avatarOf(meMember);
+  const theirAvatar = avatarOf(themMember);
+  if (myAvatar) participantAvatars[uid] = myAvatar;
+  if (theirAvatar) participantAvatars[otherUid] = theirAvatar;
+
+  await threadRef.set({
+    participants: [uid, otherUid].sort(),
+    participantNames: { [uid]: nameOf(meMember), [otherUid]: nameOf(themMember) },
+    ...(Object.keys(participantAvatars).length > 0 ? { participantAvatars } : {}),
+    createdAt: new Date().toISOString(),
+  });
+
+  return { threadId };
+});
+
+// ---------------------------------------------------------------------------
 // expireChatMessages — nightly sweep deleting chat past each club's retention.
 //
 // Opt-in per club: only clubs with chatRetentionDays > 0 are touched, so no

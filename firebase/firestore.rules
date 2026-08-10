@@ -78,6 +78,48 @@ service cloud.firestore {
     // admin's Auth UID. A user may check their OWN admin status so the web
     // dashboard knows whether to show the page; the getAppStats Cloud Function
     // re-checks server-side, so this read is a UI hint, not the gate.
+    // ── Direct messages ──────────────────────────────────────────────────────
+    //
+    // Deliberately NOT modelled as a two-person private channel: the channel
+    // rule grants club owners/admins read access for moderation, which applied
+    // to DMs would let them read their members' private messages. Only the two
+    // participants can read or write here — there is no admin bypass, by
+    // design. Changing that would need a privacy-policy update, not just a rule
+    // edit.
+    match /dms/{threadId} {
+      function isParticipant() {
+        return isSignedIn()
+          && request.auth.uid in resource.data.participants;
+      }
+
+      allow read: if isParticipant();
+      // Created by the openDmThread Cloud Function, which checks the two share
+      // a club — clients can't mint a thread with anyone they like.
+      allow create: if false;
+      allow delete: if false;
+      // Participants keep the thread's preview fields current when they send.
+      // Nothing else, so neither can rewrite who the participants are.
+      allow update: if isParticipant()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(["lastMessageAt", "lastMessagePreview"]);
+
+      match /messages/{messageId} {
+        function inThread() {
+          return isSignedIn()
+            && request.auth.uid in
+               get(/databases/$(database)/documents/dms/$(threadId)).data.participants;
+        }
+
+        allow read: if inThread();
+        allow create: if inThread()
+          && request.resource.data.authorId == request.auth.uid;
+        // Your own messages only — no moderator delete in a private thread.
+        allow delete: if inThread() && resource.data.authorId == request.auth.uid;
+        allow update: if inThread()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"]);
+      }
+    }
+
     match /admins/{uid} {
       allow get: if isOwner(uid);
       allow list, write: if false; // console / Admin SDK only
