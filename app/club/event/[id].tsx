@@ -14,6 +14,7 @@ import {
   Text,
   TextInput,
   View,
+  type ViewStyle,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { deleteField } from "firebase/firestore";
@@ -29,12 +30,19 @@ import {
 import { useClub } from "@/services/clubStore";
 import { syncEventReminders } from "@/services/eventReminders";
 import {
+  boatSeatCount,
   eventGoingCount,
+  inferBoatType,
+  BOAT_SPECS,
+  BOAT_TYPES,
   type BoatAssignment,
+  type BoatSpec,
+  type BoatType,
   type ClubEvent,
   type ClubMember,
   type EventType,
   type RsvpStatus,
+  type SeatAssignment,
 } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
@@ -44,6 +52,24 @@ import { GradientHeader } from "@/ui/GradientHeader";
 import { Pill } from "@/ui/Pill";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, spacing, type } from "@/ui/theme";
+
+/** One-line summary of a boat's crew, shown under the picker. */
+function describeBoat(t: BoatType): string {
+  const spec = BOAT_SPECS[t];
+  const paddlers = `${spec.paddlerSeats} paddler${spec.paddlerSeats === 1 ? "" : "s"}`;
+  if (spec.crewSeats.length === 0) return `${paddlers}, single file`;
+  const crew = spec.crewSeats.map((c) => c.label.toLowerCase()).join(" + ");
+  return `${paddlers} in ${spec.paddlerSeats / 2} rows, plus ${crew} — ${boatSeatCount(t)} seats`;
+}
+
+/**
+ * The spec behind a saved lineup, falling back to the seat count for lineups
+ * written before boatType was stored.
+ */
+function specForBoat(boat: BoatAssignment): BoatSpec | null {
+  const t = boat.boatType ?? inferBoatType(boat.seats.length);
+  return t ? BOAT_SPECS[t] : null;
+}
 
 const TYPE_COLOR: Record<string, string> = {
   practice: colors.ocean,
@@ -222,10 +248,15 @@ function EventDetail({
   const handleAddBoat = async () => {
     if (!event) return;
     const boats: BoatAssignment[] = [...(event.boatAssignments ?? [])];
-    // Match the event's existing boat size (e.g. 20-seat dragon boats); 6 for the first boat.
-    const seatCount = boats[0]?.seats.length ?? 6;
+    // Match the boat the event is already using — an added boat should be the
+    // same hull, not a differently sized one. OC6 when there's nothing to copy.
+    const first = boats[0];
+    const boatType: BoatType =
+      first?.boatType ?? (first ? inferBoatType(first.seats.length) : null) ?? "OC6";
+    const seatCount = first?.seats.length ?? boatSeatCount(boatType);
     boats.push({
       boatName: `Boat ${boats.length + 1}`,
+      boatType,
       seats: Array.from({ length: seatCount }, (_, i) => ({ seatNumber: i + 1, uid: null })),
     });
     await updateBoatAssignments(clubId, eventId, boats);
@@ -407,29 +438,83 @@ function EventDetail({
         {(boats.length > 0 || isAdmin) && (
           <Animated.View entering={FadeInDown.delay(180).duration(400)}>
             <Text style={styles.sectionLabel}>LINEUP</Text>
-            {boats.map((boat, bi) => (
-              <GradientCard key={bi} style={{ marginBottom: spacing.sm }}>
-                <Text style={styles.boatName}>{boat.boatName}</Text>
-                <View style={styles.seatsGrid}>
-                  {boat.seats.map((seat, si) => {
-                    const assignedMember = seat.uid ? memberByUid(seat.uid) : null;
-                    const isMe = seat.uid === me?.uid;
-                    return (
-                      <AnimatedPressable
-                        key={si}
-                        style={[styles.seatChip, isMe && styles.seatChipMe]}
-                        onPress={isAdmin ? () => setAssignTarget({ boatIdx: bi, seatIdx: si }) : undefined}
-                      >
-                        <Text style={styles.seatNum}>{seat.seatNumber}</Text>
-                        <Text style={[styles.seatName, !assignedMember && { color: colors.muted }]} numberOfLines={1}>
-                          {assignedMember ? assignedMember.displayName : "Empty"}
-                        </Text>
-                      </AnimatedPressable>
-                    );
-                  })}
-                </View>
-              </GradientCard>
-            ))}
+            {boats.map((boat, bi) => {
+              const renderSeat = (
+                seat: SeatAssignment,
+                si: number,
+                extra?: ViewStyle,
+                /** Crew seats show their role instead of a paddler number. */
+                label?: string,
+              ) => {
+                const assignedMember = seat.uid ? memberByUid(seat.uid) : null;
+                const isMe = seat.uid === me?.uid;
+                return (
+                  <AnimatedPressable
+                    key={si}
+                    style={[styles.seatChip, isMe && styles.seatChipMe, extra]}
+                    onPress={isAdmin ? () => setAssignTarget({ boatIdx: bi, seatIdx: si }) : undefined}
+                  >
+                    <Text style={[styles.seatNum, label && styles.crewLabel]}>
+                      {label ?? seat.seatNumber}
+                    </Text>
+                    <Text style={[styles.seatName, !assignedMember && { color: colors.muted }]} numberOfLines={1}>
+                      {assignedMember ? assignedMember.displayName : "Empty"}
+                    </Text>
+                  </AnimatedPressable>
+                );
+              };
+
+              const spec = specForBoat(boat);
+              // Guard against a lineup shorter than its spec (an older event
+              // saved before the drummer and steer seats existed).
+              const paddlerCount = Math.min(spec?.paddlerSeats ?? boat.seats.length, boat.seats.length);
+              const crew = (spec?.crewSeats ?? [])
+                .map((c, ci) => ({ ...c, index: paddlerCount + ci }))
+                .filter((c) => c.index < boat.seats.length);
+
+              const renderCrew = (position: "bow" | "stern") =>
+                crew
+                  .filter((c) => c.position === position)
+                  .map((c) => (
+                    <View key={c.label} style={styles.crewRow}>
+                      {renderSeat(boat.seats[c.index]!, c.index, styles.seatChipFull, c.label)}
+                    </View>
+                  ));
+
+              return (
+                <GradientCard key={bi} style={{ marginBottom: spacing.sm }}>
+                  <Text style={styles.boatName}>{boat.boatName}</Text>
+                  {spec?.paired ? (
+                    <View>
+                      {renderCrew("bow")}
+                      <View style={styles.pairHeaderRow}>
+                        <Text style={styles.pairSideLabel}>LEFT</Text>
+                        <Text style={styles.pairSideLabel}>RIGHT</Text>
+                      </View>
+                      {Array.from({ length: Math.ceil(paddlerCount / 2) }, (_, r) => {
+                        const left = boat.seats[r * 2];
+                        const right = boat.seats[r * 2 + 1];
+                        return (
+                          <View key={r} style={styles.pairRow}>
+                            <View style={styles.pairSide}>
+                              {left ? renderSeat(left, r * 2, styles.seatChipFull) : null}
+                            </View>
+                            <View style={styles.pairSide}>
+                              {right ? renderSeat(right, r * 2 + 1, styles.seatChipFull) : null}
+                            </View>
+                          </View>
+                        );
+                      })}
+                      {renderCrew("stern")}
+                    </View>
+                  ) : (
+                    <View style={styles.seatsGrid}>
+                      {boat.seats.map((seat, si) => renderSeat(seat, si))}
+                    </View>
+                  )}
+                </GradientCard>
+              );
+            })}
             {isAdmin && (
               <Button
                 title="+ Add boat"
@@ -548,9 +633,11 @@ function EventForm({
     initialEvent?.maxParticipants != null ? String(initialEvent.maxParticipants) : "",
   );
   const [numBoats, setNumBoats] = useState(initialEvent?.boatAssignments?.length ?? 0);
-  const [seatsPerBoat, setSeatsPerBoat] = useState(
-    initialEvent?.boatAssignments?.[0]?.seats.length ?? 6,
-  );
+  const [boatType, setBoatType] = useState<BoatType>(() => {
+    const first = initialEvent?.boatAssignments?.[0];
+    // Lineups saved before boat types existed only carry a seat count.
+    return first?.boatType ?? (first ? inferBoatType(first.seats.length) : null) ?? "OC6";
+  });
   const [loading, setLoading] = useState(false);
 
   const me = currentUser();
@@ -565,10 +652,14 @@ function EventForm({
     try {
       const startAt = startDate.toISOString();
       const endAt = new Date(startDate.getTime() + 2 * 60 * 60 * 1000).toISOString();
+      const seatsPerBoat = boatSeatCount(boatType);
       const boatAssignments: BoatAssignment[] = Array.from({ length: numBoats }, (_, i) => ({
         boatName: initialEvent?.boatAssignments?.[i]?.boatName ?? `Boat ${i + 1}`,
+        boatType,
         seats: Array.from({ length: seatsPerBoat }, (_, j) => ({
           seatNumber: j + 1,
+          // Switching boat type keeps whoever already sat in a seat that still
+          // exists; seats the new boat doesn't have are dropped.
           uid: initialEvent?.boatAssignments?.[i]?.seats[j]?.uid ?? null,
         })),
       }));
@@ -735,19 +826,21 @@ function EventForm({
         </View>
       </View>
       {numBoats > 0 && (
-        <View style={styles.stepperRow}>
-          <Text style={styles.stepperLabel}>Seats per boat</Text>
-          <View style={styles.stepper}>
-            <Pressable style={styles.stepBtn} onPress={() => setSeatsPerBoat(Math.max(1, seatsPerBoat - 1))}>
-              <Text style={styles.stepBtnText}>−</Text>
-            </Pressable>
-            <Text style={styles.stepValue}>{seatsPerBoat}</Text>
-            {/* 22 covers a DB20 dragon boat crew: 20 paddlers + drummer + steerer */}
-            <Pressable style={styles.stepBtn} onPress={() => setSeatsPerBoat(Math.min(22, seatsPerBoat + 1))}>
-              <Text style={styles.stepBtnText}>+</Text>
-            </Pressable>
+        <>
+          <Text style={styles.stepperLabel}>Boat</Text>
+          <View style={styles.typeSelector}>
+            {BOAT_TYPES.map((t) => (
+              <Pill
+                key={t}
+                label={t}
+                selected={boatType === t}
+                gradient={BOAT_SPECS[t].paired ? "coral" : "ocean"}
+                onPress={() => setBoatType(t)}
+              />
+            ))}
           </View>
-        </View>
+          <Text style={styles.boatHint}>{describeBoat(boatType)}</Text>
+        </>
       )}
 
       {/* Description */}
@@ -841,6 +934,22 @@ const styles = StyleSheet.create({
   // Boats
   boatName: { fontSize: type.size.md, fontWeight: type.weight.heavy, color: colors.ink, marginBottom: spacing.sm },
   seatsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  pairHeaderRow: { flexDirection: "row", gap: spacing.xs, marginBottom: 4 },
+  pairSideLabel: {
+    flex: 1,
+    fontSize: type.size.xs,
+    fontWeight: type.weight.heavy,
+    color: colors.muted,
+    letterSpacing: type.spacing.label,
+  },
+  pairRow: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.xs },
+  pairSide: { flex: 1 },
+  crewRow: { marginBottom: spacing.xs },
+  crewLabel: { width: "auto", color: colors.ocean },
+  boatHint: { fontSize: type.size.xs, color: colors.muted, marginTop: 2, marginBottom: spacing.sm },
+  // Overrides seatChip's 30% floor, which exists for the wrapping grid and
+  // would fight the two fixed columns here.
+  seatChipFull: { minWidth: 0, width: "100%" },
   seatChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.bg, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: 6, minWidth: "30%" },
   seatChipMe: { backgroundColor: colors.aqua + "30", borderWidth: 1, borderColor: colors.aqua },
   seatNum: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.muted, width: 16 },
