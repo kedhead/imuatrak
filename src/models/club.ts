@@ -85,8 +85,88 @@ export interface SeatAssignment {
   uid: string | null;
 }
 
+export type BoatType = "OC1" | "OC2" | "OC4" | "OC6" | "DB10" | "DB20";
+
+/** A non-paddling crew seat, and where it sits in the boat. */
+export interface CrewSeat {
+  label: string;
+  position: "bow" | "stern";
+}
+
+export interface BoatSpec {
+  /**
+   * Seats holding paddlers, numbered 1..n. Dragon boats pair these left/right
+   * — odd numbers paddle left, even paddle right, so 1 and 2 share the bow
+   * bench.
+   */
+  paddlerSeats: number;
+  paired: boolean;
+  /** Appended after the paddler seats, so paddler numbering stays 1..n. */
+  crewSeats: CrewSeat[];
+}
+
+/**
+ * The boats a club can set a lineup for.
+ *
+ * A dragon boat carries a drummer at the bow and a steer at the stern on top
+ * of its paddlers, so a DB20 seats 22 people and a DB10 seats 12 — a DB10
+ * halves the paddlers, not the crew. Outrigger hulls are single file and
+ * carry no separate crew: an OC6's sixth seat steers while paddling.
+ */
+export const BOAT_SPECS: Record<BoatType, BoatSpec> = {
+  OC1: { paddlerSeats: 1, paired: false, crewSeats: [] },
+  OC2: { paddlerSeats: 2, paired: false, crewSeats: [] },
+  OC4: { paddlerSeats: 4, paired: false, crewSeats: [] },
+  OC6: { paddlerSeats: 6, paired: false, crewSeats: [] },
+  DB10: {
+    paddlerSeats: 10,
+    paired: true,
+    crewSeats: [
+      { label: "Drummer", position: "bow" },
+      { label: "Steer", position: "stern" },
+    ],
+  },
+  DB20: {
+    paddlerSeats: 20,
+    paired: true,
+    crewSeats: [
+      { label: "Drummer", position: "bow" },
+      { label: "Steer", position: "stern" },
+    ],
+  },
+};
+
+export const BOAT_TYPES = Object.keys(BOAT_SPECS) as BoatType[];
+
+export function boatSeatCount(type: BoatType): number {
+  const spec = BOAT_SPECS[type];
+  return spec.paddlerSeats + spec.crewSeats.length;
+}
+
+/**
+ * Best guess at the boat behind a lineup saved before boatType was stored.
+ *
+ * The dragon-boat sizes accept their pre-crew counts too (10 and 20), since
+ * lineups created then had no drummer or steer seat at all.
+ */
+export function inferBoatType(seatCount: number): BoatType | null {
+  switch (seatCount) {
+    case 1: return "OC1";
+    case 2: return "OC2";
+    case 4: return "OC4";
+    case 6: return "OC6";
+    case 10:
+    case 12: return "DB10";
+    case 20:
+    case 22: return "DB20";
+    default: return null;
+  }
+}
+
 export interface BoatAssignment {
   boatName: string;
+  /** Absent on lineups saved before boat types existed — infer when reading. */
+  boatType?: BoatType;
   seats: SeatAssignment[];
 }
 
