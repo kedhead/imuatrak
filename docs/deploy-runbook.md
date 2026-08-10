@@ -58,6 +58,24 @@ every user sat on the 1.0.2 binary. Each one reported success.
 To check what is really installed: expo.dev → project → Builds, or read the
 version on the phone's app listing.
 
+## Firebase deploys (rules, storage, functions)
+
+`firebase.json` lives in `firebase/`, not the repo root, and the Firebase CLI
+searches upward from the working directory rather than into subdirectories —
+so running `firebase deploy` from the root fails to find the project at all.
+The npm scripts therefore `cd firebase` first:
+
+```
+npm run deploy:rules       # firestore.rules
+npm run deploy:storage     # storage.rules
+npm run deploy:functions   # Cloud Functions
+```
+
+Rules and functions are NOT part of an OTA. A feature whose client calls a new
+Cloud Function, or writes to a path a new rule governs, needs those deployed
+**before** the OTA — otherwise the JS ships first and the feature fails against
+a backend that doesn't know about it yet.
+
 ## Emergency rollback
 
 If an OTA breaks production, revert everyone to the last store binary's
