@@ -10,6 +10,7 @@ import {
   getUserClub,
   markChannelRead,
   sendChannelMessage,
+  setMessagePinned,
   subscribeChannelMessages,
   subscribeChannels,
   toggleMessageReaction,
@@ -190,6 +191,25 @@ export default function ClubChatPage() {
     void toggleMessageReaction(clubId, activeId, message, emoji, uid).catch(() => undefined);
   };
 
+  const onTogglePin = (message: ClubMessage) => {
+    if (!clubId || !activeId || !user) return;
+    const pinning = !message.pinnedAt;
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === message.id
+          ? {
+              ...m,
+              pinnedAt: pinning ? new Date().toISOString() : undefined,
+              pinnedBy: pinning ? user.uid : undefined,
+            }
+          : m,
+      ),
+    );
+    void setMessagePinned(clubId, activeId, message.id, pinning, user.uid).catch(() => {
+      setError("Couldn't update the pin.");
+    });
+  };
+
   const onDelete = (message: ClubMessage) => {
     if (!clubId || !activeId) return;
     if (!window.confirm("Delete this message? This can't be undone.")) return;
@@ -339,6 +359,8 @@ export default function ClubChatPage() {
                 uploading={uploadingId === m.id}
                 mentionTargets={mentionTargets}
                 canDelete={m.authorId === user.uid || canModerate}
+                canPin={canModerate}
+                onTogglePin={() => onTogglePin(m)}
                 onReply={() =>
                   setReplyTarget({ messageId: m.id, authorName: m.authorName, preview: previewOf(m) })
                 }
@@ -492,8 +514,10 @@ function MessageRow({
   uploading,
   mentionTargets,
   canDelete,
+  canPin,
   onReply,
   onDelete,
+  onTogglePin,
   onToggleReaction,
   onOpenViewer,
 }: {
@@ -505,8 +529,10 @@ function MessageRow({
   uploading: boolean;
   mentionTargets: MentionTarget[];
   canDelete: boolean;
+  canPin: boolean;
   onReply: () => void;
   onDelete: () => void;
+  onTogglePin: () => void;
   onToggleReaction: (emoji: string) => void;
   onOpenViewer: (urls: string[], index: number) => void;
 }) {
@@ -550,6 +576,12 @@ function MessageRow({
             borderLeft: !isMe && roleMeta ? `3px solid ${roleMeta.color}` : undefined,
           }}
         >
+          {message.pinnedAt && (
+            <div style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 2, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, color: isMe ? "#cfe6ff" : "var(--blue-bright)" }}>
+              📌 PINNED
+            </div>
+          )}
+
           {!isMe && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: roleMeta?.color ?? "var(--muted)" }}>
@@ -650,6 +682,15 @@ function MessageRow({
           >
             <button onClick={() => setPickerOpen((v) => !v)} title="React" style={{ ...linkBtn, fontSize: 14 }}>😊</button>
             <button onClick={onReply} title="Reply" style={{ ...linkBtn, fontSize: 14 }}>↩︎</button>
+            {canPin && (
+              <button
+                onClick={onTogglePin}
+                title={message.pinnedAt ? "Unpin" : "Pin"}
+                style={{ ...linkBtn, fontSize: 14, opacity: message.pinnedAt ? 1 : 0.55 }}
+              >
+                📌
+              </button>
+            )}
             {canDelete && (
               <button onClick={onDelete} title="Delete" style={{ ...linkBtn, fontSize: 14 }}>🗑️</button>
             )}

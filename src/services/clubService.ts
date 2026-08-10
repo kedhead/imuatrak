@@ -6,6 +6,8 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
+  getCountFromServer,
   addDoc,
   query,
   where,
@@ -729,37 +731,71 @@ export async function toggleMessageReaction(
 }
 
 /**
- * Delete a channel message. Firestore rules allow this for the author or a
- * club owner/admin. Any attached media is removed best-effort via the same
- * Storage REST endpoint (Firebase-scheme auth) the upload uses.
+ * Delete a channel message and its attachments.
+ *
+ * Goes through a Cloud Function rather than deleting the doc here. The old
+ * client-side path removed only the single object named by mediaStoragePath,
+ * which multi-image messages never have — uploadChannelMedia records a path
+ * for the "media" key alone, so every "media-N" image was orphaned in Storage
+ * permanently. The function deletes the whole message prefix, and re-checks
+ * author-or-owner/admin server-side to match the Firestore delete rule.
  */
 export async function deleteChannelMessage(
   clubId: string,
   channelId: string,
-  message: Pick<ClubMessage, "id" | "mediaStoragePath">,
+  message: Pick<ClubMessage, "id">,
 ): Promise<void> {
-  await deleteDoc(doc(db, "clubs", clubId, "channels", channelId, "messages", message.id));
+  const fn = httpsCallable<
+    { clubId: string; channelId: string; messageId: string },
+    { success: boolean }
+  >(functions, "deleteChannelMessage");
+  await fn({ clubId, channelId, messageId: message.id });
+}
 
-  // Best-effort media cleanup — a failed delete here must not block removing
-  // the message from the feed.
-  if (message.mediaStoragePath?.startsWith("gs://")) {
-    try {
-      const user = auth.currentUser;
-      if (!user) return;
-      const token = await user.getIdToken();
-      const withoutScheme = message.mediaStoragePath.slice("gs://".length);
-      const slash = withoutScheme.indexOf("/");
-      if (slash < 0) return;
-      const bucket = withoutScheme.slice(0, slash);
-      const objectPath = withoutScheme.slice(slash + 1);
-      await fetch(
-        `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}`,
-        { method: "DELETE", headers: { Authorization: `Firebase ${token}` } },
+/**
+ * How many messages a retention setting would sweep on its next run.
+ *
+ * An upper bound, not an exact figure: Firestore can't filter on a field being
+ * absent, so pinned messages can't be excluded from the count even though the
+ * sweep skips them. Surface it as "up to N" rather than a promise.
+ */
+export async function countExpiringMessages(clubId: string, days: number): Promise<number> {
+  if (days <= 0) return 0;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const channels = await getDocs(collection(db, "clubs", clubId, "channels"));
+
+  const counts = await Promise.all(
+    channels.docs.map(async (ch) => {
+      const snap = await getCountFromServer(
+        query(
+          collection(db, "clubs", clubId, "channels", ch.id, "messages"),
+          where("createdAt", "<", cutoff),
+        ),
       );
-    } catch {
-      // Orphaned media is harmless; the message is already gone.
-    }
-  }
+      return snap.data().count;
+    }),
+  );
+  return counts.reduce((sum, n) => sum + n, 0);
+}
+
+/**
+ * Pin or unpin a message. Owner/admin only, enforced by the Firestore rule.
+ * Pinned messages are exempt from the club's chat retention sweep.
+ */
+export async function setMessagePinned(
+  clubId: string,
+  channelId: string,
+  messageId: string,
+  pinned: boolean,
+  uid: string,
+): Promise<void> {
+  const ref = doc(db, "clubs", clubId, "channels", channelId, "messages", messageId);
+  await updateDoc(
+    ref,
+    pinned
+      ? { pinnedAt: new Date().toISOString(), pinnedBy: uid }
+      : { pinnedAt: deleteField(), pinnedBy: deleteField() },
+  );
 }
 
 export async function uploadMessageMedia(

@@ -5,8 +5,10 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   FieldPath,
+  getCountFromServer,
   getDoc,
   getDocs,
   getFirestore,
@@ -321,7 +323,10 @@ export async function removeClubMember(clubId: string, uid: string): Promise<voi
 
 export async function updateClub(
   clubId: string,
-  updates: Partial<Pick<Club, "name" | "description" | "location" | "logoUrl" | "websiteUrl">>,
+  updates: Partial<Pick<Club, "name" | "description" | "location" | "logoUrl" | "websiteUrl">> & {
+    /** deleteField() clears it — "keep all" is stored as absent, not 0. */
+    chatRetentionDays?: number | ReturnType<typeof deleteField>;
+  },
 ): Promise<void> {
   const docRef = doc(db, "clubs", clubId);
   const payload: Record<string, unknown> = {};
@@ -330,6 +335,7 @@ export async function updateClub(
   if (updates.location !== undefined) payload.location = updates.location;
   if (updates.logoUrl !== undefined) payload.logoUrl = updates.logoUrl;
   if (updates.websiteUrl !== undefined) payload.websiteUrl = updates.websiteUrl;
+  if (updates.chatRetentionDays !== undefined) payload.chatRetentionDays = updates.chatRetentionDays;
   if (Object.keys(payload).length > 0) await updateDoc(docRef, payload as Record<string, unknown> & object);
 }
 
@@ -435,12 +441,63 @@ export async function toggleMessageReaction(
   );
 }
 
+/**
+ * Delete a message and its attachments.
+ *
+ * Routed through a Cloud Function rather than deleting the doc directly:
+ * multi-image messages record no Storage path (only the "media" key does), so
+ * a client-side delete orphans their photos permanently. The function removes
+ * the whole message prefix and re-checks author-or-owner/admin server-side.
+ */
 export async function deleteChannelMessage(
   clubId: string,
   channelId: string,
   messageId: string,
 ): Promise<void> {
-  await deleteDoc(doc(db, "clubs", clubId, "channels", channelId, "messages", messageId));
+  const fn = httpsCallable<
+    { clubId: string; channelId: string; messageId: string },
+    { success: boolean }
+  >(getFunctions(firebaseApp), "deleteChannelMessage");
+  await fn({ clubId, channelId, messageId });
+}
+
+/** Pin or unpin a message. Owner/admin only, enforced by the Firestore rule. */
+export async function setMessagePinned(
+  clubId: string,
+  channelId: string,
+  messageId: string,
+  pinned: boolean,
+  uid: string,
+): Promise<void> {
+  await updateDoc(
+    doc(db, "clubs", clubId, "channels", channelId, "messages", messageId),
+    pinned
+      ? { pinnedAt: new Date().toISOString(), pinnedBy: uid }
+      : { pinnedAt: deleteField(), pinnedBy: deleteField() },
+  );
+}
+
+/**
+ * Upper bound on what a retention setting would sweep. Firestore can't filter
+ * on an absent field, so pinned messages are counted even though the sweep
+ * skips them — present it as "up to N".
+ */
+export async function countExpiringMessages(clubId: string, days: number): Promise<number> {
+  if (days <= 0) return 0;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const channels = await getDocs(collection(db, "clubs", clubId, "channels"));
+  const counts = await Promise.all(
+    channels.docs.map(async (ch) => {
+      const snap = await getCountFromServer(
+        query(
+          collection(db, "clubs", clubId, "channels", ch.id, "messages"),
+          where("createdAt", "<", cutoff),
+        ),
+      );
+      return snap.data().count;
+    }),
+  );
+  return counts.reduce((sum, n) => sum + n, 0);
 }
 
 /**

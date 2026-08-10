@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { getUserClub, updateClub, uploadClubLogo } from "@/lib/firebase";
-import type { Club, MemberRole } from "@/lib/clubTypes";
+import { countExpiringMessages, getUserClub, updateClub, uploadClubLogo } from "@/lib/firebase";
+import { deleteField } from "firebase/firestore";
+import { CHAT_RETENTION_OPTIONS, type Club, type MemberRole } from "@/lib/clubTypes";
 
 export default function ClubSettingsPage() {
   const { user, loading } = useAuth();
@@ -18,6 +19,7 @@ export default function ClubSettingsPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [retentionDays, setRetentionDays] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +36,7 @@ export default function ClubSettingsPage() {
       setCountry(ctx.club.location?.country ?? "");
       setWebsiteUrl(ctx.club.websiteUrl ?? "");
       setLogoUrl(ctx.club.logoUrl ?? "");
+      setRetentionDays(ctx.club.chatRetentionDays ?? 0);
     });
   }, [user]);
 
@@ -46,9 +49,32 @@ export default function ClubSettingsPage() {
     setLogoPreview(URL.createObjectURL(file));
   };
 
+  /**
+   * Shortening retention deletes history on the next nightly sweep, so say what
+   * it costs before saving. Only asks when the window actually tightens —
+   * lengthening it, or turning it off, can't delete anything.
+   */
+  const confirmRetentionChange = async (): Promise<boolean> => {
+    const current = club?.chatRetentionDays ?? 0;
+    if (retentionDays === current) return true;
+    const isTightening = retentionDays > 0 && (current === 0 || retentionDays < current);
+    if (!isTightening) return true;
+
+    const count = await countExpiringMessages(club!.id, retentionDays).catch(() => -1);
+    if (count === 0) return true;
+    const scope =
+      count < 0
+        ? "Older messages will be deleted"
+        : `Up to ${count} message${count === 1 ? "" : "s"} will be deleted`;
+    return window.confirm(
+      `${scope} on the next nightly cleanup, along with any photos attached to them. Pinned messages are kept. This can't be undone.`,
+    );
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!club || !isAdmin) return;
+    if (!(await confirmRetentionChange())) return;
     setSaving(true);
     try {
       let finalLogoUrl = logoUrl;
@@ -63,7 +89,9 @@ export default function ClubSettingsPage() {
         location: { city: city.trim(), country: country.trim() },
         websiteUrl: websiteUrl.trim() || undefined,
         logoUrl: finalLogoUrl || undefined,
+        chatRetentionDays: retentionDays > 0 ? retentionDays : deleteField(),
       });
+      setClub({ ...club, chatRetentionDays: retentionDays > 0 ? retentionDays : undefined });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } finally {
@@ -192,6 +220,36 @@ export default function ClubSettingsPage() {
               placeholder="https://yourclub.com"
               type="url"
             />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Chat History</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {CHAT_RETENTION_OPTIONS.map((o) => (
+                <button
+                  key={o.days}
+                  type="button"
+                  onClick={() => setRetentionDays(o.days)}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 999,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: retentionDays === o.days ? "1px solid var(--blue-bright)" : "1px solid var(--line)",
+                    background: retentionDays === o.days ? "var(--blue-bright)" : "transparent",
+                    color: retentionDays === o.days ? "#fff" : "inherit",
+                  }}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
+              {retentionDays === 0
+                ? "Chat messages are kept indefinitely."
+                : `Messages older than ${retentionDays} days are deleted nightly, along with their photos. Pinned messages are always kept.`}
+            </p>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

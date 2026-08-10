@@ -1,7 +1,7 @@
 import * as crypto from "crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
@@ -105,6 +105,75 @@ export const uploadChannelMedia = onCall({ memory: "512MiB" }, async (request) =
   }
 
   return { mediaUrl };
+});
+
+// ---------------------------------------------------------------------------
+// purgeMessageMedia — delete every attachment belonging to one message.
+//
+// Deleting the message doc alone orphans its media forever. The client used to
+// delete the single object named by mediaStoragePath, which misses multi-image
+// messages entirely: uploadChannelMedia only records a path for the "media"
+// key, and each "media-N" image just appends to mediaUrls. Deleting the whole
+// message prefix catches every attachment however it was uploaded.
+//
+// Called after the client deletes the doc, and reused by the retention sweep.
+// ---------------------------------------------------------------------------
+async function purgeMessageMediaFiles(
+  clubId: string,
+  channelId: string,
+  messageId: string,
+): Promise<void> {
+  await getStorage()
+    .bucket()
+    .deleteFiles({ prefix: `clubs/${clubId}/channels/${channelId}/messages/${messageId}/` })
+    .catch(() => undefined);
+}
+
+/**
+ * Delete a message and its attachments together.
+ *
+ * Enforces the same permission as the Firestore delete rule — author, or club
+ * owner/admin — by reading the doc while it still exists. A media-only purge
+ * couldn't do that: once the doc is gone there is no authorId left to check,
+ * which would let any member strip the photos off anyone else's message.
+ */
+export const deleteChannelMessage = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { clubId, channelId, messageId } = request.data ?? {};
+  if (
+    typeof clubId !== "string" ||
+    typeof channelId !== "string" ||
+    typeof messageId !== "string"
+  ) {
+    throw new HttpsError("invalid-argument", "Missing message reference");
+  }
+
+  const db = getFirestore();
+  const msgRef = db.doc(`clubs/${clubId}/channels/${channelId}/messages/${messageId}`);
+  const [msgSnap, memberSnap] = await Promise.all([
+    msgRef.get(),
+    db.doc(`clubs/${clubId}/members/${uid}`).get(),
+  ]);
+
+  if (!memberSnap.exists) throw new HttpsError("permission-denied", "Not a club member");
+  // Already gone — clear any media left behind and report success so a retry
+  // after a partial failure doesn't surface as an error.
+  if (!msgSnap.exists) {
+    await purgeMessageMediaFiles(clubId, channelId, messageId);
+    return { success: true };
+  }
+
+  const role = (memberSnap.data() as { role?: string } | undefined)?.role;
+  const isAuthor = (msgSnap.data() as { authorId?: string } | undefined)?.authorId === uid;
+  if (!isAuthor && role !== "owner" && role !== "admin") {
+    throw new HttpsError("permission-denied", "Can't delete someone else's message");
+  }
+
+  await purgeMessageMediaFiles(clubId, channelId, messageId);
+  await msgRef.delete();
+  return { success: true };
 });
 
 // ---------------------------------------------------------------------------
@@ -808,6 +877,71 @@ export const expireClubTrials = onSchedule("every day 06:00", async () => {
 // Session dates are ISO-8601 strings throughout the app, so day bucketing and
 // cutoff comparisons are plain string operations.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// expireChatMessages — nightly sweep deleting chat past each club's retention.
+//
+// Opt-in per club: only clubs with chatRetentionDays > 0 are touched, so no
+// existing club starts losing history without someone turning it on. Pinned
+// messages are skipped — pinning is how a club marks something worth keeping,
+// and a sweep that deleted those would defeat the point of the setting.
+//
+// createdAt is an ISO-8601 string, which sorts chronologically, so the cutoff
+// compares directly without a schema change.
+// ---------------------------------------------------------------------------
+export const expireChatMessages = onSchedule("every day 04:00", async () => {
+  const db = getFirestore();
+
+  const clubs = await db.collection("clubs").where("chatRetentionDays", ">", 0).get();
+  if (clubs.empty) {
+    console.log("expireChatMessages: no clubs with retention set");
+    return;
+  }
+
+  let deleted = 0;
+  for (const clubDoc of clubs.docs) {
+    const days = (clubDoc.data() as { chatRetentionDays?: number }).chatRetentionDays ?? 0;
+    if (days <= 0) continue;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    const channels = await db.collection(`clubs/${clubDoc.id}/channels`).get();
+    for (const channelDoc of channels.docs) {
+      // Paged with a cursor rather than re-querying from the start each time.
+      // Re-querying would stall permanently on a channel whose oldest messages
+      // are pinned: they match the cutoff, survive the sweep, and would fill
+      // page one forever, hiding every deletable message behind them.
+      const PAGE = 200;
+      let cursor: QueryDocumentSnapshot | null = null;
+      for (;;) {
+        let q = db
+          .collection(`clubs/${clubDoc.id}/channels/${channelDoc.id}/messages`)
+          .where("createdAt", "<", cutoff)
+          .orderBy("createdAt")
+          .limit(PAGE);
+        if (cursor) q = q.startAfter(cursor);
+
+        const stale = await q.get();
+        if (stale.empty) break;
+        cursor = stale.docs[stale.docs.length - 1]!;
+
+        const doomed = stale.docs.filter((d) => !(d.data() as { pinnedAt?: string }).pinnedAt);
+        if (doomed.length > 0) {
+          await Promise.all(
+            doomed.map((d) => purgeMessageMediaFiles(clubDoc.id, channelDoc.id, d.id)),
+          );
+          const batch = db.batch();
+          for (const d of doomed) batch.delete(d.ref);
+          await batch.commit();
+          deleted += doomed.length;
+        }
+
+        if (stale.size < PAGE) break;
+      }
+    }
+  }
+
+  console.log(`expireChatMessages: deleted ${deleted} message(s)`);
+});
+
 export const getAppStats = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");

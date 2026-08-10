@@ -19,8 +19,19 @@ export interface Club {
   subscriptionTier: "basic" | "pro";
   trialEndsAt?: string;
   memberCount: number;
+  /** Delete chat older than this many days. Absent or 0 keeps everything. */
+  chatRetentionDays?: number;
   createdAt: string;
 }
+
+/** Retention choices offered in club settings. 0 means keep everything. */
+export const CHAT_RETENTION_OPTIONS: { days: number; label: string }[] = [
+  { days: 0, label: "Keep all" },
+  { days: 30, label: "30 days" },
+  { days: 90, label: "90 days" },
+  { days: 180, label: "6 months" },
+  { days: 365, label: "1 year" },
+];
 
 export interface ClubMember {
   uid: string;
@@ -81,6 +92,9 @@ export interface ClubMessage {
   mentions?: string[];
   /** Set when this message is a reply to another. */
   replyTo?: { messageId: string; authorName: string; preview: string };
+  /** Pinned messages are exempt from the club's chat retention sweep. */
+  pinnedAt?: string;
+  pinnedBy?: string;
   createdAt: string;
 }
 

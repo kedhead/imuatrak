@@ -28,6 +28,7 @@ import {
   getClubMembers,
   markChannelRead,
   deleteChannelMessage,
+  setMessagePinned,
   toggleMessageReaction,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
@@ -182,6 +183,26 @@ export default function ChannelChatScreen() {
         },
       },
     ]);
+  };
+
+  const onTogglePin = (message: ClubMessage) => {
+    if (!club || !channelId || !user) return;
+    const pinning = !message.pinnedAt;
+    // Optimistic; the subscription reconciles if the write is rejected.
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === message.id
+          ? {
+              ...m,
+              pinnedAt: pinning ? new Date().toISOString() : undefined,
+              pinnedBy: pinning ? user.uid : undefined,
+            }
+          : m,
+      ),
+    );
+    void setMessagePinned(club.id, channelId, message.id, pinning, user.uid).catch(() => {
+      Alert.alert("Couldn't update pin", "Please try again.");
+    });
   };
 
   const previewOf = (m: ClubMessage): string =>
@@ -460,6 +481,25 @@ export default function ChannelChatScreen() {
                 <Ionicons name="arrow-undo-outline" size={20} color={colors.ink} />
                 <Text style={styles.sheetRowText}>Reply</Text>
               </Pressable>
+              {(myRole === "owner" || myRole === "admin") && (
+                <Pressable
+                  style={styles.sheetRow}
+                  onPress={() => {
+                    const target = actionTarget;
+                    setActionTarget(null);
+                    onTogglePin(target);
+                  }}
+                >
+                  <Ionicons
+                    name={actionTarget.pinnedAt ? "pin" : "pin-outline"}
+                    size={20}
+                    color={colors.ink}
+                  />
+                  <Text style={styles.sheetRowText}>
+                    {actionTarget.pinnedAt ? "Unpin" : "Pin"}
+                  </Text>
+                </Pressable>
+              )}
               {!!user &&
                 (actionTarget.authorId === user.uid || myRole === "owner" || myRole === "admin") && (
                 <Pressable
@@ -591,6 +631,13 @@ function MessageBubble({
           },
         ]}
       >
+        {!!message.pinnedAt && (
+          <View style={styles.pinnedRow}>
+            <Ionicons name="pin" size={11} color={isMe ? colors.white : colors.ocean} />
+            <Text style={[styles.pinnedText, isMe && { color: colors.white }]}>Pinned</Text>
+          </View>
+        )}
+
         {!isMe && (
           <View style={styles.authorRow}>
             <Text style={[styles.authorName, roleMeta && { color: roleMeta.color }]}>
@@ -760,6 +807,8 @@ const styles = StyleSheet.create({
   },
   bubbleMe: { backgroundColor: colors.ocean },
   bubbleThem: { backgroundColor: colors.white },
+  pinnedRow: { flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 2 },
+  pinnedText: { fontSize: 10, fontWeight: type.weight.heavy, color: colors.ocean, letterSpacing: 0.5 },
   authorRow: {
     flexDirection: "row",
     alignItems: "center",

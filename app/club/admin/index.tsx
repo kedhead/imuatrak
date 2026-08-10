@@ -20,7 +20,8 @@ import { deleteField } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/services/firebase";
 import { useClub } from "@/services/clubStore";
-import { updateClub, leaveClub } from "@/services/clubService";
+import { updateClub, leaveClub, countExpiringMessages } from "@/services/clubService";
+import { CHAT_RETENTION_OPTIONS } from "@/models/club";
 import { currentUser } from "@/services/auth";
 import { colors, spacing, radii } from "@/ui/theme";
 
@@ -36,6 +37,7 @@ export default function ClubAdminScreen() {
   const [websiteUrl, setWebsiteUrl] = useState(club?.websiteUrl ?? "");
   const [logoUrl, setLogoUrl] = useState(club?.logoUrl ?? "");
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [retentionDays, setRetentionDays] = useState(club?.chatRetentionDays ?? 0);
   const [saving, setSaving] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [migrated, setMigrated] = useState(false);
@@ -108,7 +110,39 @@ export default function ClubAdminScreen() {
     }
   };
 
+  /**
+   * Shortening retention deletes history on the next nightly sweep, so show
+   * what it will cost before saving rather than letting a pill quietly do it.
+   * Only asks when the window actually tightens — lengthening it, or turning
+   * it off, can't delete anything.
+   */
+  const confirmRetentionChange = async (): Promise<boolean> => {
+    const current = club?.chatRetentionDays ?? 0;
+    if (retentionDays === current) return true;
+    const isTightening = retentionDays > 0 && (current === 0 || retentionDays < current);
+    if (!isTightening) return true;
+
+    const count = await countExpiringMessages(club!.id, retentionDays).catch(() => -1);
+    if (count === 0) return true;
+
+    const scope =
+      count < 0
+        ? "Older messages will be deleted"
+        : `Up to ${count} message${count === 1 ? "" : "s"} will be deleted`;
+    return new Promise((resolve) => {
+      Alert.alert(
+        "Delete older chat?",
+        `${scope} on the next nightly cleanup, along with any photos attached to them. Pinned messages are kept. This can't be undone.`,
+        [
+          { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+          { text: "Delete older chat", style: "destructive", onPress: () => resolve(true) },
+        ],
+      );
+    });
+  };
+
   const handleSave = async () => {
+    if (!(await confirmRetentionChange())) return;
     setSaving(true);
     try {
       const trimmedWebsite = websiteUrl.trim();
@@ -119,9 +153,18 @@ export default function ClubAdminScreen() {
         // fields when the user clears them, and a plain value when they're set.
         websiteUrl: trimmedWebsite ? trimmedWebsite : deleteField(),
         logoUrl: logoUrl ? logoUrl : deleteField(),
+        chatRetentionDays: retentionDays > 0 ? retentionDays : deleteField(),
       };
       await updateClub(club.id, updates);
-      setClub({ ...club, websiteUrl: trimmedWebsite || undefined, logoUrl: logoUrl || undefined }, role!);
+      setClub(
+        {
+          ...club,
+          websiteUrl: trimmedWebsite || undefined,
+          logoUrl: logoUrl || undefined,
+          chatRetentionDays: retentionDays > 0 ? retentionDays : undefined,
+        },
+        role!,
+      );
       Alert.alert("Saved");
     } catch {
       Alert.alert("Error saving changes");
@@ -292,6 +335,31 @@ export default function ClubAdminScreen() {
           autoCorrect={false}
         />
 
+        <Text style={styles.sectionLabel}>CHAT HISTORY</Text>
+        <View style={styles.retentionRow}>
+          {CHAT_RETENTION_OPTIONS.map((o) => (
+            <Pressable
+              key={o.days}
+              style={[styles.retentionPill, retentionDays === o.days && styles.retentionPillOn]}
+              onPress={() => setRetentionDays(o.days)}
+            >
+              <Text
+                style={[
+                  styles.retentionPillText,
+                  retentionDays === o.days && styles.retentionPillTextOn,
+                ]}
+              >
+                {o.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.retentionHint}>
+          {retentionDays === 0
+            ? "Chat messages are kept indefinitely."
+            : `Messages older than ${retentionDays} days are deleted nightly, along with their photos. Pinned messages are always kept.`}
+        </Text>
+
         <Pressable style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
         </Pressable>
@@ -311,6 +379,19 @@ const styles = StyleSheet.create({
   subBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#EBF3FB", borderRadius: radii.md, padding: spacing.md },
   subText: { fontSize: 14, color: colors.blue, fontWeight: "600", flex: 1 },
   sectionLabel: { fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 1.2, marginTop: spacing.lg },
+  retentionRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm },
+  retentionPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  retentionPillOn: { backgroundColor: colors.ocean, borderColor: colors.ocean },
+  retentionPillText: { fontSize: 13, fontWeight: "600", color: colors.ink },
+  retentionPillTextOn: { color: colors.white },
+  retentionHint: { fontSize: 12, color: colors.muted, marginTop: spacing.xs, lineHeight: 17 },
   logoWrap: { alignSelf: "flex-start", marginTop: spacing.xs },
   logoImage: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.card },
   logoPlaceholder: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" },
