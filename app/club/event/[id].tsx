@@ -828,7 +828,7 @@ function EventForm({
       {numBoats > 0 && (
         <>
           <Text style={styles.stepperLabel}>Boat</Text>
-          <View style={styles.typeSelector}>
+          <View style={styles.boatSelector}>
             {BOAT_TYPES.map((t) => (
               <Pill
                 key={t}
@@ -964,6 +964,9 @@ const styles = StyleSheet.create({
 
   // Event form
   typeSelector: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xs },
+  // Six boats don't fit on one line the way three event types do, so this
+  // wraps rather than running the last option off the edge of the screen.
+  boatSelector: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.xs },
   input: { backgroundColor: colors.white, borderRadius: radii.md, padding: spacing.md, fontSize: type.size.md, color: colors.ink },
   multiline: { minHeight: 80, textAlignVertical: "top" },
   dateRow: { flexDirection: "row", gap: spacing.sm },
