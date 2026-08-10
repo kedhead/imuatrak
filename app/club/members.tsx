@@ -15,7 +15,7 @@ import { removeMember, updateMemberRole } from "@/services/clubService";
 import { openDmThread } from "@/services/dmService";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
-import type { ClubMember, MemberRole } from "@/models/club";
+import { clubGrantsAdFree, type ClubMember, type MemberRole } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
 import { colors, spacing, radii } from "@/ui/theme";
 
@@ -38,7 +38,12 @@ export default function MembersScreen() {
 
   const me = currentUser();
   const isAdmin = role === "owner" || role === "admin";
-  const isSubscriber = useSubscription((s) => s.isAdFree);
+  // "Paid" means the same thing here as everywhere else in the app: your own
+  // ImuaTrak+ subscription, OR membership of a club on an active/unexpired
+  // trial plan. Checking only the personal entitlement sent members of a
+  // paying club to the paywall for a feature their club had already bought.
+  const isAdFree = useSubscription((s) => s.isAdFree);
+  const isSubscriber = isAdFree || clubGrantsAdFree(club);
   const [openingUid, setOpeningUid] = useState<string | null>(null);
 
   /**
