@@ -878,6 +878,84 @@ export const expireClubTrials = onSchedule("every day 06:00", async () => {
 // cutoff comparisons are plain string operations.
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
+// onDmMessageCreate — notify the other participant of a direct message.
+//
+// Mirrors onChannelMessageCreate: bump the recipient's per-thread unread count
+// and their global unreadTotal (which drives the app-icon badge), then push
+// with that real total.
+//
+// The thread doc is read for its participants rather than trusting anything on
+// the message, so a client can't address a notification to someone who isn't in
+// the conversation.
+// ---------------------------------------------------------------------------
+export const onDmMessageCreate = onDocumentCreated(
+  "dms/{threadId}/messages/{messageId}",
+  async (event) => {
+    const { threadId } = event.params;
+    const message = event.data?.data() as
+      | { authorId: string; authorName: string; content: string }
+      | undefined;
+    if (!message) return;
+
+    const db = getFirestore();
+    const threadSnap = await db.doc(`dms/${threadId}`).get();
+    if (!threadSnap.exists) return;
+    const participants =
+      (threadSnap.data() as { participants?: string[] } | undefined)?.participants ?? [];
+
+    const recipients = participants.filter((uid) => uid !== message.authorId);
+    if (recipients.length === 0) return;
+
+    const body = message.content.length > 0 ? message.content.slice(0, 200) : "Sent a message";
+
+    for (const userId of recipients) {
+      const userRef = db.doc(`users/${userId}`);
+      const threadPrefRef = db.doc(`users/${userId}/dmThreads/${threadId}`);
+
+      const newTotal = await db.runTransaction(async (tx) => {
+        const userSnap = await tx.get(userRef);
+        const total = ((userSnap.data()?.unreadTotal as number | undefined) ?? 0) + 1;
+        tx.set(userRef, { unreadTotal: total }, { merge: true });
+        tx.set(threadPrefRef, { unreadCount: FieldValue.increment(1) }, { merge: true });
+        return total;
+      });
+
+      // Only Expo tokens are sendable; legacy raw APNs tokens are filtered out
+      // for the same reason as in onChannelMessageCreate.
+      const tokensSnap = await db.collection(`users/${userId}/fcmTokens`).get();
+      const tokens = tokensSnap.docs
+        .map((d) => (d.data() as { token: string }).token)
+        .filter((t) => typeof t === "string" && t.startsWith("ExponentPushToken"));
+      if (tokens.length === 0) continue;
+
+      try {
+        const res = await fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify([
+            {
+              to: tokens,
+              // A DM is from a person, not a room — no channel name to qualify it.
+              title: message.authorName,
+              body,
+              sound: "default",
+              badge: newTotal,
+              priority: "high",
+              data: { threadId, screen: "dm" },
+            },
+          ]),
+        });
+        if (!res.ok) {
+          console.error("DM push send failed:", res.status, await res.text());
+        }
+      } catch (e) {
+        console.error("DM push send error:", e);
+      }
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
 // openDmThread — find or create the direct-message thread for two users.
 //
 // Client can't create threads directly (rules deny it) because the pairing has

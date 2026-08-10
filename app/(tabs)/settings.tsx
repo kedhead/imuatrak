@@ -9,6 +9,7 @@ import { leaveClub, syncMemberDisplayName, uploadAvatar } from "@/services/clubS
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
+import { useDmUnreadCount } from "@/services/unread";
 import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
@@ -34,6 +35,7 @@ export default function Settings() {
   const [displayName, setDisplayName] = useState("");
   const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const dmUnread = useDmUnreadCount(user?.uid);
   const [savingName, setSavingName] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -301,7 +303,7 @@ export default function Settings() {
                   />
                 )}
                 <Button
-                  title="Messages"
+                  title={dmUnread > 0 ? `Messages (${dmUnread > 9 ? "9+" : dmUnread})` : "Messages"}
                   gradient="ocean"
                   onPress={() => router.push("/dm")}
                   style={{ marginTop: spacing.md }}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { MemberRole } from "@/models/club";
 import { subscribeChannels, subscribeChannelUnread } from "./clubService";
+import { subscribeDmUnread } from "./dmService";
 
 /**
  * Live count of unread chat messages in ONE club.
@@ -52,4 +53,24 @@ export function useClubUnreadCount(
   }, [uid]);
 
   return channelIds.reduce((sum, id) => sum + (unreadByChannel[id] ?? 0), 0);
+}
+
+/**
+ * Live count of unread direct messages, across every thread.
+ *
+ * Unlike club chat this is genuinely global — a DM isn't scoped to a club, so
+ * there is nothing to filter it down to.
+ */
+export function useDmUnreadCount(uid: string | undefined): number {
+  const [byThread, setByThread] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!uid) {
+      setByThread({});
+      return;
+    }
+    return subscribeDmUnread(uid, setByThread);
+  }, [uid]);
+
+  return Object.values(byThread).reduce((sum, n) => sum + n, 0);
 }

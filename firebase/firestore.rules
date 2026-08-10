@@ -36,6 +36,13 @@ service cloud.firestore {
         allow read, write: if isOwner(uid);
       }
 
+      // Per-thread DM read state. Kept in the reader's own document rather
+      // than on the shared thread, so neither participant can write the
+      // other's read marker.
+      match /dmThreads/{threadId} {
+        allow read, write: if isOwner(uid);
+      }
+
       match /sessions/{sessionId} {
         allow read: if isOwner(uid);
 
