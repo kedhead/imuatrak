@@ -108,6 +108,79 @@ export const uploadChannelMedia = onCall({ memory: "512MiB" }, async (request) =
 });
 
 // ---------------------------------------------------------------------------
+// uploadAvatar — stores a profile photo and fans the resulting URL out to the
+// caller's member doc in every club they belong to.
+//
+// Goes through a callable rather than the Storage SDK for the same reason
+// uploadChannelMedia does: React Native can't build the Blob the client SDK
+// wants. The fan-out is server-side so a user in several clubs can't end up
+// with their photo applied to some rosters and not others when a client write
+// fails halfway.
+//
+// Chat resolves avatars by authorId against the member list rather than
+// reading a copy denormalized onto each message, so changing your photo
+// updates your whole history instead of only messages sent from here on.
+// ---------------------------------------------------------------------------
+export const uploadAvatar = onCall({ memory: "512MiB" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { base64, contentType } = request.data ?? {};
+  if (typeof base64 !== "string" || typeof contentType !== "string") {
+    throw new HttpsError("invalid-argument", "Missing upload fields");
+  }
+  if (!/^image\//.test(contentType)) {
+    throw new HttpsError("invalid-argument", "Avatars must be an image");
+  }
+
+  const buffer = Buffer.from(base64, "base64");
+  // Avatars render at most a few hundred px; 2 MB is generous and keeps the
+  // callable well inside its payload cap once base64 inflation is counted.
+  if (buffer.length > 2 * 1024 * 1024) {
+    throw new HttpsError("invalid-argument", "Image too large (max 2 MB)");
+  }
+
+  const ext = contentType.split("/")[1] || "jpg";
+  const path = `users/${uid}/avatar.${ext}`;
+  const token = crypto.randomUUID();
+  const bucket = getStorage().bucket();
+
+  await bucket.file(path).save(buffer, {
+    contentType,
+    metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+  });
+
+  // A fresh token each upload doubles as a cache-buster: replacing your photo
+  // changes the URL, so clients don't keep showing the previous one.
+  const avatarUrl =
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+    `${encodeURIComponent(path)}?alt=media&token=${token}`;
+
+  const db = getFirestore();
+  await db.doc(`users/${uid}`).set({ avatarUrl }, { merge: true });
+
+  const userClubsSnap = await db.doc(`userClubs/${uid}`).get();
+  const clubIds: string[] =
+    (userClubsSnap.data() as { clubIds?: string[] } | undefined)?.clubIds ?? [];
+  if (clubIds.length > 0) {
+    const batch = db.batch();
+    for (const clubId of clubIds) {
+      batch.update(db.doc(`clubs/${clubId}/members/${uid}`), { avatarUrl });
+    }
+    // A stale clubId whose member doc is gone would fail the whole batch.
+    await batch.commit().catch(async () => {
+      await Promise.all(
+        clubIds.map((clubId) =>
+          db.doc(`clubs/${clubId}/members/${uid}`).update({ avatarUrl }).catch(() => undefined),
+        ),
+      );
+    });
+  }
+
+  return { avatarUrl };
+});
+
+// ---------------------------------------------------------------------------
 // fetchWeather — server-side proxy to OpenWeather so the API key never ships
 // in the Android app. iOS uses WeatherKit directly.
 // ---------------------------------------------------------------------------

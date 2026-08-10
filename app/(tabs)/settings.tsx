@@ -1,13 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { router, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CRAFT_TYPES, type CraftType } from "@/models";
 import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
-import { leaveClub, syncMemberDisplayName } from "@/services/clubService";
+import { leaveClub, syncMemberDisplayName, uploadAvatar } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
+import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { ClubSwitcher } from "@/ui/ClubSwitcher";
@@ -30,6 +32,8 @@ function kmDisplay(km: number, imperial: boolean) {
 export default function Settings() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [displayName, setDisplayName] = useState("");
+  const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -68,6 +72,46 @@ export default function Settings() {
     setUser(u);
     setDisplayName(u?.displayName ?? "");
   }), []);
+
+  // The roster copy is the source of truth for a photo, but it only refreshes
+  // when the club store reloads — hold the freshly uploaded URL locally so the
+  // new picture appears immediately.
+  const members = useClub((s) => s.members);
+  const rosterAvatarUrl = useMemo(
+    () => members.find((m) => m.uid === user?.uid)?.avatarUrl,
+    [members, user?.uid],
+  );
+  const avatarUrl = uploadedAvatarUrl ?? rosterAvatarUrl;
+
+  const onPickAvatar = async () => {
+    if (!user || uploadingAvatar) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Allow photo library access to set a profile photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      // Avatars render small; a heavy crop keeps the upload under the 2 MB cap
+      // the Cloud Function enforces.
+      quality: 0.7,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+
+    const asset = result.assets[0]!;
+    setUploadingAvatar(true);
+    try {
+      const url = await uploadAvatar(asset.uri, asset.mimeType ?? "image/jpeg");
+      setUploadedAvatarUrl(url);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Please try again.";
+      Alert.alert("Couldn't update photo", msg);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const onSaveName = async () => {
     const trimmed = displayName.trim();
@@ -219,6 +263,23 @@ export default function Settings() {
             <Text style={styles.body}>{user?.email ?? user?.uid ?? "Not signed in"}</Text>
             {user && (
               <>
+                <Text style={[styles.label, { marginTop: spacing.md }]}>PHOTO</Text>
+                <Pressable style={styles.avatarRow} onPress={onPickAvatar} disabled={uploadingAvatar}>
+                  <Avatar
+                    uri={avatarUrl}
+                    name={displayName || user.displayName || "Member"}
+                    uid={user.uid}
+                    size={56}
+                  />
+                  {uploadingAvatar ? (
+                    <ActivityIndicator size="small" color={colors.ocean} />
+                  ) : (
+                    <Text style={styles.avatarHint}>
+                      {avatarUrl ? "Change photo" : "Add a photo"}
+                    </Text>
+                  )}
+                </Pressable>
+
                 <Text style={[styles.label, { marginTop: spacing.md }]}>DISPLAY NAME</Text>
                 <TextInput
                   style={styles.nameInput}
@@ -511,6 +572,8 @@ const styles = StyleSheet.create({
   body: { color: colors.ink, fontSize: type.size.md },
   label: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.muted, letterSpacing: type.spacing.label, textTransform: "uppercase", marginBottom: spacing.xs },
   nameInput: { backgroundColor: colors.bgSoft, borderRadius: radii.md, padding: spacing.sm + 2, fontSize: type.size.md, color: colors.ink },
+  avatarRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.xs },
+  avatarHint: { fontSize: type.size.sm, color: colors.ocean, fontWeight: type.weight.medium },
   sectionTitle: {
     fontSize: type.size.xs,
     fontWeight: type.weight.heavy,
