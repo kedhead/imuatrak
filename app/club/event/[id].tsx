@@ -14,6 +14,7 @@ import {
   Text,
   TextInput,
   View,
+  type ViewStyle,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { deleteField } from "firebase/firestore";
@@ -35,6 +36,7 @@ import {
   type ClubMember,
   type EventType,
   type RsvpStatus,
+  type SeatAssignment,
 } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
@@ -44,6 +46,21 @@ import { GradientHeader } from "@/ui/GradientHeader";
 import { Pill } from "@/ui/Pill";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, spacing, type } from "@/ui/theme";
+
+/**
+ * Whether a hull seats its paddlers in pairs.
+ *
+ * Dragon boats sit two to a bench — one paddling left, one right — so a DB10
+ * or DB20 lineup only makes sense read as rows. Outrigger canoes (OC1–OC6)
+ * are single file, which is why the seat count alone identifies the layout:
+ * nothing else in the app's boat range seats 10 or 20.
+ *
+ * Seat numbering follows the boats: odd numbers sit left, even sit right, so
+ * seats 1 and 2 share the front bench.
+ */
+function isPairedHull(seatCount: number): boolean {
+  return seatCount === 10 || seatCount === 20;
+}
 
 const TYPE_COLOR: Record<string, string> = {
   practice: colors.ocean,
@@ -407,29 +424,56 @@ function EventDetail({
         {(boats.length > 0 || isAdmin) && (
           <Animated.View entering={FadeInDown.delay(180).duration(400)}>
             <Text style={styles.sectionLabel}>LINEUP</Text>
-            {boats.map((boat, bi) => (
-              <GradientCard key={bi} style={{ marginBottom: spacing.sm }}>
-                <Text style={styles.boatName}>{boat.boatName}</Text>
-                <View style={styles.seatsGrid}>
-                  {boat.seats.map((seat, si) => {
-                    const assignedMember = seat.uid ? memberByUid(seat.uid) : null;
-                    const isMe = seat.uid === me?.uid;
-                    return (
-                      <AnimatedPressable
-                        key={si}
-                        style={[styles.seatChip, isMe && styles.seatChipMe]}
-                        onPress={isAdmin ? () => setAssignTarget({ boatIdx: bi, seatIdx: si }) : undefined}
-                      >
-                        <Text style={styles.seatNum}>{seat.seatNumber}</Text>
-                        <Text style={[styles.seatName, !assignedMember && { color: colors.muted }]} numberOfLines={1}>
-                          {assignedMember ? assignedMember.displayName : "Empty"}
-                        </Text>
-                      </AnimatedPressable>
-                    );
-                  })}
-                </View>
-              </GradientCard>
-            ))}
+            {boats.map((boat, bi) => {
+              const renderSeat = (seat: SeatAssignment, si: number, extra?: ViewStyle) => {
+                const assignedMember = seat.uid ? memberByUid(seat.uid) : null;
+                const isMe = seat.uid === me?.uid;
+                return (
+                  <AnimatedPressable
+                    key={si}
+                    style={[styles.seatChip, isMe && styles.seatChipMe, extra]}
+                    onPress={isAdmin ? () => setAssignTarget({ boatIdx: bi, seatIdx: si }) : undefined}
+                  >
+                    <Text style={styles.seatNum}>{seat.seatNumber}</Text>
+                    <Text style={[styles.seatName, !assignedMember && { color: colors.muted }]} numberOfLines={1}>
+                      {assignedMember ? assignedMember.displayName : "Empty"}
+                    </Text>
+                  </AnimatedPressable>
+                );
+              };
+
+              return (
+                <GradientCard key={bi} style={{ marginBottom: spacing.sm }}>
+                  <Text style={styles.boatName}>{boat.boatName}</Text>
+                  {isPairedHull(boat.seats.length) ? (
+                    <View>
+                      <View style={styles.pairHeaderRow}>
+                        <Text style={styles.pairSideLabel}>LEFT</Text>
+                        <Text style={styles.pairSideLabel}>RIGHT</Text>
+                      </View>
+                      {Array.from({ length: Math.ceil(boat.seats.length / 2) }, (_, r) => {
+                        const left = boat.seats[r * 2];
+                        const right = boat.seats[r * 2 + 1];
+                        return (
+                          <View key={r} style={styles.pairRow}>
+                            <View style={styles.pairSide}>
+                              {left ? renderSeat(left, r * 2, styles.seatChipFull) : null}
+                            </View>
+                            <View style={styles.pairSide}>
+                              {right ? renderSeat(right, r * 2 + 1, styles.seatChipFull) : null}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View style={styles.seatsGrid}>
+                      {boat.seats.map((seat, si) => renderSeat(seat, si))}
+                    </View>
+                  )}
+                </GradientCard>
+              );
+            })}
             {isAdmin && (
               <Button
                 title="+ Add boat"
@@ -841,6 +885,19 @@ const styles = StyleSheet.create({
   // Boats
   boatName: { fontSize: type.size.md, fontWeight: type.weight.heavy, color: colors.ink, marginBottom: spacing.sm },
   seatsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  pairHeaderRow: { flexDirection: "row", gap: spacing.xs, marginBottom: 4 },
+  pairSideLabel: {
+    flex: 1,
+    fontSize: type.size.xs,
+    fontWeight: type.weight.heavy,
+    color: colors.muted,
+    letterSpacing: type.spacing.label,
+  },
+  pairRow: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.xs },
+  pairSide: { flex: 1 },
+  // Overrides seatChip's 30% floor, which exists for the wrapping grid and
+  // would fight the two fixed columns here.
+  seatChipFull: { minWidth: 0, width: "100%" },
   seatChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.bg, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: 6, minWidth: "30%" },
   seatChipMe: { backgroundColor: colors.aqua + "30", borderWidth: 1, borderColor: colors.aqua },
   seatNum: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.muted, width: 16 },

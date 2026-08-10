@@ -347,7 +347,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             )}
 
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionLabel}>FEED</Text>
+              <Text style={styles.sectionLabel}>TEAM UPDATES</Text>
             </View>
           </>
         }
