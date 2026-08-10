@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth, signOut } from "@/lib/auth";
-import { isAppAdmin } from "@/lib/firebase";
+import { isAppAdmin, subscribeDmUnread } from "@/lib/firebase";
 
 export default function NavBar() {
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [admin, setAdmin] = useState(false);
+  const [dmUnread, setDmUnread] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -28,6 +29,17 @@ export default function NavBar() {
 
   // Theme state mirrors the data-theme attribute the boot script set; read it
   // after mount so server and client render the same initial markup.
+  // Unread DM count for the nav badge, live for as long as the bar is mounted.
+  useEffect(() => {
+    if (!user) {
+      setDmUnread(0);
+      return;
+    }
+    return subscribeDmUnread(user.uid, (byThread) =>
+      setDmUnread(Object.values(byThread).reduce((sum, n) => sum + n, 0)),
+    );
+  }, [user]);
+
   const [theme, setTheme] = useState<"dark" | "light" | null>(null);
 
   useEffect(() => {
@@ -83,6 +95,17 @@ export default function NavBar() {
                   className={pathname.startsWith("/dashboard/club") ? "navbar-link navbar-link-active" : "navbar-link"}
                 >
                   Club
+                </Link>
+                <Link
+                  href="/dashboard/dm"
+                  className={pathname.startsWith("/dashboard/dm") ? "navbar-link navbar-link-active" : "navbar-link"}
+                >
+                  Messages
+                  {dmUnread > 0 && (
+                    <span style={{ marginLeft: 6, background: "var(--blue-bright)", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 800, padding: "1px 6px" }}>
+                      {dmUnread > 9 ? "9+" : dmUnread}
+                    </span>
+                  )}
                 </Link>
                 {admin && (
                   <Link

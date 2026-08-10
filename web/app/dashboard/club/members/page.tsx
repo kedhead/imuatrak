@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/lib/auth";
-import { getUserClub, getClubMembers, updateMemberRole, removeClubMember } from "@/lib/firebase";
+import { getUserClub, getClubMembers, openDmThread, updateMemberRole, removeClubMember } from "@/lib/firebase";
 import type { ClubMember, MemberRole } from "@/lib/clubTypes";
 
 const ROLES: MemberRole[] = ["owner", "admin", "coach", "member"];
@@ -15,6 +17,28 @@ export default function MembersPage() {
   const [myRole, setMyRole] = useState<MemberRole | null>(null);
   const [members, setMembers] = useState<ClubMember[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [opening, setOpening] = useState<string | null>(null);
+  const router = useRouter();
+
+  /**
+   * Open (or create) a private thread with this member.
+   *
+   * No paywall check here: the web has no purchase flow, so gating would just
+   * dead-end. openDmThread still enforces the real constraint — that the two
+   * share a club — server-side.
+   */
+  const handleMessage = async (uid: string) => {
+    if (opening) return;
+    setOpening(uid);
+    try {
+      const threadId = await openDmThread(uid);
+      router.push(`/dashboard/dm?thread=${threadId}`);
+    } catch {
+      window.alert("Couldn't open that conversation.");
+    } finally {
+      setOpening(null);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -73,11 +97,20 @@ export default function MembersPage() {
               <tr key={m.uid} style={{ borderTop: "1px solid var(--line)" }}>
                 <td style={td}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 16, background: "var(--blue-bright)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-                      {m.displayName.charAt(0).toUpperCase()}
-                    </div>
+                    <Avatar uri={m.avatarUrl} name={m.displayName} uid={m.uid} role={m.role} size={32} />
                     <span style={{ fontWeight: 600 }}>{m.displayName}</span>
-                    {m.uid === user?.uid && <span style={{ fontSize: 11, background: "#EBF3FB", color: "var(--blue-bright)", borderRadius: 8, padding: "2px 7px", fontWeight: 700 }}>You</span>}
+                    {m.uid === user?.uid ? (
+                      <span style={{ fontSize: 11, background: "#EBF3FB", color: "var(--blue-bright)", borderRadius: 8, padding: "2px 7px", fontWeight: 700 }}>You</span>
+                    ) : (
+                      <button
+                        onClick={() => void handleMessage(m.uid)}
+                        disabled={opening === m.uid}
+                        title={`Message ${m.displayName}`}
+                        style={{ border: "none", background: "transparent", cursor: opening === m.uid ? "default" : "pointer", fontSize: 15, padding: 0, opacity: opening === m.uid ? 0.5 : 1 }}
+                      >
+                        💬
+                      </button>
+                    )}
                   </div>
                 </td>
                 <td style={td}>
