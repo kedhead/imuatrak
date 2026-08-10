@@ -19,10 +19,12 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { currentUser } from "@/services/auth";
 import {
   deleteDmMessage,
+  markDmRead,
   sendDmMessage,
   subscribeDmMessages,
   toggleDmReaction,
 } from "@/services/dmService";
+import { setAppBadge } from "@/services/badge";
 import { db } from "@/services/firebase";
 import type { DmMessage, DmThread } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
@@ -64,6 +66,14 @@ export default function DmThreadScreen() {
     if (!threadId) return;
     return subscribeDmMessages(threadId, setMessages);
   }, [threadId]);
+
+  // Clear this thread's unread count on open, and sync the app-icon badge to
+  // the new global total. Re-runs when messages arrive so a thread read while
+  // it's on screen doesn't stay counted.
+  useEffect(() => {
+    if (!user || !threadId) return;
+    void markDmRead(user.uid, threadId).then(setAppBadge).catch(() => undefined);
+  }, [user?.uid, threadId, messages.length]);
 
   const reversed = useMemo(() => [...messages].reverse(), [messages]);
 

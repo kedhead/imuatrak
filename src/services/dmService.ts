@@ -10,6 +10,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -115,4 +116,40 @@ export async function toggleDmReaction(
 /** Your own messages only — a private thread has no moderator. */
 export async function deleteDmMessage(threadId: string, messageId: string): Promise<void> {
   await deleteDoc(doc(db, "dms", threadId, "messages", messageId));
+}
+
+/** Live per-thread unread counts, keyed by threadId. */
+export function subscribeDmUnread(
+  uid: string,
+  onUpdate: (byThread: Record<string, number>) => void,
+): () => void {
+  return onSnapshot(collection(db, "users", uid, "dmThreads"), (snap) => {
+    const map: Record<string, number> = {};
+    for (const d of snap.docs) {
+      const count = (d.data() as { unreadCount?: number }).unreadCount ?? 0;
+      if (count > 0) map[d.id] = count;
+    }
+    onUpdate(map);
+  });
+}
+
+/**
+ * Clear a thread's unread count and decrement the global total.
+ *
+ * Same transaction shape as markChannelRead: subtract this thread's count from
+ * unreadTotal rather than recomputing, so the app-icon badge stays consistent
+ * with club chat, which shares that counter.
+ */
+export async function markDmRead(uid: string, threadId: string): Promise<number> {
+  const userRef = doc(db, "users", uid);
+  const prefRef = doc(db, "users", uid, "dmThreads", threadId);
+  return runTransaction(db, async (tx) => {
+    const [userSnap, prefSnap] = await Promise.all([tx.get(userRef), tx.get(prefRef)]);
+    const threadUnread = (prefSnap.data()?.unreadCount as number | undefined) ?? 0;
+    const currentTotal = (userSnap.data()?.unreadTotal as number | undefined) ?? 0;
+    const newTotal = Math.max(0, currentTotal - threadUnread);
+    tx.set(prefRef, { lastReadAt: new Date().toISOString(), unreadCount: 0 }, { merge: true });
+    tx.set(userRef, { unreadTotal: newTotal }, { merge: true });
+    return newTotal;
+  });
 }

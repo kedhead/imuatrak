@@ -23,7 +23,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
 import { getPosts, createPost, deletePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
-import { useClubUnreadCount } from "@/services/unread";
+import { useClubUnreadCount, useDmUnreadCount } from "@/services/unread";
 import type { ClubPost, ClubEvent, ClubComment, PollOption } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { LinkifiedText } from "@/ui/LinkifiedText";
@@ -152,6 +152,8 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const [refreshing, setRefreshing] = useState(false);
   const [showPollComposer, setShowPollComposer] = useState(false);
   const unread = useClubUnreadCount(clubId, user?.uid, role);
+  // DMs are reached through the roster, so the people icon carries their badge.
+  const dmUnread = useDmUnreadCount(user?.uid);
 
   useEffect(() => {
     const load = async () => {
@@ -237,7 +239,16 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
               <Ionicons name="calendar-outline" size={23} color={colors.white} />
             </Pressable>
             <Pressable onPress={() => router.push("/club/members")} hitSlop={8}>
-              <Ionicons name="people" size={24} color={colors.white} />
+              <Ionicons
+                name="people"
+                size={24}
+                color={dmUnread > 0 ? colors.gold : colors.white}
+              />
+              {dmUnread > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>{dmUnread > 9 ? "9+" : dmUnread}</Text>
+                </View>
+              )}
             </Pressable>
             {/* Any member can invite — recruiting happens at the beach, not
                 in the admin screen. */}
