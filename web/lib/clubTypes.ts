@@ -110,3 +110,29 @@ export interface ClubPost {
   commentCount: number;
   createdAt: string;
 }
+
+// ── Direct messages ──────────────────────────────────────────────────────────
+// Mirrored from src/models/club.ts. Threads live at the top level, not under a
+// club: the private-channel rule grants owners/admins read access, which
+// applied to DMs would let club admins read their members' private messages.
+
+export interface DmThread {
+  /** Exactly two uids, sorted — the thread id is these joined with "__". */
+  participants: string[];
+  participantNames: Record<string, string>;
+  participantAvatars?: Record<string, string>;
+  lastMessageAt?: string;
+  lastMessagePreview?: string;
+  createdAt: string;
+}
+
+export interface DmMessage {
+  id: string;
+  threadId: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  reactions?: Record<string, string[]>;
+  replyTo?: { messageId: string; authorName: string; preview: string };
+  createdAt: string;
+}
