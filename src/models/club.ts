@@ -298,6 +298,48 @@ export interface ChannelPreference {
   unreadCount?: number;
 }
 
+// ── Direct messages ──────────────────────────────────────────────────────────
+//
+// DMs live at the top level, NOT under clubs/{clubId}/channels. A two-person
+// private channel would have been far less work, but the private-channel rule
+// grants owners and admins read access for moderation — applied to DMs that
+// would let club admins read their members' private messages, which is not
+// what "private message" means to anyone. Living outside clubs also means a
+// thread survives either person leaving a club, isn't deleted by a club's chat
+// retention sweep, and doesn't count against a club's channel limit.
+
+export interface DmThread {
+  /** Exactly two uids, sorted — see dmThreadId. */
+  participants: string[];
+  /** Denormalized so a thread list can render without reading two rosters. */
+  participantNames: Record<string, string>;
+  participantAvatars?: Record<string, string>;
+  lastMessageAt?: string;
+  lastMessagePreview?: string;
+  createdAt: string;
+}
+
+export interface DmMessage {
+  id: string;
+  threadId: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  reactions?: Record<string, string[]>;
+  replyTo?: { messageId: string; authorName: string; preview: string };
+  createdAt: string;
+}
+
+/**
+ * Deterministic thread id for a pair of users.
+ *
+ * Sorting means both people compute the same id, so a conversation can't fork
+ * into two threads depending on who messaged first.
+ */
+export function dmThreadId(uidA: string, uidB: string): string {
+  return [uidA, uidB].sort().join("__");
+}
+
 export interface FcmToken {
   token: string;
   platform: "ios" | "android";

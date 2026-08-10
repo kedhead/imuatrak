@@ -300,6 +300,12 @@ export default function Settings() {
                     style={{ marginTop: spacing.sm }}
                   />
                 )}
+                <Button
+                  title="Messages"
+                  gradient="ocean"
+                  onPress={() => router.push("/dm")}
+                  style={{ marginTop: spacing.md }}
+                />
                 <Button title="Sign out" variant="danger" onPress={onSignOut} style={{ marginTop: spacing.md }} />
                 <Button title="Delete Account" variant="danger" onPress={onDeleteAccount} style={{ marginTop: spacing.sm }} />
               </>
