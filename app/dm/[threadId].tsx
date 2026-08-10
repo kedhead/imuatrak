@@ -74,8 +74,12 @@ export default function DmThreadScreen() {
     setSending(true);
     try {
       await sendDmMessage(threadId, user.uid, user.displayName ?? "Member", content);
-    } catch {
-      Alert.alert("Error", "Failed to send message.");
+    } catch (e) {
+      // Surface the real error rather than a generic string: the failure that
+      // matters here is a rules denial (permission-denied), and hiding its
+      // code makes an undeployed firestore.rules look like a code bug.
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert("Couldn't send", msg);
     } finally {
       setSending(false);
     }
