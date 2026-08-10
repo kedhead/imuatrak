@@ -175,6 +175,8 @@ export default function RootLayout() {
           <Stack.Screen name="club/channels" options={{ headerShown: false }} />
           <Stack.Screen name="club/chat/[channelId]" options={{ headerShown: true, title: "" }} />
           <Stack.Screen name="club/chat" options={{ headerShown: true, title: "Club Chat" }} />
+          <Stack.Screen name="dm/index" options={{ headerShown: true, title: "Messages" }} />
+          <Stack.Screen name="dm/[threadId]" options={{ headerShown: true, title: "" }} />
           <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false }} />
         </Stack>
         {!splashHidden && <AnimatedSplash hidden={loaded} />}
