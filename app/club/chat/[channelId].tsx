@@ -42,6 +42,7 @@ import {
 import { extractImageUrls, LinkifiedText } from "@/ui/LinkifiedText";
 import { useClub } from "@/services/clubStore";
 import type { ClubChannel, ClubMember, ClubMessage, MemberRole } from "@/models/club";
+import { Avatar } from "@/ui/Avatar";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ChannelIcon } from "../channels";
 
@@ -111,6 +112,14 @@ export default function ChannelChatScreen() {
   const roleByUid = useMemo(() => {
     const map = new Map<string, MemberRole>();
     for (const m of members) map.set(m.uid, m.role);
+    return map;
+  }, [members]);
+
+  // Same reasoning as roles: resolve the photo from the roster rather than a
+  // copy on the message, so changing it updates a member's whole history.
+  const avatarByUid = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of members) if (m.avatarUrl) map.set(m.uid, m.avatarUrl);
     return map;
   }, [members]);
   const myRole = user ? roleByUid.get(user.uid) : undefined;
@@ -315,6 +324,7 @@ export default function ChannelChatScreen() {
               message={item}
               isMe={item.authorId === user?.uid}
               role={roleByUid.get(item.authorId)}
+              avatarUrl={avatarByUid.get(item.authorId)}
               uploading={uploadingId === item.id}
               myUid={user?.uid}
               mentionTargets={mentionTargets}
@@ -512,6 +522,7 @@ function MessageBubble({
   message,
   isMe,
   role,
+  avatarUrl,
   uploading,
   myUid,
   mentionTargets,
@@ -522,6 +533,8 @@ function MessageBubble({
   message: ClubMessage;
   isMe: boolean;
   role?: MemberRole;
+  /** Resolved live from the roster by authorId, not stored on the message. */
+  avatarUrl?: string;
   uploading: boolean;
   myUid?: string;
   mentionTargets: MentionTarget[];
@@ -558,6 +571,15 @@ function MessageBubble({
       delayLongPress={300}
       style={[styles.row, isMe ? styles.rowMe : styles.rowThem]}
     >
+      {!isMe && (
+        <Avatar
+          uri={avatarUrl}
+          name={message.authorName}
+          uid={message.authorId}
+          role={role}
+          size={32}
+        />
+      )}
       <View
         style={[
           styles.bubble,
@@ -722,11 +744,15 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bgSoft },
   flex: { flex: 1 },
   list: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  row: { marginVertical: 3 },
-  rowMe: { alignItems: "flex-end" },
-  rowThem: { alignItems: "flex-start" },
+  // Horizontal so an incoming message can sit beside its author's avatar.
+  // The bubble shrinks rather than overflowing once the avatar takes its share
+  // of a narrow screen.
+  row: { marginVertical: 3, flexDirection: "row", alignItems: "flex-end", gap: spacing.xs },
+  rowMe: { justifyContent: "flex-end" },
+  rowThem: { justifyContent: "flex-start" },
   bubble: {
     maxWidth: BUBBLE_MAX,
+    flexShrink: 1,
     borderRadius: radii.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,

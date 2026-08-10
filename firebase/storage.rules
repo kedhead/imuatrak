@@ -31,6 +31,16 @@ service firebase.storage {
       allow write: if false;
     }
 
+    match /users/{uid}/avatar.{ext} {
+      // Avatars are written by the uploadAvatar Cloud Function, which enforces
+      // the image type and size limit. Clients never write here directly.
+      // Reads go through a download-token URL (the same mechanism as message
+      // media), so club members can render a teammate's photo without needing
+      // read access to the rest of that user's storage.
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     match /clubs/{clubId}/messages/{messageId}/{file} {
       allow read: if isClubMember(clubId);
       allow write: if isClubMember(clubId)

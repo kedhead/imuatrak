@@ -173,6 +173,29 @@ export async function syncMemberDisplayName(uid: string, displayName: string): P
   );
 }
 
+/**
+ * Upload a profile photo and apply it across every club the user is in.
+ *
+ * The Cloud Function does the storage write and the roster fan-out (see
+ * uploadAvatar in firebase/functions) — the client only reads the file, for
+ * the same Blob reason uploadMessageMedia goes server-side.
+ */
+export async function uploadAvatar(localUri: string, mimeType: string): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("not signed in");
+
+  const base64 = await FileSystem.readAsStringAsync(localUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  const fn = httpsCallable<{ base64: string; contentType: string }, { avatarUrl: string }>(
+    functions,
+    "uploadAvatar",
+  );
+  const { data } = await fn({ base64, contentType: mimeType });
+  return data.avatarUrl;
+}
+
 // ── Members ──────────────────────────────────────────────────────────────────
 
 export async function getClubMembers(clubId: string): Promise<ClubMember[]> {
