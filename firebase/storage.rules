@@ -31,13 +31,17 @@ service firebase.storage {
       allow write: if false;
     }
 
-    match /users/{uid}/avatar.{ext} {
+    // Matches avatar.jpg / avatar.png / … as a whole path segment. A wildcard
+    // may not sit inside a segment alongside literal text — `avatar.{ext}`
+    // fails to compile, and because this file deploys together with
+    // firestore.rules, that failure silently blocks Firestore rule changes too.
+    match /users/{uid}/{fileName} {
       // Avatars are written by the uploadAvatar Cloud Function, which enforces
       // the image type and size limit. Clients never write here directly.
       // Reads go through a download-token URL (the same mechanism as message
       // media), so club members can render a teammate's photo without needing
       // read access to the rest of that user's storage.
-      allow read: if request.auth != null;
+      allow read: if request.auth != null && fileName.matches('avatar[.].*');
       allow write: if false;
     }
 

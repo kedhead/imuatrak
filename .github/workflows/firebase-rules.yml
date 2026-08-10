@@ -8,6 +8,11 @@ on:
       - "firebase/storage.rules"
       - "firebase/firestore.indexes.json"
       - ".github/workflows/firebase-rules.yml"
+  # Re-run on demand. Without this the only way to retry a failed rules deploy
+  # is to push another change to a rules file — which is how three failed runs
+  # went unnoticed between 2026-08-10 02:47 and 18:06, leaving production on
+  # rules from 2026-08-09 while merged rule changes appeared to have shipped.
+  workflow_dispatch:
 
 jobs:
   deploy:
