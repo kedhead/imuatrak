@@ -30,8 +30,23 @@ export interface Club {
    *  owner/admin's in-app club plan is keeping this club active. */
   clubPlan?: { payerUid: string; productId?: string | null; activatedAt?: string };
   memberCount: number;
+  /**
+   * Delete chat messages older than this many days. Absent or 0 keeps
+   * everything, which is the default — a club has to opt in before anything
+   * is deleted. Pinned messages are never swept.
+   */
+  chatRetentionDays?: number;
   createdAt: string;
 }
+
+/** Retention choices offered in club settings. 0 means keep everything. */
+export const CHAT_RETENTION_OPTIONS: { days: number; label: string }[] = [
+  { days: 0, label: "Keep all" },
+  { days: 30, label: "30 days" },
+  { days: 90, label: "90 days" },
+  { days: 180, label: "6 months" },
+  { days: 365, label: "1 year" },
+];
 
 /**
  * Whether a club's subscription grants its members ad-free access right now.
@@ -247,6 +262,14 @@ export interface ClubMessage {
   mentions?: string[];
   /** Set when this message is a reply to another. */
   replyTo?: { messageId: string; authorName: string; preview: string };
+  /**
+   * When an owner/admin pinned this message. Pinned messages are exempt from
+   * the club's chat retention sweep — pinning is how a club says "keep this",
+   * so expiry has to honour it or the setting would quietly delete the very
+   * messages someone marked as worth keeping.
+   */
+  pinnedAt?: string;
+  pinnedBy?: string;
   createdAt: string;
 }
 

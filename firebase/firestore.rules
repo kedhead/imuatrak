@@ -187,8 +187,12 @@ service cloud.firestore {
                 || hasClubRole(clubId, ["owner", "admin"]));
           // Members may toggle emoji reactions — and touch NOTHING else on the
           // message (same affectedKeys pattern as poll votes on posts).
-          allow update: if isChannelMember()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"]);
+          // Owners/admins may additionally pin, again touching nothing else, so
+          // a pin can't smuggle an edit into someone else's message.
+          allow update: if (isChannelMember()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"]))
+            || (hasClubRole(clubId, ["owner", "admin"])
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pinnedAt", "pinnedBy"]));
         }
       }
 
