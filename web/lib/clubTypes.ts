@@ -45,6 +45,45 @@ export interface ClubEvent {
   linkedSessionIds: string[];
 }
 
+export type ChannelIconType = "emoji" | "ionicon";
+
+export interface ClubChannel {
+  id: string;
+  clubId: string;
+  name: string;
+  icon: string;
+  iconType: ChannelIconType;
+  description?: string;
+  isPrivate: boolean;
+  memberIds: string[];
+  createdBy: string;
+  createdAt: string;
+  sortOrder: number;
+  lastMessageAt?: string;
+}
+
+export interface ClubMessage {
+  id: string;
+  clubId: string;
+  channelId: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  authorAvatarUrl?: string;
+  mediaUrl?: string;
+  mediaStoragePath?: string;
+  mediaType?: "photo" | "video";
+  /** Multi-image messages: download URLs in send order (grid rendering). */
+  mediaUrls?: string[];
+  /** Emoji reactions: emoji → uids of members who reacted. */
+  reactions?: Record<string, string[]>;
+  /** Uids @-mentioned in `content` — the source of truth for who was tagged. */
+  mentions?: string[];
+  /** Set when this message is a reply to another. */
+  replyTo?: { messageId: string; authorName: string; preview: string };
+  createdAt: string;
+}
+
 export interface ClubPost {
   id: string;
   type: PostType;

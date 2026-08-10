@@ -1,17 +1,21 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import {
   addDoc,
+  arrayRemove,
   arrayUnion,
   collection,
   deleteDoc,
   doc,
+  FieldPath,
   getDoc,
   getDocs,
   getFirestore,
   increment,
   limit,
+  onSnapshot,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -20,7 +24,7 @@ import {
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { DashboardSession, PublicSession } from "./types";
-import type { Club, ClubMember, ClubEvent, ClubPost, MemberRole, EventType, PostType, RsvpStatus } from "./clubTypes";
+import type { Club, ClubChannel, ClubMember, ClubEvent, ClubMessage, ClubPost, MemberRole, EventType, PostType, RsvpStatus } from "./clubTypes";
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -334,4 +338,199 @@ export async function uploadClubLogo(clubId: string, file: File): Promise<string
   const logoRef = ref(storage, `clubs/${clubId}/logo.${ext}`);
   await uploadBytes(logoRef, file, { contentType: file.type });
   return getDownloadURL(logoRef);
+}
+
+// ── Club chat ────────────────────────────────────────────────────────────────
+//
+// Mirrors src/services/clubService.ts. The Firestore rules that gate channels
+// and messages check auth and club membership only, so they apply unchanged to
+// a browser client — nothing here needed a rules carve-out for web.
+
+export function subscribeChannels(
+  clubId: string,
+  uid: string,
+  onUpdate: (channels: ClubChannel[]) => void,
+): () => void {
+  const q = query(collection(db, "clubs", clubId, "channels"), orderBy("sortOrder"));
+  return onSnapshot(q, (snap) => {
+    const all = snap.docs.map((d) => ({ ...(d.data() as Omit<ClubChannel, "id">), id: d.id }));
+    // Everyone can read the channel list, but a private channel should only be
+    // offered to its members — the message subcollection would deny them
+    // anyway, so showing it would just produce an empty room.
+    onUpdate(all.filter((c) => !c.isPrivate || c.memberIds?.includes(uid)));
+  });
+}
+
+export function subscribeChannelMessages(
+  clubId: string,
+  channelId: string,
+  onUpdate: (msgs: ClubMessage[]) => void,
+  msgLimit = 60,
+): () => void {
+  const q = query(
+    collection(db, "clubs", clubId, "channels", channelId, "messages"),
+    orderBy("createdAt", "desc"),
+    limit(msgLimit),
+  );
+  // Newest-first with a limit, then reversed for display: ordering ascending
+  // would pin the listener to the oldest messages and never surface new ones.
+  return onSnapshot(q, (snap) => {
+    const msgs = snap.docs.map((d) => ({ ...(d.data() as Omit<ClubMessage, "id">), id: d.id }));
+    onUpdate(msgs.reverse());
+  });
+}
+
+export async function sendChannelMessage(
+  clubId: string,
+  channelId: string,
+  uid: string,
+  displayName: string,
+  content: string,
+  opts: {
+    mediaType?: "photo" | "video";
+    replyTo?: ClubMessage["replyTo"];
+    mentions?: string[];
+  } = {},
+): Promise<ClubMessage> {
+  const { mediaType, replyTo, mentions } = opts;
+  const now = new Date().toISOString();
+  const msg: Omit<ClubMessage, "id"> = {
+    clubId,
+    channelId,
+    content,
+    authorId: uid,
+    authorName: displayName,
+    ...(replyTo ? { replyTo } : {}),
+    ...(mentions?.length ? { mentions: mentions.filter((m) => m !== uid) } : {}),
+    createdAt: now,
+    ...(mediaType ? { mediaType } : {}),
+  };
+  const docRef = await addDoc(
+    collection(db, "clubs", clubId, "channels", channelId, "messages"),
+    msg,
+  );
+  void updateDoc(doc(db, "clubs", clubId, "channels", channelId), {
+    lastMessageAt: now,
+  }).catch(() => undefined);
+  return { ...msg, id: docRef.id };
+}
+
+/**
+ * Toggle an emoji reaction. Uses FieldPath rather than dot notation because
+ * emoji aren't valid unquoted field-path segments; rules restrict member
+ * updates to the reactions field alone.
+ */
+export async function toggleMessageReaction(
+  clubId: string,
+  channelId: string,
+  message: ClubMessage,
+  emoji: string,
+  uid: string,
+): Promise<void> {
+  const hasReacted = (message.reactions?.[emoji] ?? []).includes(uid);
+  await updateDoc(
+    doc(db, "clubs", clubId, "channels", channelId, "messages", message.id),
+    new FieldPath("reactions", emoji),
+    hasReacted ? arrayRemove(uid) : arrayUnion(uid),
+  );
+}
+
+export async function deleteChannelMessage(
+  clubId: string,
+  channelId: string,
+  messageId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "clubs", clubId, "channels", channelId, "messages", messageId));
+}
+
+/**
+ * Upload one attachment for a message.
+ *
+ * Goes through the same uploadChannelMedia callable the app uses rather than
+ * the Storage SDK, so both clients produce identical download-token URLs and
+ * the same server-side membership check applies.
+ */
+export async function uploadChannelMedia(
+  clubId: string,
+  channelId: string,
+  messageId: string,
+  file: File,
+  fileKey = "media",
+): Promise<string> {
+  const base64 = await fileToBase64(file);
+  const fn = httpsCallable<
+    {
+      clubId: string;
+      channelId: string;
+      messageId: string;
+      base64: string;
+      contentType: string;
+      fileKey?: string;
+    },
+    { mediaUrl: string }
+  >(getFunctions(firebaseApp), "uploadChannelMedia");
+  const { data } = await fn({
+    clubId,
+    channelId,
+    messageId,
+    base64,
+    contentType: file.type,
+    fileKey,
+  });
+  return data.mediaUrl;
+}
+
+export async function uploadAvatar(file: File): Promise<string> {
+  const base64 = await fileToBase64(file);
+  const fn = httpsCallable<{ base64: string; contentType: string }, { avatarUrl: string }>(
+    getFunctions(firebaseApp),
+    "uploadAvatar",
+  );
+  const { data } = await fn({ base64, contentType: file.type });
+  return data.avatarUrl;
+}
+
+/** Strips the `data:<mime>;base64,` prefix the callable doesn't expect. */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result);
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Clear a channel's unread count and decrement the user's global total.
+ *
+ * Same transaction as the mobile markChannelRead: the per-channel count is
+ * subtracted from the total rather than the total being recomputed, so reading
+ * a channel on the web keeps the app's badge honest.
+ */
+export async function markChannelRead(uid: string, channelId: string): Promise<number> {
+  const userRef = doc(db, "users", uid);
+  const prefRef = doc(db, "users", uid, "channelPreferences", channelId);
+  return runTransaction(db, async (tx) => {
+    const [userSnap, prefSnap] = await Promise.all([tx.get(userRef), tx.get(prefRef)]);
+    const channelUnread = (prefSnap.data()?.unreadCount as number | undefined) ?? 0;
+    const currentTotal = (userSnap.data()?.unreadTotal as number | undefined) ?? 0;
+    const newTotal = Math.max(0, currentTotal - channelUnread);
+    tx.set(prefRef, { lastReadAt: new Date().toISOString(), unreadCount: 0 }, { merge: true });
+    tx.set(userRef, { unreadTotal: newTotal }, { merge: true });
+    return newTotal;
+  });
+}
+
+export function subscribeChannelUnread(
+  uid: string,
+  channelId: string,
+  onUpdate: (count: number) => void,
+): () => void {
+  return onSnapshot(doc(db, "users", uid, "channelPreferences", channelId), (snap) => {
+    onUpdate((snap.data()?.unreadCount as number | undefined) ?? 0);
+  });
 }
