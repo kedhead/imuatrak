@@ -158,7 +158,11 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   useEffect(() => {
     const load = async () => {
       const [p, e] = await Promise.all([getPosts(clubId), getUpcomingEvents(clubId, 3)]);
-      setPosts(p);
+      // Photo posts share this collection but belong to the gallery, not the
+      // updates feed. Filtered here rather than in the query: a Firestore "!="
+      // filter also excludes documents missing the field, which would hide
+      // every post written before the photo type existed.
+      setPosts(p.filter((post) => post.type !== "photo"));
       setEvents(e);
     };
     void load();
@@ -188,7 +192,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const handleRefresh = async () => {
     setRefreshing(true);
     const [p, e] = await Promise.all([getPosts(clubId), getUpcomingEvents(clubId, 3)]);
-    setPosts(p);
+    setPosts(p.filter((post) => post.type !== "photo"));
     setEvents(e);
     setRefreshing(false);
   };
@@ -234,6 +238,9 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
                   <Text style={styles.unreadBadgeText}>{unread > 9 ? "9+" : unread}</Text>
                 </View>
               )}
+            </Pressable>
+            <Pressable onPress={() => router.push("/club/gallery" as never)} hitSlop={8}>
+              <Ionicons name="images-outline" size={23} color={colors.white} />
             </Pressable>
             <Pressable onPress={() => router.push("/club/events" as never)} hitSlop={8}>
               <Ionicons name="calendar-outline" size={23} color={colors.white} />
