@@ -50,38 +50,46 @@ Club-level billing is unaffected in practice: `clubGrantsAdFree()` reads
 access).
 
 Every functions deploy fails on the two `onSchedule` functions while ordinary
-functions in the same run succeed:
+functions in the same run succeed. The 2026-08-11 run (commit `837fc40`) gave
+the underlying cause rather than the wrapped `Failed to upsert schedule
+function` message seen previously:
 
 ```
-✔  functions[uploadAvatar(us-central1)] Successful update operation.
-Functions deploy had errors with the following functions:
-	expireChatMessages(us-central1)
-	expireClubTrials(us-central1)
-Error: Failed to upsert schedule function expireClubTrials in region us-central1
+HTTP Error: 403, The principal (user or service account) lacks IAM permission
+"cloudscheduler.jobs.update" for the resource
+"projects/imuatrak/locations/us-central1/jobs/firebase-schedule-expireClubTrials-us-central1"
 ```
 
-This is environmental rather than a code problem — `expireClubTrials` predates
-the chat-retention work and fails identically. The usual causes are the **Cloud
-Scheduler API not being enabled** on the project, or the CI service account
-(`FIREBASE_SERVICE_ACCOUNT`) missing the **Cloud Scheduler Admin** role.
+So this is **purely an IAM permission gap**, not a missing API and not a code
+problem. Two things follow from the wording:
+
+- The Cloud Scheduler **API is enabled** — a disabled API returns 403
+  `SERVICE_DISABLED`, not a per-permission denial.
+- The scheduler job for `expireClubTrials` **already exists** (the denied verb is
+  `jobs.update`, on a named existing resource). It was created by an earlier
+  deploy, back when the CI service account still had the permission or before
+  the schedule was first written.
 
 ### Consequence
 
-- **`expireClubTrials` may not be running.** Nothing else ends a club trial, so
-  trial clubs can keep premium access — ads suppressed, channel limits lifted —
-  indefinitely. This is the more serious of the two. Check the Firebase console
-  for whether the function exists at all: if an older version deployed
-  successfully at some point it is still running, and only updates are failing.
-- **`expireChatMessages` has never run.** The per-club chat retention setting in
-  club admin saves correctly and the UI reports what it will delete, but no
-  sweep ever happens, so nothing is actually deleted.
+- **`expireClubTrials` is running, but frozen at its last successfully deployed
+  version.** The existing Cloud Scheduler job still fires on its schedule, so
+  trials do expire; what fails is every attempt to *update* the function or its
+  schedule. Any change to trial-expiry logic silently does not take effect.
+- **`expireChatMessages` has never run.** It is newer, so its scheduler job was
+  never created — the same IAM gap blocks the create. The per-club chat
+  retention setting in club admin saves correctly and the UI reports what it
+  will delete, but no sweep ever happens, so nothing is actually deleted.
 
 ### To fix
 
-1. Enable the Cloud Scheduler API on the `imuatrak` project.
-2. Grant the CI service account **Cloud Scheduler Admin** (and confirm it has
-   **Cloud Functions Admin** + **Service Account User**).
-3. Re-run the **Firebase** workflow and confirm both functions deploy.
+Grant the CI service account (`FIREBASE_SERVICE_ACCOUNT`) the **Cloud Scheduler
+Admin** role (`roles/cloudscheduler.admin`) on project `imuatrak` — that is the
+role carrying `cloudscheduler.jobs.update` and `cloudscheduler.jobs.create`.
+Then re-run the **Firebase** workflow and confirm both functions deploy.
+
+Needs project-owner access in Google Cloud, so it cannot be fixed from a code
+change. No API enablement step is needed.
 
 ---
 
