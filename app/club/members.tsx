@@ -15,7 +15,8 @@ import { removeMember, updateMemberRole } from "@/services/clubService";
 import { openDmThread } from "@/services/dmService";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
-import { clubGrantsAdFree, type ClubMember, type MemberRole } from "@/models/club";
+import { useDmUnreadByThread } from "@/services/unread";
+import { clubGrantsAdFree, dmThreadId, type ClubMember, type MemberRole } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
 import { colors, spacing, radii } from "@/ui/theme";
 
@@ -45,6 +46,10 @@ export default function MembersScreen() {
   const isAdFree = useSubscription((s) => s.isAdFree);
   const isSubscriber = isAdFree || clubGrantsAdFree(club);
   const [openingUid, setOpeningUid] = useState<string | null>(null);
+  // Which members have unread DMs. The thread id is derived from the uid pair,
+  // so this needs no extra reads — otherwise you'd have to open every
+  // conversation to find the one that changed.
+  const dmUnreadByThread = useDmUnreadByThread(me?.uid);
 
   /**
    * Open (or create) a private thread with this member.
@@ -118,18 +123,34 @@ export default function MembersScreen() {
             {item.uid === me?.uid ? (
               <Text style={styles.youBadge}>You</Text>
             ) : (
-              <Pressable
-                hitSlop={10}
-                style={styles.dmBtn}
-                disabled={openingUid === item.uid}
-                onPress={() => handleMessage(item)}
-              >
-                <Ionicons
-                  name="chatbubble-ellipses-outline"
-                  size={20}
-                  color={openingUid === item.uid ? colors.muted : colors.ocean}
-                />
-              </Pressable>
+              (() => {
+                const unread = me ? (dmUnreadByThread[dmThreadId(me.uid, item.uid)] ?? 0) : 0;
+                return (
+                  <Pressable
+                    hitSlop={10}
+                    style={styles.dmBtn}
+                    disabled={openingUid === item.uid}
+                    onPress={() => handleMessage(item)}
+                  >
+                    <Ionicons
+                      name={unread > 0 ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"}
+                      size={20}
+                      color={
+                        openingUid === item.uid
+                          ? colors.muted
+                          : unread > 0
+                            ? colors.coral
+                            : colors.ocean
+                      }
+                    />
+                    {unread > 0 && (
+                      <View style={styles.dmBadge}>
+                        <Text style={styles.dmBadgeText}>{unread > 9 ? "9+" : unread}</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })()
             )}
           </Pressable>
         )}
@@ -150,6 +171,19 @@ const styles = StyleSheet.create({
   name: { fontSize: 16, fontWeight: "600", color: colors.ink },
   role: { fontSize: 13, color: colors.muted, marginTop: 2 },
   dmBtn: { padding: spacing.xs },
+  dmBadge: {
+    position: "absolute",
+    top: -2,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.coral,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  dmBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
   youBadge: { fontSize: 12, fontWeight: "700", color: colors.blue, backgroundColor: "#EBF3FB", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   hint: { textAlign: "center", color: colors.muted, fontSize: 13, marginTop: spacing.xl },
 });
