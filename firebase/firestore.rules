@@ -85,6 +85,11 @@ service cloud.firestore {
     // admin's Auth UID. A user may check their OWN admin status so the web
     // dashboard knows whether to show the page; the getAppStats Cloud Function
     // re-checks server-side, so this read is a UI hint, not the gate.
+    match /admins/{uid} {
+      allow get: if isOwner(uid);
+      allow list, write: if false; // console / Admin SDK only
+    }
+
     // ── Direct messages ──────────────────────────────────────────────────────
     //
     // Deliberately NOT modelled as a two-person private channel: the channel
@@ -125,11 +130,6 @@ service cloud.firestore {
         allow update: if inThread()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"]);
       }
-    }
-
-    match /admins/{uid} {
-      allow get: if isOwner(uid);
-      allow list, write: if false; // console / Admin SDK only
     }
 
     // ── Invite tokens (created by Cloud Functions) ───────────────────────────
@@ -252,8 +252,15 @@ service cloud.firestore {
         // member can still read, like, comment, and vote in polls (see the
         // update carve-out below and the comments rules). The app hides the
         // composer for members; this is the half that actually enforces it.
-        allow create: if hasClubRole(clubId, ["owner", "admin", "coach"])
-          && request.resource.data.authorId == request.auth.uid;
+        //
+        // Photo posts are the deliberate exception: the gallery is meant to be
+        // filled by the crew, so any member may create one — but only with
+        // type == "photo", so this can't be used to smuggle an announcement
+        // past the staff-only rule above. Deletion is unchanged, so staff keep
+        // moderation over anything posted here.
+        allow create: if request.resource.data.authorId == request.auth.uid
+          && (hasClubRole(clubId, ["owner", "admin", "coach"])
+              || (isClubMember(clubId) && request.resource.data.type == "photo"));
         // Engagement lives ON the post doc — toggleLike writes likedBy and
         // likeCount, addComment bumps commentCount — so members need these
         // narrow carve-outs to like or comment on a post they didn't write.

@@ -5,7 +5,13 @@ export type MemberRole = "owner" | "admin" | "coach" | "member";
 export type SubscriptionStatus = "trial" | "active" | "expired";
 export type SubscriptionTier = "basic" | "pro";
 export type EventType = "practice" | "race" | "social";
-export type PostType = "announcement" | "post" | "poll";
+/**
+ * "photo" is the club gallery. It shares the posts collection so likes,
+ * comments, deletion and moderation all work unchanged — but unlike the other
+ * types any member may create one, and it renders in the gallery grid rather
+ * than the Team Updates feed.
+ */
+export type PostType = "announcement" | "post" | "poll" | "photo";
 
 export interface PollOption {
   text: string;
@@ -218,6 +224,8 @@ export interface ClubPost {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
+  /** Download URLs in upload order — present only when type === "photo". */
+  mediaUrls?: string[];
   // Poll fields — present only when type === "poll"
   pollOptions?: PollOption[];
   pollVotes?: Record<string, string[]>; // key = option index string, value = voter UIDs

@@ -72,6 +72,15 @@ service firebase.storage {
       allow delete: if isClubMember(clubId);
     }
 
+    // Gallery photos attached to a club post. Written by the uploadPostMedia
+    // Cloud Function (Admin SDK), so clients never write here directly; delete
+    // is allowed because deleteClubPost clears the whole message prefix.
+    match /clubs/{clubId}/posts/{postId}/{file} {
+      allow read: if isClubMember(clubId);
+      allow write: if false;
+      allow delete: if isClubMember(clubId);
+    }
+
     match /clubs/{clubId}/logo.jpg {
       // Any signed-in user can read club logos (public resource).
       // Only club owners/admins may replace a club's logo; size/type limits
