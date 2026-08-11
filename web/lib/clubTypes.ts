@@ -3,7 +3,7 @@
 export type MemberRole = "owner" | "admin" | "coach" | "member";
 export type SubscriptionStatus = "trial" | "active" | "expired";
 export type EventType = "practice" | "race" | "social";
-export type PostType = "announcement" | "post";
+export type PostType = "announcement" | "post" | "poll" | "photo";
 export type RsvpStatus = "going" | "maybe" | "not_going";
 
 export interface Club {
@@ -107,7 +107,10 @@ export interface ClubPost {
   pinnedUntil?: string;
   linkedSessionId?: string;
   likeCount: number;
+  likedBy?: string[];
   commentCount: number;
+  /** Download URLs in upload order — present only when type === "photo". */
+  mediaUrls?: string[];
   createdAt: string;
 }
 

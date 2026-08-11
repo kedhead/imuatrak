@@ -710,3 +710,116 @@ export async function markDmRead(uid: string, threadId: string): Promise<number>
     return newTotal;
   });
 }
+
+// ── Club gallery ─────────────────────────────────────────────────────────────
+//
+// Photo posts share the posts collection with the Team Updates feed, so likes
+// and comments reuse the post plumbing — see the PostType comment in
+// src/models/club.ts.
+
+/** Photo posts, newest first. Needs the posts type+createdAt composite index. */
+export async function getGalleryPosts(clubId: string, maxItems = 60): Promise<ClubPost[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, "clubs", clubId, "posts"),
+      where("type", "==", "photo"),
+      orderBy("createdAt", "desc"),
+      limit(maxItems),
+    ),
+  );
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<ClubPost, "id">), id: d.id }));
+}
+
+/** Create an empty photo post; photos are attached by uploadPostMedia. */
+export async function createPhotoPost(
+  clubId: string,
+  uid: string,
+  displayName: string,
+  content = "",
+): Promise<string> {
+  const now = new Date().toISOString();
+  const ref = await addDoc(collection(db, "clubs", clubId, "posts"), {
+    clubId,
+    type: "photo",
+    content,
+    authorId: uid,
+    authorName: displayName,
+    likeCount: 0,
+    commentCount: 0,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return ref.id;
+}
+
+/** Attach one photo to a post, via the same callable the app uses. */
+export async function uploadPostMedia(
+  clubId: string,
+  postId: string,
+  file: File,
+  fileKey = "media",
+): Promise<string> {
+  const base64 = await fileToBase64(file);
+  const fn = httpsCallable<
+    { clubId: string; postId: string; base64: string; contentType: string; fileKey?: string },
+    { mediaUrl: string }
+  >(getFunctions(firebaseApp), "uploadPostMedia");
+  const { data } = await fn({ clubId, postId, base64, contentType: file.type, fileKey });
+  return data.mediaUrl;
+}
+
+/**
+ * Delete a post and its photos.
+ *
+ * Routed through a Cloud Function: deleting the doc directly would orphan
+ * every attached photo in Storage. The function re-checks author-or-owner/admin
+ * server-side.
+ */
+export async function deleteClubPostWithMedia(clubId: string, postId: string): Promise<void> {
+  const fn = httpsCallable<{ clubId: string; postId: string }, { success: boolean }>(
+    getFunctions(firebaseApp),
+    "deleteClubPost",
+  );
+  await fn({ clubId, postId });
+}
+
+export async function togglePostLike(
+  clubId: string,
+  postId: string,
+  uid: string,
+): Promise<void> {
+  const ref = doc(db, "clubs", clubId, "posts", postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const alreadyLiked = ((snap.data() as { likedBy?: string[] }).likedBy ?? []).includes(uid);
+  await updateDoc(ref, {
+    likedBy: alreadyLiked ? arrayRemove(uid) : arrayUnion(uid),
+    likeCount: increment(alreadyLiked ? -1 : 1),
+  });
+}
+
+export async function getPostComments(clubId: string, postId: string) {
+  const snap = await getDocs(
+    query(collection(db, "clubs", clubId, "posts", postId, "comments"), orderBy("createdAt")),
+  );
+  return snap.docs.map((d) => ({
+    ...(d.data() as { content: string; authorId: string; authorName: string; createdAt: string }),
+    id: d.id,
+  }));
+}
+
+export async function addPostComment(
+  clubId: string,
+  postId: string,
+  uid: string,
+  displayName: string,
+  content: string,
+): Promise<void> {
+  await addDoc(collection(db, "clubs", clubId, "posts", postId, "comments"), {
+    content,
+    authorId: uid,
+    authorName: displayName,
+    createdAt: new Date().toISOString(),
+  });
+  await updateDoc(doc(db, "clubs", clubId, "posts", postId), { commentCount: increment(1) });
+}
