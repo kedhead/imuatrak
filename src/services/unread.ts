@@ -56,12 +56,13 @@ export function useClubUnreadCount(
 }
 
 /**
- * Live count of unread direct messages, across every thread.
+ * Live unread DM counts keyed by thread id.
  *
- * Unlike club chat this is genuinely global — a DM isn't scoped to a club, so
- * there is nothing to filter it down to.
+ * Thread ids are derived from the sorted uid pair (see dmThreadId), so a caller
+ * holding a member's uid can look up that conversation without loading any
+ * threads — which is how the roster marks who has messaged you.
  */
-export function useDmUnreadCount(uid: string | undefined): number {
+export function useDmUnreadByThread(uid: string | undefined): Record<string, number> {
   const [byThread, setByThread] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -72,5 +73,16 @@ export function useDmUnreadCount(uid: string | undefined): number {
     return subscribeDmUnread(uid, setByThread);
   }, [uid]);
 
+  return byThread;
+}
+
+/**
+ * Live count of unread direct messages, across every thread.
+ *
+ * Unlike club chat this is genuinely global — a DM isn't scoped to a club, so
+ * there is nothing to filter it down to.
+ */
+export function useDmUnreadCount(uid: string | undefined): number {
+  const byThread = useDmUnreadByThread(uid);
   return Object.values(byThread).reduce((sum, n) => sum + n, 0);
 }

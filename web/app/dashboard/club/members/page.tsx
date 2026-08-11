@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/lib/auth";
-import { getUserClub, getClubMembers, openDmThread, updateMemberRole, removeClubMember } from "@/lib/firebase";
+import { getUserClub, getClubMembers, openDmThread, subscribeDmUnread, updateMemberRole, removeClubMember } from "@/lib/firebase";
 import type { ClubMember, MemberRole } from "@/lib/clubTypes";
 
 const ROLES: MemberRole[] = ["owner", "admin", "coach", "member"];
@@ -18,7 +18,17 @@ export default function MembersPage() {
   const [members, setMembers] = useState<ClubMember[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
+  const [dmUnread, setDmUnread] = useState<Record<string, number>>({});
   const router = useRouter();
+
+  // Mark which members have unread DMs. Thread ids derive from the sorted uid
+  // pair, so the mapping needs no extra reads.
+  useEffect(() => {
+    if (!user) return;
+    return subscribeDmUnread(user.uid, setDmUnread);
+  }, [user]);
+
+  const dmThreadId = (a: string, b: string) => [a, b].sort().join("__");
 
   /**
    * Open (or create) a private thread with this member.
@@ -102,14 +112,24 @@ export default function MembersPage() {
                     {m.uid === user?.uid ? (
                       <span style={{ fontSize: 11, background: "#EBF3FB", color: "var(--blue-bright)", borderRadius: 8, padding: "2px 7px", fontWeight: 700 }}>You</span>
                     ) : (
-                      <button
-                        onClick={() => void handleMessage(m.uid)}
-                        disabled={opening === m.uid}
-                        title={`Message ${m.displayName}`}
-                        style={{ border: "none", background: "transparent", cursor: opening === m.uid ? "default" : "pointer", fontSize: 15, padding: 0, opacity: opening === m.uid ? 0.5 : 1 }}
-                      >
-                        💬
-                      </button>
+                      (() => {
+                        const unread = user ? (dmUnread[dmThreadId(user.uid, m.uid)] ?? 0) : 0;
+                        return (
+                          <button
+                            onClick={() => void handleMessage(m.uid)}
+                            disabled={opening === m.uid}
+                            title={unread > 0 ? `${unread} new from ${m.displayName}` : `Message ${m.displayName}`}
+                            style={{ border: "none", background: "transparent", cursor: opening === m.uid ? "default" : "pointer", fontSize: 15, padding: 0, opacity: opening === m.uid ? 0.5 : 1, display: "inline-flex", alignItems: "center", gap: 4 }}
+                          >
+                            💬
+                            {unread > 0 && (
+                              <span style={{ background: "#FF6B5E", color: "#fff", borderRadius: 999, fontSize: 10, fontWeight: 800, padding: "1px 5px" }}>
+                                {unread > 9 ? "9+" : unread}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })()
                     )}
                   </div>
                 </td>
