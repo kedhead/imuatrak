@@ -196,6 +196,10 @@ export default function GalleryScreen() {
 
       {layout === "grid" ? (
         <FlatList
+          // Both branches sit at the same position in the tree, so React would
+          // reuse one FlatList instance and change numColumns underneath it —
+          // which RN throws on. Distinct keys keep them separate components.
+          key="grid"
           data={tiles}
           keyExtractor={(t, i) => `${t.post.id}-${i}`}
           numColumns={COLUMNS}
@@ -210,6 +214,7 @@ export default function GalleryScreen() {
         />
       ) : (
         <FlatList
+          key="feed"
           data={visiblePosts}
           keyExtractor={(p) => p.id}
           contentContainerStyle={{ paddingBottom: 96 }}
