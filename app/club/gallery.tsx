@@ -19,7 +19,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
 import {
   addComment,
@@ -52,6 +52,10 @@ export default function GalleryScreen() {
   const members = useClub((s) => s.members);
   const role = useClub((s) => s.role);
   const user = currentUser();
+  // Read here rather than inside the viewer: the viewer renders in a Modal,
+  // which is its own native window, and SafeAreaView measures nothing there —
+  // the header ended up under the status bar with the close button untappable.
+  const insets = useSafeAreaInsets();
 
   const [posts, setPosts] = useState<ClubPost[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -183,6 +187,8 @@ export default function GalleryScreen() {
             await load();
           }}
           clubId={club.id}
+          insetTop={insets.top}
+          insetBottom={insets.bottom}
         />
       )}
     </SafeAreaView>
@@ -199,6 +205,8 @@ function PhotoViewer({
   onClose,
   onChangeIndex,
   onDeleted,
+  insetTop,
+  insetBottom,
 }: {
   tiles: { post: ClubPost; url: string }[];
   index: number;
@@ -209,6 +217,8 @@ function PhotoViewer({
   onClose: () => void;
   onChangeIndex: (i: number) => void;
   onDeleted: () => void;
+  insetTop: number;
+  insetBottom: number;
 }) {
   const tile = tiles[index]!;
   const post = tile.post;
@@ -300,25 +310,32 @@ function PhotoViewer({
   const canDelete = post.authorId === myUid || isStaff;
 
   return (
-    <Modal visible animationType="fade" onRequestClose={onClose}>
-      <SafeAreaView style={styles.viewerSafe} edges={["top", "bottom"]}>
+    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <View
+        style={[
+          styles.viewerSafe,
+          // Insets come from the parent screen, applied once by hand. A
+          // SafeAreaView here reports zero inside the Modal's own window.
+          { paddingTop: Math.max(insetTop, spacing.sm), paddingBottom: insetBottom },
+        ]}
+      >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.viewerHeader}>
-            <Pressable onPress={onClose} hitSlop={12}>
+            <Pressable onPress={onClose} hitSlop={16} style={styles.headerBtn}>
               <Ionicons name="close" size={28} color={colors.white} />
             </Pressable>
             <Text style={styles.viewerCount}>
               {index + 1} / {tiles.length}
             </Text>
             {canDelete ? (
-              <Pressable onPress={onDelete} hitSlop={12}>
+              <Pressable onPress={onDelete} hitSlop={16} style={styles.headerBtn}>
                 <Ionicons name="trash-outline" size={24} color={colors.white} />
               </Pressable>
             ) : (
-              <View style={{ width: 24 }} />
+              <View style={{ width: 44 }} />
             )}
           </View>
 
@@ -417,7 +434,7 @@ function PhotoViewer({
             )}
           </View>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -446,9 +463,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
+  // 44pt minimum touch target, per the platform guidelines.
+  headerBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   viewerCount: { color: colors.white, fontSize: type.size.sm },
   viewerPage: { width: SCREEN_W, flex: 1, alignItems: "center", justifyContent: "center" },
   viewerImage: { width: SCREEN_W, height: "100%" },

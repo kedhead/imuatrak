@@ -521,7 +521,7 @@ export default function ChannelChatScreen() {
 
       {/* Full-screen image viewer with horizontal paging */}
       {viewer && (
-        <Modal visible animationType="fade" onRequestClose={() => setViewer(null)}>
+        <Modal visible animationType="fade" onRequestClose={() => setViewer(null)} statusBarTranslucent>
           <View style={styles.viewerBg}>
             <FlatList
               horizontal
@@ -536,7 +536,11 @@ export default function ChannelChatScreen() {
                 </Pressable>
               )}
             />
-            <Pressable style={styles.viewerClose} onPress={() => setViewer(null)} hitSlop={12}>
+            <Pressable
+              style={[styles.viewerClose, { top: Math.max(insets.top, spacing.sm) }]}
+              onPress={() => setViewer(null)}
+              hitSlop={16}
+            >
               <Ionicons name="close" size={30} color={colors.white} />
             </Pressable>
           </View>
@@ -963,7 +967,16 @@ const styles = StyleSheet.create({
   viewerBg: { flex: 1, backgroundColor: "#000" },
   viewerPage: { width: SCREEN_W, height: "100%", justifyContent: "center" },
   viewerImage: { width: "100%", height: "100%" },
-  viewerClose: { position: "absolute", top: 56, right: 20 },
+  // `top` is set inline from the safe-area inset — a Modal is its own native
+  // window, so SafeAreaView measures nothing inside it.
+  viewerClose: {
+    position: "absolute",
+    right: spacing.md,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   uploadingOverlay: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.4)",
