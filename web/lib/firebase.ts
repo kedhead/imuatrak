@@ -26,6 +26,7 @@ import {
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type { DashboardSession, PublicSession } from "./types";
+import { parseHashtags } from "./clubTypes";
 import type { Club, ClubChannel, ClubMember, ClubEvent, ClubMessage, ClubPost, DmMessage, DmThread, MemberRole, EventType, PostType, RsvpStatus } from "./clubTypes";
 
 const config = {
@@ -736,8 +737,10 @@ export async function createPhotoPost(
   uid: string,
   displayName: string,
   content = "",
+  taggedUids: string[] = [],
 ): Promise<string> {
   const now = new Date().toISOString();
+  const tags = parseHashtags(content);
   const ref = await addDoc(collection(db, "clubs", clubId, "posts"), {
     clubId,
     type: "photo",
@@ -748,6 +751,10 @@ export async function createPhotoPost(
     commentCount: 0,
     createdAt: now,
     updatedAt: now,
+    // Omitted when empty rather than stored as []: Firestore can't tell the two
+    // apart on read, and absent keeps the documents smaller.
+    ...(tags.length ? { tags } : {}),
+    ...(taggedUids.length ? { taggedUids } : {}),
   });
   return ref.id;
 }
