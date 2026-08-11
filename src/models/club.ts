@@ -226,11 +226,45 @@ export interface ClubPost {
   updatedAt: string;
   /** Download URLs in upload order — present only when type === "photo". */
   mediaUrls?: string[];
+  /**
+   * Hashtags from the caption, normalised by `parseHashtags` — lower-cased and
+   * without the leading "#", so "#RaceDay" and "#raceday" filter as one tag.
+   */
+  tags?: string[];
+  /** Uids of members tagged in the photo ("who's in this shot"). */
+  taggedUids?: string[];
   // Poll fields — present only when type === "poll"
   pollOptions?: PollOption[];
   pollVotes?: Record<string, string[]>; // key = option index string, value = voter UIDs
   pollMultipleChoice?: boolean;
   pollEndsAt?: string;
+}
+
+/** Caps how many tags one photo post carries, so a caption can't become a
+ *  filter list of its own. */
+export const MAX_POST_TAGS = 10;
+
+/**
+ * A fresh hashtag matcher. Returns a new object each call because the `g` flag
+ * makes `lastIndex` stateful — a shared instance would skip matches when used
+ * for both parsing and rendering.
+ */
+export function hashtagRegex(): RegExp {
+  return /#([\p{L}\p{N}_]{1,30})/gu;
+}
+
+/**
+ * Pull the hashtags out of a caption, normalised for storage: lower-cased,
+ * "#" stripped, de-duplicated, in first-seen order.
+ */
+export function parseHashtags(caption: string): string[] {
+  const seen = new Set<string>();
+  for (const m of caption.matchAll(hashtagRegex())) {
+    const tag = m[1]!.toLowerCase();
+    if (!seen.has(tag)) seen.add(tag);
+    if (seen.size >= MAX_POST_TAGS) break;
+  }
+  return [...seen];
 }
 
 export interface ClubComment {

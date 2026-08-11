@@ -1,4 +1,4 @@
-import { clubGrantsAdFree, eventGoingCount, type EventRsvp } from "../club";
+import { clubGrantsAdFree, eventGoingCount, MAX_POST_TAGS, parseHashtags, type EventRsvp } from "../club";
 
 describe("eventGoingCount", () => {
   const rsvp = (uid: string, status: EventRsvp["status"], guests?: string[]): EventRsvp => ({
@@ -64,5 +64,34 @@ describe("clubGrantsAdFree", () => {
     expect(
       clubGrantsAdFree({ subscriptionStatus: "expired", trialEndsAt: future }, now),
     ).toBe(false);
+  });
+});
+
+describe("parseHashtags", () => {
+  it("extracts tags and drops the #", () => {
+    expect(parseHashtags("Great day out #raceday #crew")).toEqual(["raceday", "crew"]);
+  });
+
+  it("lower-cases so #RaceDay and #raceday filter as one tag", () => {
+    expect(parseHashtags("#RaceDay then #raceday")).toEqual(["raceday"]);
+  });
+
+  it("returns nothing for a caption with no tags", () => {
+    expect(parseHashtags("just a photo")).toEqual([]);
+  });
+
+  it("ignores a bare # with no word after it", () => {
+    expect(parseHashtags("number # 1 #winning")).toEqual(["winning"]);
+  });
+
+  // Matters for a paddling app: the ʻokina is a letter, so Hawaiian place and
+  // crew names survive as one tag instead of being cut at the mark.
+  it("keeps macrons and ʻokina inside a tag", () => {
+    expect(parseHashtags("#hoʻomau #Kāneʻohe")).toEqual(["hoʻomau", "kāneʻohe"]);
+  });
+
+  it("caps the number of tags stored", () => {
+    const caption = Array.from({ length: 20 }, (_, i) => `#tag${i}`).join(" ");
+    expect(parseHashtags(caption)).toHaveLength(MAX_POST_TAGS);
   });
 });

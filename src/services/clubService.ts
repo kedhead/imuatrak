@@ -478,6 +478,8 @@ export async function createPost(
     content: string;
     linkedSessionId?: string;
     pinnedUntil?: string;
+    tags?: string[];
+    taggedUids?: string[];
     pollOptions?: PollOption[];
     pollMultipleChoice?: boolean;
     pollEndsAt?: string;
@@ -496,6 +498,10 @@ export async function createPost(
     updatedAt: now,
     ...(opts.pinnedUntil !== undefined && { pinnedUntil: opts.pinnedUntil }),
     ...(opts.linkedSessionId !== undefined && { linkedSessionId: opts.linkedSessionId }),
+    // Omitted when empty rather than stored as []: Firestore has no way to
+    // distinguish the two on read, and absent keeps the documents smaller.
+    ...(opts.tags?.length ? { tags: opts.tags } : {}),
+    ...(opts.taggedUids?.length ? { taggedUids: opts.taggedUids } : {}),
     ...(opts.type === "poll" && opts.pollOptions && {
       pollOptions: opts.pollOptions,
       pollVotes: {},
