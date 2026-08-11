@@ -537,8 +537,20 @@ export async function votePoll(
   }
 }
 
+/**
+ * Delete a post and any photos attached to it.
+ *
+ * Goes through a Cloud Function rather than deleting the doc here: a gallery
+ * post's photos live under clubs/{clubId}/posts/{postId}/ and would be orphaned
+ * in Storage forever by a client-side delete. The function re-checks
+ * author-or-owner/admin server-side to match the Firestore rule.
+ */
 export async function deletePost(clubId: string, postId: string): Promise<void> {
-  await deleteDoc(doc(db, "clubs", clubId, "posts", postId));
+  const fn = httpsCallable<{ clubId: string; postId: string }, { success: boolean }>(
+    functions,
+    "deleteClubPost",
+  );
+  await fn({ clubId, postId });
 }
 
 export async function toggleLike(
@@ -907,4 +919,47 @@ export function subscribeChannelUnread(
 export async function getUnreadTotal(uid: string): Promise<number> {
   const snap = await getDoc(doc(db, "users", uid));
   return Math.max(0, (snap.data()?.unreadTotal as number | undefined) ?? 0);
+}
+
+// ── Club gallery ─────────────────────────────────────────────────────────────
+//
+// Photo posts share the posts collection, so likes, comments and moderation
+// come for free — see the PostType comment in models/club.ts.
+
+/** Photo posts, newest first. Needs the posts type+createdAt composite index. */
+export async function getGalleryPosts(clubId: string, maxItems = 60): Promise<ClubPost[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, "clubs", clubId, "posts"),
+      where("type", "==", "photo"),
+      orderBy("createdAt", "desc"),
+      limit(maxItems),
+    ),
+  );
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<ClubPost, "id">), id: d.id }));
+}
+
+/**
+ * Attach one photo to a post.
+ *
+ * Server-side for the same Blob reason uploadMessageMedia is: React Native
+ * can't build what the Storage SDK wants. "media" for a single photo, "media-N"
+ * for each of several.
+ */
+export async function uploadPostMedia(
+  clubId: string,
+  postId: string,
+  localUri: string,
+  mimeType: string,
+  fileKey: string = "media",
+): Promise<string> {
+  const base64 = await FileSystem.readAsStringAsync(localUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const fn = httpsCallable<
+    { clubId: string; postId: string; base64: string; contentType: string; fileKey?: string },
+    { mediaUrl: string }
+  >(functions, "uploadPostMedia");
+  const { data } = await fn({ clubId, postId, base64, contentType: mimeType, fileKey });
+  return data.mediaUrl;
 }

@@ -108,6 +108,123 @@ export const uploadChannelMedia = onCall({ memory: "512MiB" }, async (request) =
 });
 
 // ---------------------------------------------------------------------------
+// uploadPostMedia — attach a photo to a club post (the gallery).
+//
+// Same shape as uploadChannelMedia: the client can't write to Storage directly
+// because React Native has no Blob, and going through here also puts the
+// club-membership check server-side.
+// ---------------------------------------------------------------------------
+export const uploadPostMedia = onCall({ memory: "512MiB" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { clubId, postId, base64, contentType, fileKey } = request.data ?? {};
+  if (
+    typeof clubId !== "string" ||
+    typeof postId !== "string" ||
+    typeof base64 !== "string" ||
+    typeof contentType !== "string"
+  ) {
+    throw new HttpsError("invalid-argument", "Missing upload fields");
+  }
+  // Photos only — the callable payload cap makes video impractical here, and
+  // the gallery has no player.
+  if (!/^image\//.test(contentType)) {
+    throw new HttpsError("invalid-argument", "Gallery posts must be images");
+  }
+  const key: string = typeof fileKey === "string" ? fileKey : "media";
+  if (!/^media(-\d{1,2})?$/.test(key)) {
+    throw new HttpsError("invalid-argument", "Bad fileKey");
+  }
+
+  const db = getFirestore();
+  const memberSnap = await db.doc(`clubs/${clubId}/members/${uid}`).get();
+  if (!memberSnap.exists) throw new HttpsError("permission-denied", "Not a club member");
+
+  const postRef = db.doc(`clubs/${clubId}/posts/${postId}`);
+  const postSnap = await postRef.get();
+  if (!postSnap.exists) throw new HttpsError("not-found", "Post not found");
+  // Only the author may attach to a post, so a member can't add photos to
+  // someone else's — the create rule already ties authorId to the caller.
+  if ((postSnap.data() as { authorId?: string } | undefined)?.authorId !== uid) {
+    throw new HttpsError("permission-denied", "Not your post");
+  }
+
+  const buffer = Buffer.from(base64, "base64");
+  if (buffer.length > 7 * 1024 * 1024) {
+    throw new HttpsError("invalid-argument", "Photo too large (max ~7 MB)");
+  }
+
+  const ext = contentType.split("/")[1] || "jpg";
+  const path = `clubs/${clubId}/posts/${postId}/${key}.${ext}`;
+  const token = crypto.randomUUID();
+  const bucket = getStorage().bucket();
+
+  await bucket.file(path).save(buffer, {
+    contentType,
+    metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+  });
+
+  const mediaUrl =
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+    `${encodeURIComponent(path)}?alt=media&token=${token}`;
+
+  await postRef.update({ mediaUrls: FieldValue.arrayUnion(mediaUrl) });
+  return { mediaUrl };
+});
+
+/** Delete every photo belonging to one post. */
+async function purgePostMediaFiles(clubId: string, postId: string): Promise<void> {
+  await getStorage()
+    .bucket()
+    .deleteFiles({ prefix: `clubs/${clubId}/posts/${postId}/` })
+    .catch(() => undefined);
+}
+
+/**
+ * Delete a club post and its photos together.
+ *
+ * Enforces the same permission as the Firestore delete rule — author, or club
+ * owner/admin — by reading the doc while it still exists. Deleting the doc
+ * client-side would orphan every attached photo in Storage, which is the leak
+ * that had to be fixed for chat messages.
+ */
+export const deleteClubPost = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { clubId, postId } = request.data ?? {};
+  if (typeof clubId !== "string" || typeof postId !== "string") {
+    throw new HttpsError("invalid-argument", "Missing post reference");
+  }
+
+  const db = getFirestore();
+  const postRef = db.doc(`clubs/${clubId}/posts/${postId}`);
+  const [postSnap, memberSnap] = await Promise.all([
+    postRef.get(),
+    db.doc(`clubs/${clubId}/members/${uid}`).get(),
+  ]);
+
+  if (!memberSnap.exists) throw new HttpsError("permission-denied", "Not a club member");
+  // Already gone — clear any media left behind so a retry after a partial
+  // failure still tidies up, and report success.
+  if (!postSnap.exists) {
+    await purgePostMediaFiles(clubId, postId);
+    return { success: true };
+  }
+
+  const role = (memberSnap.data() as { role?: string } | undefined)?.role;
+  const isAuthor = (postSnap.data() as { authorId?: string } | undefined)?.authorId === uid;
+  if (!isAuthor && role !== "owner" && role !== "admin") {
+    throw new HttpsError("permission-denied", "Can't delete someone else's post");
+  }
+
+  await purgePostMediaFiles(clubId, postId);
+  await postRef.delete();
+  return { success: true };
+});
+
+// ---------------------------------------------------------------------------
 // purgeMessageMedia — delete every attachment belonging to one message.
 //
 // Deleting the message doc alone orphans its media forever. The client used to
