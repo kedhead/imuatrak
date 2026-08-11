@@ -253,7 +253,7 @@ function Bubble({
       {!isMe && (
         <Avatar uri={avatarUrl} name={message.authorName} uid={message.authorId} size={28} />
       )}
-      <View style={{ flexShrink: 1 }}>
+      <View style={[styles.bubbleWrap, { alignItems: isMe ? "flex-end" : "flex-start" }]}>
         <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
           <LinkifiedText
             text={message.content}
@@ -293,9 +293,14 @@ const styles = StyleSheet.create({
   row: { marginVertical: 3, flexDirection: "row", alignItems: "flex-end", gap: spacing.xs },
   rowMe: { justifyContent: "flex-end" },
   rowThem: { justifyContent: "flex-start" },
+  // The width cap lives here, on the direct child of the row, not on the bubble
+  // inside it. A percentage maxWidth resolves against the parent's width — and
+  // when that parent is sized by its own child, the constraint is circular and
+  // Yoga collapses it, which squeezed bubbles down to a few characters and
+  // broke words mid-token. alignItems lets the bubble hug its content within
+  // the cap instead of stretching to it.
+  bubbleWrap: { flexShrink: 1, maxWidth: "80%" },
   bubble: {
-    maxWidth: "80%",
-    flexShrink: 1,
     borderRadius: radii.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
