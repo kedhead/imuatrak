@@ -35,28 +35,47 @@ variables automatically). Local `eas update` does **not**, unless you pass
    ```
    npm run deploy:ota -- --message "Fix club invite flow for new users"
    ```
-4. Check the CLI output: **Runtime version must match the version of the app
-   users have installed** — currently **1.0.2** (the live iOS build). A
-   mismatch means the update reaches nobody, and the publish still says
-   "success", so this line is the only warning you get.
-5. **Verify on a real device**: install the update, confirm Sign in with Apple
-   works, before telling anyone it's fixed. If the device shows no change,
-   suspect the runtime before you suspect the code.
+4. Check the CLI output. It prints **two** runtime versions, one per platform,
+   and each must match the binary live on that store — currently **1.0.2** on
+   iOS and **1.0.1** on Android. A mismatch means the update reaches nobody on
+   that platform, and the publish still says "success".
 
-### The runtime trap
+   Step 3 runs `npm run check:ota` first (an npm `pre` hook) which compares
+   both declared runtimes against the newest production build EAS holds and
+   aborts on a mismatch, so you should not get this far with a bad runtime.
+   Run it on its own any time with `npm run check:ota`.
+5. **Verify on a real device, on both platforms**: install the update, confirm
+   Sign in with Apple works, before telling anyone it's fixed. If a device
+   shows no change, suspect the runtime before you suspect the code.
 
-`app.config.js` sets `runtimeVersion: { policy: "appVersion" }`, so the
-`version` field IS the OTA runtime. Raising it in anticipation of a build
-retargets every subsequent OTA at a runtime no device has.
+### Runtime versions are per platform
 
-That is exactly what happened between 2026-08-03 and 2026-08-09: #62 set
-`version: "1.0.3"` for a build that was never made, and six days of OTAs — the
-Android release path in #63 among them — were published to runtime 1.0.3 while
-every user sat on the 1.0.2 binary. Each one reported success.
+`app.config.js` declares `ios.runtimeVersion` and `android.runtimeVersion` as
+explicit strings near the top of the file. **A runtime describes what is
+installed, not what you want to ship.** Set it to the `version` of the binary
+that is actually on that store, and change it only in the commit that produces
+a new native build for that platform.
 
-**Only raise `version` in the commit that actually produces the native build.**
-To check what is really installed: expo.dev → project → Builds, or read the
-version on the phone's app listing.
+The two platforms drift, and both directions have already cost this project:
+
+- **iOS, Aug 3–9 2026.** Runtime came from a single `{ policy: "appVersion" }`
+  and #62 raised `version` to `1.0.3` for a build that was never made. Six days
+  of OTAs went to runtime 1.0.3, which no device had. Every one reported
+  success.
+- **Android, late July – Aug 13 2026.** The Play build shipped at 1.0.1 while
+  iOS moved to 1.0.2. One shared runtime cannot be both numbers; it tracked
+  iOS, so club chat, @mentions, boat lineups, DMs and the photo gallery all
+  landed on iPhones and none of them reached Android. The Play app ran its
+  build-time bundle from launch until the runtimes were split per platform.
+
+That second failure is why the shared `runtimeVersion` key is gone. `version`
+is now purely the store version and cannot retarget an update; the runtime
+constants are separate and named. One `eas update` run publishes a bundle per
+platform, each at its own runtime, so both stores stay current from a single
+publish even while their native versions differ.
+
+To check what is really installed: `npm run check:ota`, expo.dev → project →
+Builds, or read the version on the phone's app listing / Play Console.
 
 ## Firebase deploys (rules, storage, functions)
 
@@ -95,7 +114,35 @@ re-publish with step 3 above.
 - **Needs a new native build (`npm run build:ios` / `npm run build:android`) +
   store submit:** anything touching `app.config.js` native config — new
   permissions, background modes, `associatedDomains`/universal links,
-  `intentFilters`/App Links, `targetSdkVersion`, plugins, SDK bumps.
+  `intentFilters`/App Links, `targetSdkVersion`, plugins, SDK bumps, and
+  anything that adds a **dependency with native code**.
+
+The dependency point is what decides whether a platform that has fallen behind
+needs a rebuild or just an update. To check before assuming, diff `package.json`
+between the commit the stale binary was built from and `main`:
+
+```
+git diff <build-commit> main -- package.json
+```
+
+Changes confined to the `scripts` block mean no native code moved and the whole
+gap is OTA-able. A changed `dependencies` block means the old binary is missing
+a native module the new JS will call, and an OTA to it would crash — rebuild
+instead.
+
+## The version and runtime bump, on every native build
+
+Both stores reject a submission whose `version` does not strictly increase, and
+an OTA published against the old runtime will not reach the new binary. So in
+the **same commit** that produces a native build:
+
+1. Raise `version` in `app.config.js` (the store version, shared by both
+   platforms).
+2. Set that platform's runtime constant — `IOS_RUNTIME_VERSION` or
+   `ANDROID_RUNTIME_VERSION` — to the same number. Leave the other platform's
+   constant alone; it still describes the binary live on that store.
+3. After the build is live, `npm run check:ota` should show both platforms
+   green before the next OTA.
 
 ## New native version to the App Store
 

@@ -12,6 +12,36 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
   ? `com.googleusercontent.apps.${GOOGLE_IOS_CLIENT_ID.replace(".apps.googleusercontent.com", "")}`
   : undefined;
 
+// ── OTA runtime versions, per platform ──────────────────────────────────────
+// The runtime version ties an OTA update to the native binaries that are able
+// to run it. It MUST equal the `version` of the binary users actually have
+// INSTALLED on that platform — never the version you intend to build next.
+//
+// iOS and Android ship on independent schedules, so their installed versions
+// drift apart, and they have: iOS is on 1.0.2 (built 2026-08-01) while the
+// Play Store release is still 1.0.1 (built late July). A single top-level
+// runtime cannot serve both. It matched iOS, so every OTA since late July —
+// club chat, @mentions, boat lineups, direct messages, the photo gallery —
+// landed on iPhones and silently reached nobody on Android, while `eas update`
+// reported success each time. Android has been running its build-time bundle
+// since launch.
+//
+// Splitting the runtime per platform fixes that: one `eas update` run now
+// publishes an Android bundle at 1.0.1 and an iOS bundle at 1.0.2, and both
+// platforms get the same JS.
+//
+// These are explicit strings rather than the "appVersion" policy on purpose.
+// Under that policy the store version below WAS the OTA runtime, so editing it
+// in anticipation of a build retargeted live updates at a runtime no device
+// had — which is exactly what happened for six days in August (#62). The two
+// concerns are now separate knobs that cannot be confused.
+//
+// ⚠️ When you ship a native build to a store, set that platform's runtime here
+// to the version of that build, in the same commit that produces it. Run
+// `npm run check:ota` to verify these against the builds EAS actually has.
+const IOS_RUNTIME_VERSION = "1.0.2";
+const ANDROID_RUNTIME_VERSION = "1.0.1";
+
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
   name: "ImuaTrak",
@@ -24,32 +54,24 @@ const config = {
   // why submits were rejected as "not new". The first launch shipped as 1.0,
   // so the next store build must be 1.0.1 or higher.
   //
-  // runtimeVersion below uses the "appVersion" policy, so this same value is
-  // ALSO the OTA runtime — there is no separate runtime knob to "bump". Live
-  // users are on runtime 0.1.0 (the value when build 78 was made); their OTAs
-  // were already published against 0.1.0. Moving to 1.0.1 gives the next
-  // native build its own runtime, which correctly isolates native-only
-  // additions (e.g. the GPX document picker) from older binaries.
+  // This value is ONLY the store version. It is no longer the OTA runtime —
+  // those are IOS_RUNTIME_VERSION / ANDROID_RUNTIME_VERSION above, and editing
+  // this field cannot retarget a live update any more. Bumping it early is now
+  // harmless; bumping it is in fact required before any store submission.
   //
-  // 1.0.2: isolates the Google Sign-In iOS URL scheme (a native Info.plist
-  // addition) from shipped 1.0.1 binaries — OTA JS that shows the iOS Google
-  // button must never reach a binary without the scheme.
+  // Because it is shared, treat 1.0.3 as the floor for the next native build
+  // on either platform: 1.0.2 is already taken on the App Store, and shipping
+  // Play a second, different 1.0.2 would make the number useless for telling
+  // two binaries apart. Set that platform's runtime constant above to whatever
+  // number you land on, in the same commit.
   //
-  // ⚠️ THIS VALUE IS THE OTA RUNTIME. It must equal the version of the binary
-  // users actually have installed, NOT the version you intend to build next.
-  // Bump it in the same commit that produces a native build, never before.
-  //
-  // 1.0.3 was set here on 2026-08-03 (#62) in preparation for a build that was
-  // never made — the eas-build workflow has never run. That silently retargeted
-  // every OTA from that day onward at runtime 1.0.3, which no device has, so
-  // updates published against it reached nobody while still reporting success.
-  // The live iOS build is 1.0.2, so this is 1.0.2 again and OTAs land.
-  //
-  // Still queued for whenever the next native build happens (all Info.plist /
-  // native config, none of it OTA-able): the corrected ADMOB_IOS_APP_ID, the
-  // userInterfaceStyle pin below, and expo-camera for invite QR scanning on
-  // the QR branch. That build must raise this to 1.0.3 or higher — the store
-  // rejects a submission whose version does not strictly increase.
+  // Queued for whenever that build happens — all native config, none of it
+  // OTA-able: the corrected ADMOB_IOS_APP_ID, the userInterfaceStyle pin
+  // below, and expo-camera for invite QR scanning on the QR branch. The
+  // userInterfaceStyle pin is the one gap that OTA cannot close for the live
+  // Android 1.0.1 build, whose manifest still says "automatic" — its native
+  // date/time pickers stay dark-on-dark for users in dark mode until it is
+  // rebuilt.
   version: "1.0.2",
   orientation: "portrait",
   icon: "./assets/icon.png",
@@ -68,17 +90,23 @@ const config = {
   newArchEnabled: true,
   assetBundlePatterns: ["**/*"],
 
-  // EAS Update (over-the-air JS updates). The runtime version ties an OTA
-  // update to compatible native builds; JS-only fixes can ship without a
-  // rebuild via `eas update`. Builds must be made AFTER this is configured
-  // for the app to start checking for updates.
-  runtimeVersion: { policy: "appVersion" },
+  // EAS Update (over-the-air JS updates). JS-only fixes ship without a rebuild
+  // via `eas update`. Builds must be made AFTER this is configured for the app
+  // to start checking for updates.
+  //
+  // There is deliberately NO top-level `runtimeVersion` here: `ios.runtimeVersion`
+  // and `android.runtimeVersion` below take precedence over a root value, and
+  // leaving the root unset means a stray edit to it can never quietly override
+  // one platform. Every build and every update resolves its runtime from the
+  // platform block that applies to it.
   updates: {
     url: "https://u.expo.dev/e23de54c-0b38-4c19-b13f-066535bcdd14",
   },
 
   ios: {
     bundleIdentifier: "app.imuatrak",
+    // OTA runtime for iOS — matches the live App Store build (1.0.2).
+    runtimeVersion: IOS_RUNTIME_VERSION,
     // Apple Developer Team ID — required by @bacons/apple-targets to sign the
     // watch target. Set APPLE_TEAM_ID in EAS project env (and locally in .env
     // when running prebuild); find it at developer.apple.com → Membership.
@@ -123,6 +151,10 @@ const config = {
 
   android: {
     package: "app.imuatrak",
+    // OTA runtime for Android — matches the live Play Store build (1.0.1),
+    // which is a version behind iOS. Do not "fix" this by aligning it with
+    // the iOS number: it describes what is installed, not what is desired.
+    runtimeVersion: ANDROID_RUNTIME_VERSION,
     // Android App Links for invite URLs — verified against the
     // assetlinks.json served by the website (see docs/universal-links.md).
     intentFilters: [
