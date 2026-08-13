@@ -37,6 +37,24 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+      # The runtime preflight that `npm run deploy:ota` gets locally from its
+      # `predeploy:ota` hook. This job calls `eas update` directly, so without
+      # this step the GitHub path silently skips the check — and publishing
+      # against a runtime no device has is the failure that stranded Android
+      # from launch and blacked out iOS for six days in August. It has to guard
+      # both routes or it guards neither.
+      #
+      # Production only: check-ota-runtime.mjs compares against the newest
+      # `production` build and the `production` channel, so it would report
+      # nonsense for the preview and development channels. A stale runtime on
+      # those is cheap and self-evident anyway.
+      #
+      # Runs after "Set up EAS" because it shells out to the `eas` CLI that
+      # step installs and authenticates.
+      - name: Check OTA runtime versions
+        if: inputs.channel == 'production'
+        run: npm run check:ota
+
       - name: Publish OTA update
         # Publish to a branch named after the channel and ensure the channel
         # is linked to it. branch:create / channel:edit are idempotent here —

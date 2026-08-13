@@ -13,6 +13,8 @@
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "test": "jest",
+    "check:ota": "node scripts/check-ota-runtime.mjs",
+    "predeploy:ota": "npm run check:ota",
     "deploy:ota": "eas update --environment production --channel production",
     "deploy:ota:rollback": "eas update:roll-back-to-embedded --branch production",
     "deploy:rules": "cd firebase && firebase deploy --only firestore:rules",
