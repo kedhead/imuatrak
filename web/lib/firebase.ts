@@ -25,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getPublicDoc } from "./firestoreRest";
 import type { DashboardSession, PublicSession } from "./types";
 import { parseHashtags } from "./clubTypes";
 import type { Club, ClubChannel, ClubMember, ClubEvent, ClubMessage, ClubPost, DmMessage, DmThread, MemberRole, EventType, PostType, RsvpStatus } from "./clubTypes";
@@ -56,9 +57,16 @@ export const storage = getStorage(firebaseApp);
  * failing the whole page.
  */
 export async function getPublicSession(id: string): Promise<PublicSession | null> {
-  const snap = await getDoc(doc(db, "publicSessions", id));
-  if (!snap.exists()) return null;
-  const data = snap.data() as Partial<PublicSession>;
+  // Read over REST rather than through the Web SDK — see lib/firestoreRest.ts.
+  // This runs in a server component, where the SDK's browser transport is the
+  // one thing that differs from the dashboard (which reads the same project
+  // fine from the browser).
+  const raw = await getPublicDoc(`publicSessions/${id}`, {
+    projectId: config.projectId,
+    apiKey: config.apiKey,
+  });
+  if (!raw) return null;
+  const data = raw as Partial<PublicSession>;
   return {
     ...(data as PublicSession),
     totals: { ...EMPTY_TOTALS, ...(data.totals ?? {}) },
