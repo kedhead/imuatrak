@@ -30,9 +30,13 @@ import {
 import { useClub } from "@/services/clubStore";
 import { syncEventReminders } from "@/services/eventReminders";
 import {
+  assignSeat,
   boatSeatCount,
   eventGoingCount,
+  findSeatOf,
   inferBoatType,
+  isGuestStillGoing,
+  seatableGuests,
   BOAT_SPECS,
   BOAT_TYPES,
   type BoatAssignment,
@@ -43,6 +47,7 @@ import {
   type EventType,
   type RsvpStatus,
   type SeatAssignment,
+  type SeatOccupant,
 } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
@@ -164,6 +169,8 @@ function EventDetail({
   const isAdmin = role === "owner" || role === "admin" || role === "coach";
 
   const goingUids = event?.rsvps.filter((r) => r.status === "going").map((r) => r.uid) ?? [];
+  // Guests brought by going members, offered in the seat picker alongside them.
+  const guestOptions = seatableGuests(event?.rsvps ?? []);
   // Headcount includes guests brought by going members.
   const goingCount = eventGoingCount(event?.rsvps ?? []);
   const maybeCount = event?.rsvps.filter((r) => r.status === "maybe").length ?? 0;
@@ -232,13 +239,16 @@ function EventDetail({
     ]);
   };
 
-  const handleAssignSeat = async (uid: string | null) => {
+  /** Seat a member, seat a guest, or clear the seat. See assignSeat: someone
+   *  already seated is moved, not duplicated. */
+  const handleAssignSeat = async (occupant: SeatOccupant | null) => {
     if (!event || assignTarget === null) return;
-    const boats: BoatAssignment[] = JSON.parse(JSON.stringify(event.boatAssignments ?? []));
-    const boat = boats[assignTarget.boatIdx];
-    const seat = boat?.seats[assignTarget.seatIdx];
-    if (!boat || !seat) return;
-    seat.uid = uid;
+    const boats = assignSeat(
+      event.boatAssignments ?? [],
+      assignTarget.boatIdx,
+      assignTarget.seatIdx,
+      occupant,
+    );
     setAssignTarget(null);
     await updateBoatAssignments(clubId, eventId, boats);
     const updated = await getEvent(clubId, eventId);
@@ -282,6 +292,21 @@ function EventDetail({
   }
 
   const boats = event.boatAssignments ?? [];
+
+  /**
+   * Where someone is already sitting, for the picker rows. Assigning them
+   * elsewhere moves them out of this seat rather than duplicating them, so
+   * saying so up front keeps that from looking like a bug.
+   */
+  const seatedLabel = (occupant: SeatOccupant): string | null => {
+    const at = findSeatOf(boats, occupant);
+    if (!at) return null;
+    const boat = boats[at.boatIdx]!;
+    const spec = specForBoat(boat);
+    const crew = spec?.crewSeats[at.seatIdx - spec.paddlerSeats];
+    const where = crew ? crew.label.toLowerCase() : `seat ${at.seatIdx + 1}`;
+    return boats.length > 1 ? `in ${boat.boatName}, ${where}` : `in ${where}`;
+  };
 
   return (
     <>
@@ -447,18 +472,32 @@ function EventDetail({
                 label?: string,
               ) => {
                 const assignedMember = seat.uid ? memberByUid(seat.uid) : null;
+                const guest = seat.uid ? null : (seat.guest ?? null);
+                // A seated guest whose host withdrew them, or stopped going.
+                // Nothing clears these automatically (see isGuestStillGoing),
+                // so they are shown muted for staff to notice and reassign.
+                const staleGuest = guest != null && !isGuestStillGoing(guest, event?.rsvps ?? []);
+                const occupantName = assignedMember?.displayName ?? guest?.name ?? null;
                 const isMe = seat.uid === me?.uid;
                 return (
                   <AnimatedPressable
                     key={si}
-                    style={[styles.seatChip, isMe && styles.seatChipMe, extra]}
+                    style={[
+                      styles.seatChip,
+                      isMe && styles.seatChipMe,
+                      guest != null && styles.seatChipGuest,
+                      extra,
+                    ]}
                     onPress={isAdmin ? () => setAssignTarget({ boatIdx: bi, seatIdx: si }) : undefined}
                   >
                     <Text style={[styles.seatNum, label && styles.crewLabel]}>
                       {label ?? seat.seatNumber}
                     </Text>
-                    <Text style={[styles.seatName, !assignedMember && { color: colors.muted }]} numberOfLines={1}>
-                      {assignedMember ? assignedMember.displayName : "Empty"}
+                    <Text
+                      style={[styles.seatName, (!occupantName || staleGuest) && { color: colors.muted }]}
+                      numberOfLines={1}
+                    >
+                      {occupantName ?? "Empty"}
                     </Text>
                   </AnimatedPressable>
                 );
@@ -545,14 +584,35 @@ function EventDetail({
               {goingUids.map((uid) => {
                 const m = memberByUid(uid);
                 return (
-                  <Pressable key={uid} style={styles.assignRow} onPress={() => handleAssignSeat(uid)}>
+                  <Pressable key={uid} style={styles.assignRow} onPress={() => handleAssignSeat({ uid })}>
                     <View style={[styles.rosterAvatar, { backgroundColor: colors.ocean }]}>
                       <Text style={styles.rosterInitial}>{(m?.displayName?.[0] ?? "?").toUpperCase()}</Text>
                     </View>
                     <Text style={styles.assignName}>{m?.displayName ?? uid.slice(0, 8)}</Text>
+                    <Text style={styles.assignSeatedTag}>{seatedLabel({ uid })}</Text>
                   </Pressable>
                 );
               })}
+              {/* Guests are paddlers too — they were missing from this list
+                  entirely, which left no way to put one in a boat. Keyed by
+                  host + index because two members may bring a same-named
+                  guest, and one member may bring two. */}
+              {guestOptions.map((g, i) => (
+                <Pressable
+                  key={`${g.hostUid}-${i}`}
+                  style={styles.assignRow}
+                  onPress={() => handleAssignSeat({ guest: g })}
+                >
+                  <View style={[styles.rosterAvatar, { backgroundColor: colors.gold }]}>
+                    <Text style={styles.rosterInitial}>{(g.name[0] ?? "?").toUpperCase()}</Text>
+                  </View>
+                  <Text style={styles.assignName}>{g.name}</Text>
+                  <Text style={styles.assignSeatedTag}>
+                    {seatedLabel({ guest: g }) ??
+                      `guest of ${memberByUid(g.hostUid)?.displayName ?? "a member"}`}
+                  </Text>
+                </Pressable>
+              ))}
             </ScrollView>
           </View>
         </Pressable>
@@ -952,6 +1012,9 @@ const styles = StyleSheet.create({
   seatChipFull: { minWidth: 0, width: "100%" },
   seatChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.bg, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: 6, minWidth: "30%" },
   seatChipMe: { backgroundColor: colors.aqua + "30", borderWidth: 1, borderColor: colors.aqua },
+  // Same gold tint the roster uses for guests, so a lineup reads at a glance.
+  seatChipGuest: { backgroundColor: colors.gold + "18" },
+  assignSeatedTag: { fontSize: 11, color: colors.muted, fontStyle: "italic" },
   seatNum: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.muted, width: 16 },
   seatName: { fontSize: type.size.sm, color: colors.ink, flex: 1 },
 

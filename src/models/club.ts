@@ -101,9 +101,123 @@ export function eventGoingCount(rsvps: EventRsvp[]): number {
   );
 }
 
+/**
+ * A guest paddler occupying a seat.
+ *
+ * Guests have no account and no uid — they exist only as names inside the
+ * host member's `EventRsvp.guests`. So a seat identifies one by the member who
+ * registered them plus the name that member gave, which stays stable when the
+ * host adds or removes other guests (an index would not).
+ */
+export interface SeatGuest {
+  hostUid: string;
+  name: string;
+}
+
 export interface SeatAssignment {
   seatNumber: number;
   uid: string | null;
+  /**
+   * Set when a guest holds this seat instead of a member; `uid` is null then.
+   * Absent on every lineup saved before guests could be seated, so read it as
+   * optional and always WRITE an explicit null rather than undefined — the
+   * Firestore instance in services/firebase.ts does not set
+   * ignoreUndefinedProperties, so an undefined field throws on write.
+   */
+  guest?: SeatGuest | null;
+}
+
+/**
+ * Every guest that can be given a seat: those registered by members who are
+ * actually going. A guest whose host is "maybe" or "not going" is not on the
+ * water, so they are not offered.
+ */
+export function seatableGuests(rsvps: EventRsvp[]): SeatGuest[] {
+  return rsvps
+    .filter((r) => r.status === "going")
+    .flatMap((r) => (r.guests ?? []).map((name) => ({ hostUid: r.uid, name })));
+}
+
+/** Whether two seat references point at the same registered guest. */
+export function isSameGuest(a?: SeatGuest | null, b?: SeatGuest | null): boolean {
+  return !!a && !!b && a.hostUid === b.hostUid && a.name === b.name;
+}
+
+/**
+ * Whether a seated guest is still registered for the event.
+ *
+ * A host can remove a guest, or drop to "not going", after the coach has
+ * seated them. The seat is NOT auto-cleared when that happens: Firestore rules
+ * let a plain member write only `rsvps`, so a member removing their own guest
+ * cannot touch `boatAssignments` — attempting it would fail the whole removal
+ * on a permission error. The lineup instead marks the seat as stale so staff,
+ * who can write it, notice and clear it.
+ */
+export function isGuestStillGoing(guest: SeatGuest, rsvps: EventRsvp[]): boolean {
+  return seatableGuests(rsvps).some((g) => isSameGuest(g, guest));
+}
+
+/** Whoever can hold a seat: a club member, or a registered guest. */
+export type SeatOccupant = { uid: string } | { guest: SeatGuest };
+
+/** Whether this seat is currently held by that exact person. */
+export function seatHolds(seat: SeatAssignment, occupant: SeatOccupant): boolean {
+  if ("uid" in occupant) return seat.uid === occupant.uid;
+  return seat.uid == null && isSameGuest(seat.guest, occupant.guest);
+}
+
+/** Which seat a person currently occupies, if any. */
+export function findSeatOf(
+  boats: BoatAssignment[],
+  occupant: SeatOccupant,
+): { boatIdx: number; seatIdx: number } | null {
+  for (let b = 0; b < boats.length; b++) {
+    const seats = boats[b]!.seats;
+    for (let s = 0; s < seats.length; s++) {
+      if (seatHolds(seats[s]!, occupant)) return { boatIdx: b, seatIdx: s };
+    }
+  }
+  return null;
+}
+
+/**
+ * Put someone in a seat, or clear it, returning a new set of boats.
+ *
+ * Nobody can sit in two places at once, so this MOVES rather than copies:
+ * assigning a person who already holds a seat vacates that one first, across
+ * every boat and not just the one being edited. The picker offers everyone who
+ * is going regardless of whether they are already seated, so without this a
+ * coach could seat the same paddler twice and the lineup would claim more crew
+ * than actually turned up.
+ *
+ * Occupant fields are always written as an explicit pair — Firestore has no
+ * ignoreUndefinedProperties here, and writing only one of them would leave the
+ * previous occupant behind when swapping a member for a guest.
+ */
+export function assignSeat(
+  boats: BoatAssignment[],
+  boatIdx: number,
+  seatIdx: number,
+  occupant: SeatOccupant | null,
+): BoatAssignment[] {
+  const next: BoatAssignment[] = JSON.parse(JSON.stringify(boats));
+  const target = next[boatIdx]?.seats[seatIdx];
+  if (!target) return next;
+
+  if (occupant) {
+    for (const boat of next) {
+      for (const seat of boat.seats) {
+        if (seatHolds(seat, occupant)) {
+          seat.uid = null;
+          seat.guest = null;
+        }
+      }
+    }
+  }
+
+  target.uid = occupant && "uid" in occupant ? occupant.uid : null;
+  target.guest = occupant && "guest" in occupant ? occupant.guest : null;
+  return next;
 }
 
 export type BoatType = "OC1" | "OC2" | "OC4" | "OC6" | "DB10" | "DB20";
