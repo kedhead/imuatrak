@@ -41,12 +41,46 @@ export const firebaseApp = getApps().length ? getApp() : initializeApp(config);
 export const db = getFirestore(firebaseApp);
 export const storage = getStorage(firebaseApp);
 
-/** Read a public session (no auth required). */
+/**
+ * Read a public session (no auth required).
+ *
+ * The stored doc is a denormalized copy written by the app (see
+ * services/sync.ts `setSessionPublic`), so its shape is only as current as the
+ * app version that wrote it — `schemaVersion` exists precisely because that
+ * drifts. The viewer indexes straight into `totals`, `hr.zones`, `splits` and
+ * `trackSummary`, so casting the snapshot and hoping turned any doc missing
+ * one of them into a server-side exception on a public URL.
+ *
+ * Fill the collection-shaped fields instead. A session that predates a field,
+ * or was written without one, then renders what it does have rather than
+ * failing the whole page.
+ */
 export async function getPublicSession(id: string): Promise<PublicSession | null> {
   const snap = await getDoc(doc(db, "publicSessions", id));
   if (!snap.exists()) return null;
-  return snap.data() as PublicSession;
+  const data = snap.data() as Partial<PublicSession>;
+  return {
+    ...(data as PublicSession),
+    totals: { ...EMPTY_TOTALS, ...(data.totals ?? {}) },
+    hr: { avg: 0, max: 0, ...(data.hr ?? {}), zones: data.hr?.zones ?? [] },
+    splits: data.splits ?? [],
+    trackSummary: data.trackSummary ?? [],
+  };
 }
+
+/** Zeroed totals, so a session missing any of them still renders a stat grid. */
+const EMPTY_TOTALS = {
+  distanceMeters: 0,
+  durationSec: 0,
+  movingDurationSec: 0,
+  avgPaceSecPerKm: 0,
+  avgSpeedMps: 0,
+  maxSpeedMps: 0,
+  strokeCount: 0,
+  avgStrokeRate: 0,
+  calories: 0,
+  elevationGainM: 0,
+} as const;
 
 /**
  * Resolve a club from an invite link identifier, which may be either the

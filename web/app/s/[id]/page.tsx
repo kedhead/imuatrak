@@ -39,7 +39,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PublicSessionPage({ params }: Props) {
   const { id } = await params;
-  const s = await getPublicSession(id);
+
+  // generateMetadata already treats a failed read as "no session"; this call
+  // did not, so a throw here — Firestore unreachable, a misconfigured
+  // NEXT_PUBLIC_FIREBASE_* on the deployment, a bad doc — surfaced to visitors
+  // as "Application error: a server-side exception has occurred" instead of
+  // the not-found page sitting next to this file.
+  //
+  // The error is still logged rather than swallowed: whatever broke stays
+  // visible in the Vercel function logs, it just no longer breaks the page.
+  let s: Awaited<ReturnType<typeof getPublicSession>> = null;
+  try {
+    s = await getPublicSession(id);
+  } catch (err) {
+    console.error(`[s/${id}] failed to load public session`, err);
+  }
   if (!s) notFound();
 
   const points = s.trackSummary.map((p) => [p.lat, p.lon] as [number, number]);
