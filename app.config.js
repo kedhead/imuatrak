@@ -40,6 +40,12 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // to the version of that build, in the same commit that produces it. Run
 // `npm run check:ota` to verify these against the builds EAS actually has.
 const IOS_RUNTIME_VERSION = "1.0.2";
+// Confirmed against Play Console: the released app bundle is versionCode 25,
+// versionName 1.0.1, targetSdk 36, API 26+. targetSdk 36 landed 2026-07-21 and
+// `version` moved to 1.0.2 on 2026-08-01, so that binary was built inside that
+// window — after the SDK 56 package alignment and the native Google Sign-In
+// module, both 2026-07-16. It therefore has every native module current JS
+// calls, which is what makes the backlog shippable over the air.
 const ANDROID_RUNTIME_VERSION = "1.0.1";
 
 /** @type {import('expo/config').ExpoConfig} */
