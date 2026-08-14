@@ -88,6 +88,12 @@ export async function getPublicDoc(
     `/databases/(default)/documents/${encoded}` +
     (apiKey ? `?key=${encodeURIComponent(apiKey)}` : "");
 
+  // A miss returns null rather than throwing, which lets the caller cache the
+  // "no such session" outcome instead of re-asking Firestore every time. That
+  // matters because /s/{id} is the one page reachable without signing in: a
+  // crawler walking made-up ids is otherwise a fresh billed lookup per request.
+  // The route segment sets its own revalidate so the not-found render is cached
+  // too — see the note in app/s/[id]/page.tsx.
   const res = await fetch(url, { next: { revalidate: revalidateSeconds } });
   if (res.status === 404) return null;
   if (!res.ok) {

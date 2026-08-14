@@ -3,11 +3,78 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { setGlobalOptions } from "firebase-functions/v2";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
 initializeApp();
+
+// ---------------------------------------------------------------------------
+// Spend ceilings.
+//
+// Without this, every function inherits the project default of 1000 concurrent
+// instances. On the Blaze plan that is unbounded pay-as-you-go: one runaway
+// trigger, one scraper, or one unexpectedly popular day scales straight into a
+// bill with nothing standing in the way. maxInstances is the only hard ceiling
+// available, so it is set globally and tightened per-function below.
+//
+// The tradeoff is explicit: past 10 concurrent instances requests queue and
+// eventually fail rather than autoscaling. That is the intended behaviour —
+// degrade under load instead of billing without limit. Raise this after
+// watching real traffic, not preemptively.
+//
+// NOTE: region is deliberately NOT set here. These functions are already
+// deployed, and changing a function's region deletes and recreates it, which
+// breaks live clients mid-flight. Pin it only during a planned migration.
+// ---------------------------------------------------------------------------
+setGlobalOptions({
+  maxInstances: 10,
+  memory: "256MiB",
+  timeoutSeconds: 60,
+});
+
+// ---------------------------------------------------------------------------
+// Push-notification fan-out helpers.
+//
+// Recipients are processed in chunks because a Firestore WriteBatch caps at 500
+// operations and each recipient costs two (unread total + per-thread count).
+// ---------------------------------------------------------------------------
+const FANOUT_CHUNK = 250;
+
+/**
+ * Expo push tokens denormalized onto the user document.
+ *
+ * Returns null when the field is absent, which means "unknown, look in the
+ * legacy users/{uid}/fcmTokens subcollection" — distinct from an empty array,
+ * which means "known, and this user has no sendable tokens". Keeping those two
+ * cases apart is what lets the subcollection read be skipped for everyone who
+ * has already migrated.
+ */
+function expoTokensFrom(userData: FirebaseFirestore.DocumentData | undefined): string[] | null {
+  const raw = userData?.expoTokens;
+  if (!Array.isArray(raw)) return null;
+  return raw.filter(
+    (t): t is string => typeof t === "string" && t.startsWith("ExponentPushToken"),
+  );
+}
+
+/**
+ * Read sendable push tokens from the legacy subcollection.
+ *
+ * Only Expo tokens are sendable. Legacy docs also hold raw APNs hex tokens
+ * (from getDevicePushTokenAsync) which FCM silently rejected — the reason
+ * pushes never arrived; those are filtered out here.
+ */
+async function legacyExpoTokens(
+  db: FirebaseFirestore.Firestore,
+  userId: string,
+): Promise<string[]> {
+  const snap = await db.collection(`users/${userId}/fcmTokens`).get();
+  return snap.docs
+    .map((d) => (d.data() as { token?: string }).token)
+    .filter((t): t is string => typeof t === "string" && t.startsWith("ExponentPushToken"));
+}
 
 // ---------------------------------------------------------------------------
 // renderSessionCard — produces a PNG share card (map snapshot + stats overlay)
@@ -369,7 +436,22 @@ export const uploadAvatar = onCall({ memory: "512MiB" }, async (request) => {
 // ---------------------------------------------------------------------------
 // fetchWeather — server-side proxy to OpenWeather so the API key never ships
 // in the Android app. iOS uses WeatherKit directly.
+//
+// Readings are cached per rounded coordinate per hour; see the note at the
+// cache lookup below for why.
 // ---------------------------------------------------------------------------
+interface WeatherReading {
+  windMps: number;
+  windDeg: number;
+  gustMps: number;
+  airTempC: number;
+  pressureHpa: number;
+  conditions: string;
+}
+
+/** How long a cached reading stays fresh. Matches the hourly bucket key. */
+const WEATHER_TTL_MS = 60 * 60 * 1000;
+
 export const fetchWeather = onCall(async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Sign-in required");
@@ -380,6 +462,28 @@ export const fetchWeather = onCall(async (request) => {
       throw new HttpsError("invalid-argument", "lat and lon are required");
     }
 
+    // Cache key: coordinates rounded to ~1km and the current hour.
+    //
+    // Weather does not vary meaningfully between two paddlers a few hundred
+    // metres apart, so without this every user at the same spot burned a
+    // separate call against the OpenWeather quota — and the free tier is a
+    // hard per-minute and per-day cap, so a busy morning could simply start
+    // returning errors to everyone. Rounding collapses a whole launch site
+    // onto one entry.
+    const db = getFirestore();
+    const bucketKey =
+      `${lat.toFixed(2)}_${lon.toFixed(2)}_` +
+      `${new Date().toISOString().slice(0, 13)}`;
+    const cacheRef = db.doc(`weatherCache/${bucketKey}`);
+
+    const cached = await cacheRef.get();
+    if (cached.exists) {
+      const { fetchedAt, ...weather } = cached.data() as WeatherReading & {
+        fetchedAt: string;
+      };
+      if (Date.now() - Date.parse(fetchedAt) < WEATHER_TTL_MS) return weather;
+    }
+
     const url =
       `https://api.openweathermap.org/data/2.5/weather` +
       `?lat=${lat}&lon=${lon}&units=metric` +
@@ -387,6 +491,16 @@ export const fetchWeather = onCall(async (request) => {
 
     const res = await fetch(url);
     if (!res.ok) {
+      // Serve a stale reading rather than failing outright. An hour-old wind
+      // speed is more useful to someone on the water than an error, and it
+      // keeps a quota exhaustion from cascading into a broken feature.
+      if (cached.exists) {
+        const { fetchedAt: _stale, ...weather } = cached.data() as WeatherReading & {
+          fetchedAt: string;
+        };
+        console.warn(`fetchWeather: upstream ${res.status}, serving stale ${bucketKey}`);
+        return weather;
+      }
       throw new HttpsError("internal", `Weather upstream: ${res.status}`);
     }
     const j = (await res.json()) as {
@@ -394,7 +508,7 @@ export const fetchWeather = onCall(async (request) => {
       main?: { temp?: number; pressure?: number };
       weather?: Array<{ main?: string }>;
     };
-    return {
+    const reading: WeatherReading = {
       windMps: j.wind?.speed ?? 0,
       windDeg: j.wind?.deg ?? 0,
       gustMps: j.wind?.gust ?? 0,
@@ -402,6 +516,14 @@ export const fetchWeather = onCall(async (request) => {
       pressureHpa: j.main?.pressure ?? 0,
       conditions: j.weather?.[0]?.main ?? "Unknown",
     };
+
+    // Cache write failures are not worth failing the request over — the caller
+    // already has its answer, and the next call just misses the cache again.
+    await cacheRef
+      .set({ ...reading, fetchedAt: new Date().toISOString() })
+      .catch((e) => console.error("fetchWeather: cache write failed", e));
+
+    return reading;
   },
 );
 
@@ -742,7 +864,13 @@ export const createChannel = onCall(async (request) => {
 // Also updates lastMessageAt on the channel doc for unread indicators.
 // ---------------------------------------------------------------------------
 export const onChannelMessageCreate = onDocumentCreated(
-  "clubs/{clubId}/channels/{channelId}/messages/{messageId}",
+  {
+    document: "clubs/{clubId}/channels/{channelId}/messages/{messageId}",
+    // Fans out across the whole club roster, so this is the most expensive
+    // trigger in the project per invocation. A tighter ceiling than the global
+    // one caps the blast radius if a client ever loops on sending.
+    maxInstances: 5,
+  },
   async (event) => {
     const { clubId, channelId } = event.params;
     const messageData = event.data?.data() as {
@@ -807,30 +935,56 @@ export const onChannelMessageCreate = onDocumentCreated(
     }
     const pushMessages: ExpoPushMessage[] = [];
 
-    await Promise.all(
-      recipientUids.map(async (userId) => {
-        const userRef = db.doc(`users/${userId}`);
-        const prefRef = db.doc(`users/${userId}/channelPreferences/${channelId}`);
+    // Fan-out, batched.
+    //
+    // This used to run a Firestore transaction plus an fcmTokens collection
+    // read per recipient, all in an uncapped Promise.all — roughly 3 reads and
+    // 2 writes per member for every single message sent. A busy hundred-member
+    // club generated hundreds of thousands of billed operations a day on its
+    // own, which made chat by far the most expensive thing in the project.
+    //
+    // Now each chunk of recipients costs one getAll and one batched commit, and
+    // tokens come from the user doc that read already returned. The counters
+    // move to FieldValue.increment, which is atomic without needing the
+    // transaction to hold a read.
+    //
+    // The badge number is computed from the pre-increment value, so two
+    // messages landing in the same instant can report the same badge. That was
+    // already the accepted behaviour here — badges resync when the app next
+    // opens — and it is not worth a transaction per recipient to tighten.
+    for (let i = 0; i < recipientUids.length; i += FANOUT_CHUNK) {
+      const chunk = recipientUids.slice(i, i + FANOUT_CHUNK);
+      const userRefs = chunk.map((userId) => db.doc(`users/${userId}`));
+      const prefRefs = chunk.map((userId) =>
+        db.doc(`users/${userId}/channelPreferences/${channelId}`),
+      );
 
-        const { newTotal, muted } = await db.runTransaction(async (tx) => {
-          const [userSnap, prefSnap] = await Promise.all([tx.get(userRef), tx.get(prefRef)]);
-          const total = ((userSnap.data()?.unreadTotal as number | undefined) ?? 0) + 1;
-          const isMuted = (prefSnap.data()?.muteNotifications as boolean | undefined) === true;
-          tx.set(userRef, { unreadTotal: total }, { merge: true });
-          tx.set(prefRef, { unreadCount: FieldValue.increment(1) }, { merge: true });
-          return { newTotal: total, muted: isMuted };
-        });
+      const snaps = await db.getAll(...userRefs, ...prefRefs);
+      const userSnaps = snaps.slice(0, chunk.length);
+      const prefSnaps = snaps.slice(chunk.length);
+
+      const batch = db.batch();
+      const needsLegacyLookup: { userId: string; badge: number; isMention: boolean }[] = [];
+
+      chunk.forEach((userId, j) => {
+        batch.set(userRefs[j]!, { unreadTotal: FieldValue.increment(1) }, { merge: true });
+        batch.set(prefRefs[j]!, { unreadCount: FieldValue.increment(1) }, { merge: true });
 
         const isMention = mentioned.has(userId);
+        const muted =
+          (prefSnaps[j]?.data()?.muteNotifications as boolean | undefined) === true;
         if (muted && !isMention) return;
 
-        // Only Expo push tokens are sendable. Legacy docs hold raw APNs hex
-        // tokens (from getDevicePushTokenAsync) which FCM silently rejected —
-        // the reason pushes never arrived; those are filtered out here.
-        const tokensSnap = await db.collection(`users/${userId}/fcmTokens`).get();
-        const tokens = tokensSnap.docs
-          .map((d) => (d.data() as { token: string }).token)
-          .filter((t) => typeof t === "string" && t.startsWith("ExponentPushToken"));
+        const userData = userSnaps[j]?.data();
+        const badge = ((userData?.unreadTotal as number | undefined) ?? 0) + 1;
+        const tokens = expoTokensFrom(userData);
+
+        if (tokens === null) {
+          // No denormalized field yet — this account has not re-registered
+          // since the migration, so fall back to the subcollection below.
+          needsLegacyLookup.push({ userId, badge, isMention });
+          return;
+        }
         if (tokens.length === 0) return;
 
         pushMessages.push({
@@ -838,7 +992,7 @@ export const onChannelMessageCreate = onDocumentCreated(
           title: isMention ? mentionTitle : title,
           body,
           sound: "default",
-          badge: newTotal,
+          badge,
           priority: "high",
           data: {
             clubId,
@@ -847,8 +1001,32 @@ export const onChannelMessageCreate = onDocumentCreated(
             ...(isMention ? { mention: "1" } : {}),
           },
         });
-      }),
-    );
+      });
+
+      await batch.commit();
+
+      // Legacy path: only accounts still missing users/{uid}.expoTokens pay an
+      // extra read, and only if they were going to be pushed at all. This
+      // shrinks to nothing as clients re-register their tokens.
+      for (const { userId, badge, isMention } of needsLegacyLookup) {
+        const tokens = await legacyExpoTokens(db, userId);
+        if (tokens.length === 0) continue;
+        pushMessages.push({
+          to: tokens,
+          title: isMention ? mentionTitle : title,
+          body,
+          sound: "default",
+          badge,
+          priority: "high",
+          data: {
+            clubId,
+            channelId,
+            screen: "club/chat",
+            ...(isMention ? { mention: "1" } : {}),
+          },
+        });
+      }
+    }
 
     // Deliver via the Expo Push Service (handles APNs + FCM routing). Max 100
     // messages per request.
@@ -1006,7 +1184,11 @@ export const expireClubTrials = onSchedule("every day 06:00", async () => {
 // the conversation.
 // ---------------------------------------------------------------------------
 export const onDmMessageCreate = onDocumentCreated(
-  "dms/{threadId}/messages/{messageId}",
+  {
+    document: "dms/{threadId}/messages/{messageId}",
+    // Same fan-out shape as onChannelMessageCreate, same ceiling.
+    maxInstances: 5,
+  },
   async (event) => {
     const { threadId } = event.params;
     const message = event.data?.data() as
@@ -1029,20 +1211,19 @@ export const onDmMessageCreate = onDocumentCreated(
       const userRef = db.doc(`users/${userId}`);
       const threadPrefRef = db.doc(`users/${userId}/dmThreads/${threadId}`);
 
-      const newTotal = await db.runTransaction(async (tx) => {
-        const userSnap = await tx.get(userRef);
-        const total = ((userSnap.data()?.unreadTotal as number | undefined) ?? 0) + 1;
-        tx.set(userRef, { unreadTotal: total }, { merge: true });
-        tx.set(threadPrefRef, { unreadCount: FieldValue.increment(1) }, { merge: true });
-        return total;
-      });
+      // One read of the user doc covers both the badge number and the push
+      // tokens; the counters then move with atomic increments in a batch. See
+      // the note in onChannelMessageCreate for why the transaction went away.
+      const userSnap = await userRef.get();
+      const newTotal = ((userSnap.data()?.unreadTotal as number | undefined) ?? 0) + 1;
 
-      // Only Expo tokens are sendable; legacy raw APNs tokens are filtered out
-      // for the same reason as in onChannelMessageCreate.
-      const tokensSnap = await db.collection(`users/${userId}/fcmTokens`).get();
-      const tokens = tokensSnap.docs
-        .map((d) => (d.data() as { token: string }).token)
-        .filter((t) => typeof t === "string" && t.startsWith("ExponentPushToken"));
+      const batch = db.batch();
+      batch.set(userRef, { unreadTotal: FieldValue.increment(1) }, { merge: true });
+      batch.set(threadPrefRef, { unreadCount: FieldValue.increment(1) }, { merge: true });
+      await batch.commit();
+
+      const denormalized = expoTokensFrom(userSnap.data());
+      const tokens = denormalized ?? (await legacyExpoTokens(db, userId));
       if (tokens.length === 0) continue;
 
       try {
@@ -1216,15 +1397,40 @@ export const expireChatMessages = onSchedule("every day 04:00", async () => {
   console.log(`expireChatMessages: deleted ${deleted} message(s)`);
 });
 
-export const getAppStats = onCall(async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+// ---------------------------------------------------------------------------
+// App stats.
+//
+// The aggregation below is the single most expensive operation in the project:
+// it pages every Firebase Auth user and runs a collectionGroup scan over every
+// session, and its cost grows with total account age — forever. It used to run
+// on every admin page load, so a browser refresh re-scanned the whole project.
+//
+// It is now computed on a schedule and stored at adminStats/current, and the
+// callable is a one-document read. The number an admin sees is up to a day
+// stale, which is the correct tradeoff for a dashboard of lifetime totals.
+// ---------------------------------------------------------------------------
 
+/** How stale a snapshot may be before an admin is allowed to force a rebuild. */
+const STATS_REFRESH_MIN_AGE_MS = 60 * 60 * 1000;
+
+interface AppStats {
+  generatedAt: string;
+  totalUsers: number;
+  newUsers7: number;
+  newUsers30: number;
+  activeUsers7: number;
+  activeUsers30: number;
+  totalSessions: number;
+  sessions7: number;
+  sessions30: number;
+  clubs: number;
+  publicSessions: number;
+  signupsByDay: Record<string, number>;
+  sessionsByDay: Record<string, number>;
+}
+
+async function computeAppStatsSnapshot(): Promise<AppStats> {
   const db = getFirestore();
-  const adminSnap = await db.doc(`admins/${uid}`).get();
-  if (!adminSnap.exists) {
-    throw new HttpsError("permission-denied", "Admin only");
-  }
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const now = Date.now();
@@ -1303,6 +1509,46 @@ export const getAppStats = onCall(async (request) => {
     signupsByDay,
     sessionsByDay,
   };
+}
+
+// Rebuilds the snapshot once a day. maxInstances 1 because two concurrent
+// project-wide scans would double the cost to produce the same answer.
+export const computeAppStats = onSchedule(
+  { schedule: "every day 03:00", maxInstances: 1 },
+  async () => {
+    const stats = await computeAppStatsSnapshot();
+    await getFirestore().doc("adminStats/current").set(stats);
+    console.log(`computeAppStats: snapshot written at ${stats.generatedAt}`);
+  },
+);
+
+export const getAppStats = onCall({ maxInstances: 1 }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const db = getFirestore();
+  const adminSnap = await db.doc(`admins/${uid}`).get();
+  if (!adminSnap.exists) {
+    throw new HttpsError("permission-denied", "Admin only");
+  }
+
+  const statsRef = db.doc("adminStats/current");
+  const snap = await statsRef.get();
+  const cached = snap.exists ? (snap.data() as AppStats) : null;
+
+  // Rebuild only when there is nothing to serve (first run, before the
+  // schedule has ever fired) or when an admin explicitly asks and the snapshot
+  // is genuinely old. The age check is what stops a refresh button from
+  // becoming the same unbounded cost the schedule was introduced to remove.
+  const wantsRefresh = request.data?.refresh === true;
+  const age = cached ? Date.now() - Date.parse(cached.generatedAt) : Infinity;
+  const shouldRebuild = !cached || (wantsRefresh && age >= STATS_REFRESH_MIN_AGE_MS);
+
+  if (!shouldRebuild) return cached;
+
+  const stats = await computeAppStatsSnapshot();
+  await statsRef.set(stats);
+  return stats;
 });
 
 // ---------------------------------------------------------------------------

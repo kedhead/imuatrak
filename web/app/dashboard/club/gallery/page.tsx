@@ -47,14 +47,19 @@ export default function GalleryPage() {
   const clubId = club && club !== "none" ? club.id : null;
   const isStaff = role === "owner" || role === "admin";
 
+  // Keyed on user.uid, not the user object: onAuthStateChanged can emit a new
+  // User instance for the same account, and depending on the object re-ran the
+  // club lookup and a full member-roster read every time it did.
+  const uid = user?.uid;
+
   useEffect(() => {
-    if (!user) return;
-    void getUserClub(user.uid).then((r) => {
+    if (!uid) return;
+    void getUserClub(uid).then((r) => {
       setClub(r?.club ?? "none");
       setRole(r?.role ?? null);
       if (r) void getClubMembers(r.club.id).then(setMembers);
     });
-  }, [user]);
+  }, [uid]);
 
   const load = useCallback(async () => {
     if (!clubId) return;

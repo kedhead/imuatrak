@@ -58,24 +58,32 @@ export default function ClubChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // These effects key on user.uid rather than the user object.
+  // onAuthStateChanged can hand back a new User instance for the same account
+  // (a token refresh is enough), and depending on the object made every one of
+  // those re-run the club lookup, re-read the full member roster, and tear down
+  // and re-establish the channel listener — which re-bills its entire initial
+  // payload each time.
+  const uid = user?.uid;
+
   useEffect(() => {
-    if (!user) return;
-    void getUserClub(user.uid).then((r) => {
+    if (!uid) return;
+    void getUserClub(uid).then((r) => {
       setClub(r?.club ?? "none");
       if (r) void getClubMembers(r.club.id).then(setMembers);
     });
-  }, [user]);
+  }, [uid]);
 
   const clubId = club && club !== "none" ? club.id : null;
 
   useEffect(() => {
-    if (!clubId || !user) return;
-    return subscribeChannels(clubId, user.uid, (list) => {
+    if (!clubId || !uid) return;
+    return subscribeChannels(clubId, uid, (list) => {
       setChannels(list);
       // Land in the first channel rather than an empty pane on first load.
       setActiveId((cur) => cur ?? list[0]?.id ?? null);
     });
-  }, [clubId, user]);
+  }, [clubId, uid]);
 
   useEffect(() => {
     if (!clubId || !activeId) return;
@@ -83,9 +91,9 @@ export default function ClubChatPage() {
   }, [clubId, activeId]);
 
   useEffect(() => {
-    if (!user || !activeId) return;
-    void markChannelRead(user.uid, activeId).catch(() => undefined);
-  }, [user, activeId]);
+    if (!uid || !activeId) return;
+    void markChannelRead(uid, activeId).catch(() => undefined);
+  }, [uid, activeId]);
 
   // Follow the conversation as it grows, the way the app's inverted list does.
   useEffect(() => {
@@ -177,8 +185,7 @@ export default function ClubChatPage() {
   };
 
   const onToggleReaction = (message: ClubMessage, emoji: string) => {
-    if (!clubId || !activeId || !user) return;
-    const uid = user.uid;
+    if (!clubId || !activeId || !uid) return;
     // Optimistic flip; the snapshot listener reconciles with the server.
     setMessages((prev) =>
       prev.map((m) => {

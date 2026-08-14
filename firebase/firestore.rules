@@ -62,9 +62,15 @@ service cloud.firestore {
     // writes a denormalized copy here when the user toggles "Share
     // publicly" on, and deletes it when they toggle it off.
     //
-    // Anyone can read, only the original owner can write.
+    // Anyone can read one by id, only the original owner can write.
+    //
+    // `get` but not `list`: a share link always names its session, so nothing
+    // legitimate enumerates this collection — but `allow read` would have
+    // granted that, letting anyone page every public session in the project and
+    // bill a document read for each one.
     match /publicSessions/{sessionId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if false;
 
       allow create, update: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
@@ -149,7 +155,17 @@ service cloud.firestore {
       // location, member count). It is publicly readable so invite links and
       // the imuatrak.app/join landing page can show which club you're joining
       // before sign-in. All sub-collections below keep their stricter rules.
-      allow read: if true;
+      allow get: if true;
+
+      // `allow read` also grants `list`, which let anyone page the entire
+      // clubs collection unauthenticated — every club in the project, billed
+      // as a document read each, from a single scripted loop.
+      //
+      // The only legitimate list here is the slug lookup behind /join/{slug},
+      // which asks for exactly one document. Capping the query limit permits
+      // that shape and nothing bulkier: scraping the collection now costs one
+      // request per club instead of one request per thousand.
+      allow list: if request.query.limit <= 1;
       // Owners/admins can edit the club. memberCount is maintained solely by
       // the onMemberJoin/onMemberLeave Cloud Function triggers (Admin SDK
       // bypasses rules), so clients get no counter carve-out — it allowed any

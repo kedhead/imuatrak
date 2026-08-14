@@ -11,21 +11,27 @@ export default function AdminAnalyticsPage() {
   const [admin, setAdmin] = useState<boolean | null>(null);
   const [stats, setStats] = useState<AppStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [user, loading, router]);
 
+  // Depends on user.uid, not the user object: onAuthStateChanged can hand back
+  // a new User instance for the same account, and keying on the object would
+  // re-run the whole admin check and stats fetch every time it did.
+  const uid = user?.uid;
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
     let cancelled = false;
     (async () => {
-      const ok = await isAppAdmin(user.uid);
+      const ok = await isAppAdmin(uid);
       if (cancelled) return;
       setAdmin(ok);
       if (!ok) return;
       try {
-        setStats(await fetchAppStats());
+        const next = await fetchAppStats();
+        if (!cancelled) setStats(next);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load stats");
       }
@@ -33,7 +39,19 @@ export default function AdminAnalyticsPage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [uid]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    setError(null);
+    try {
+      setStats(await fetchAppStats(true));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to refresh stats");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   if (loading || !user) return null;
 
@@ -52,13 +70,26 @@ export default function AdminAnalyticsPage() {
 
   return (
     <main className="container">
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 4px" }}>App Analytics</h1>
-        <p style={{ color: "var(--muted)", margin: 0 }}>
-          {stats
-            ? `Live from Firebase · updated ${new Date(stats.generatedAt).toLocaleString()}`
-            : "App-wide usage across all accounts"}
-        </p>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24 }}>
+        <div style={{ flex: 1 }}>
+          <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 4px" }}>App Analytics</h1>
+          <p style={{ color: "var(--muted)", margin: 0 }}>
+            {stats
+              ? `Snapshot as of ${new Date(stats.generatedAt).toLocaleString()} · rebuilt daily`
+              : "App-wide usage across all accounts"}
+          </p>
+        </div>
+        {stats && (
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="btn"
+            style={{ flexShrink: 0 }}
+          >
+            {refreshing ? "Rebuilding…" : "Rebuild now"}
+          </button>
+        )}
       </div>
 
       {error ? (
