@@ -721,10 +721,9 @@ export async function sendMessage(
     collection(db, "clubs", clubId, "channels", channelId, "messages"),
     msg,
   );
-  // Update lastMessageAt on the channel for unread indicators
-  void updateDoc(doc(db, "clubs", clubId, "channels", channelId), {
-    lastMessageAt: now,
-  }).catch(() => undefined);
+  // lastMessageAt is written by the onChannelMessageCreate trigger, which is
+  // authoritative — doing it here too was a second billed write on every
+  // message for a value the server was about to set anyway.
   return { ...msg, id: ref.id };
 }
 
@@ -860,6 +859,19 @@ export async function registerFcmToken(
 ): Promise<void> {
   const entry: FcmToken = { token, platform, updatedAt: new Date().toISOString() };
   await setDoc(doc(db, "users", uid, "fcmTokens", token), entry);
+
+  // Mirror the token onto the user document as well.
+  //
+  // The push fan-out reads every recipient's user doc already; without this it
+  // also had to read this whole subcollection per recipient per message, which
+  // was a billed read for each one. Writing the token in both places lets that
+  // read disappear while the subcollection stays authoritative for anything
+  // that still needs per-device metadata.
+  await setDoc(
+    doc(db, "users", uid),
+    { expoTokens: arrayUnion(token) },
+    { merge: true },
+  );
 }
 
 export async function getChannelPreferences(
@@ -907,12 +919,23 @@ export async function markChannelRead(uid: string, channelId: string): Promise<n
  * The app-icon badge uses the single `unreadTotal` on the user doc, but that
  * is global across every club someone belongs to — fine for a badge, wrong for
  * a per-club indicator. Callers sum only the channels they care about.
+ *
+ * Only channels with something unread come back; callers already default a
+ * missing channel to zero. The filter is server-side because a listener bills
+ * a read per delivered document — including the full initial payload on every
+ * re-subscribe — and a preference doc exists for every channel a user has ever
+ * opened, most of them sitting at zero.
  */
 export function subscribeChannelUnread(
   uid: string,
   onUpdate: (unreadByChannel: Record<string, number>) => void,
 ): () => void {
-  return onSnapshot(collection(db, "users", uid, "channelPreferences"), (snap) => {
+  const q = query(
+    collection(db, "users", uid, "channelPreferences"),
+    where("unreadCount", ">", 0),
+    limit(200),
+  );
+  return onSnapshot(q, (snap) => {
     const counts: Record<string, number> = {};
     for (const d of snap.docs) {
       counts[d.id] = Math.max(0, (d.data() as ChannelPreference).unreadCount ?? 0);

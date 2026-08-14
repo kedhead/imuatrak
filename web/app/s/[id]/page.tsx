@@ -18,6 +18,23 @@ import ShareButton from "@/components/ShareButton";
 
 const BASE_URL = "https://imuatrak.app";
 
+/**
+ * Cache each rendered session page — including the not-found render — for five
+ * minutes.
+ *
+ * This is the only route anyone can reach without signing in, so it is the only
+ * one a scraper can hit at will. Without a segment-level revalidate, every
+ * request for an unknown id runs the server component, calls Firestore, misses,
+ * and renders the 404 fresh: a scripted sweep of random ids becomes a billed
+ * read each time. With it, repeat requests for the same id — real or invented —
+ * are served from the cache.
+ *
+ * Five minutes is chosen against how the data actually changes: a shared
+ * session is a finished recording, so the page is near-immutable once written,
+ * and un-sharing removes the document rather than editing it.
+ */
+export const revalidate = 300;
+
 interface Props {
   params: Promise<{ id: string }>;
 }

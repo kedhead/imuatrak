@@ -118,12 +118,24 @@ export async function deleteDmMessage(threadId: string, messageId: string): Prom
   await deleteDoc(doc(db, "dms", threadId, "messages", messageId));
 }
 
-/** Live per-thread unread counts, keyed by threadId. */
+/**
+ * Live per-thread unread counts, keyed by threadId. Only threads with unread
+ * messages are returned; callers default a missing thread to zero.
+ *
+ * Filtered server-side for the same reason as subscribeChannelUnread — a
+ * listener bills a read per delivered document, so streaming every thread just
+ * to drop the zeros in the client is paid-for waste.
+ */
 export function subscribeDmUnread(
   uid: string,
   onUpdate: (byThread: Record<string, number>) => void,
 ): () => void {
-  return onSnapshot(collection(db, "users", uid, "dmThreads"), (snap) => {
+  const q = query(
+    collection(db, "users", uid, "dmThreads"),
+    where("unreadCount", ">", 0),
+    limit(200),
+  );
+  return onSnapshot(q, (snap) => {
     const map: Record<string, number> = {};
     for (const d of snap.docs) {
       const count = (d.data() as { unreadCount?: number }).unreadCount ?? 0;

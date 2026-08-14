@@ -25,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { startAppCheck } from "./appCheck";
 import { getPublicDoc } from "./firestoreRest";
 import type { DashboardSession, PublicSession } from "./types";
 import { parseHashtags } from "./clubTypes";
@@ -41,6 +42,11 @@ const config = {
 export const firebaseApp = getApps().length ? getApp() : initializeApp(config);
 export const db = getFirestore(firebaseApp);
 export const storage = getStorage(firebaseApp);
+
+// No-ops on the server and whenever NEXT_PUBLIC_RECAPTCHA_SITE_KEY is unset,
+// so this is inert until the key is configured. See lib/appCheck.ts for why
+// enforcement must stay off until the mobile client can attest.
+startAppCheck(firebaseApp);
 
 /**
  * Read a public session (no auth required).
@@ -197,10 +203,23 @@ export async function isAppAdmin(uid: string): Promise<boolean> {
   }
 }
 
-/** Fetch app-wide usage stats. Rejects unless the caller is an app admin. */
-export async function fetchAppStats(): Promise<AppStats> {
-  const fn = httpsCallable<void, AppStats>(getFunctions(firebaseApp), "getAppStats");
-  const res = await fn();
+/**
+ * Fetch app-wide usage stats. Rejects unless the caller is an app admin.
+ *
+ * This reads a snapshot rebuilt daily by the computeAppStats scheduled
+ * function, not live numbers. The underlying aggregation pages every Auth user
+ * and scans every session, so running it per page load made a browser refresh
+ * one of the most expensive things anyone could do to the project.
+ *
+ * Passing refresh forces a rebuild, but the function ignores it if the current
+ * snapshot is under an hour old.
+ */
+export async function fetchAppStats(refresh = false): Promise<AppStats> {
+  const fn = httpsCallable<{ refresh: boolean }, AppStats>(
+    getFunctions(firebaseApp),
+    "getAppStats",
+  );
+  const res = await fn({ refresh });
   return res.data;
 }
 
@@ -458,9 +477,9 @@ export async function sendChannelMessage(
     collection(db, "clubs", clubId, "channels", channelId, "messages"),
     msg,
   );
-  void updateDoc(doc(db, "clubs", clubId, "channels", channelId), {
-    lastMessageAt: now,
-  }).catch(() => undefined);
+  // lastMessageAt is written by the onChannelMessageCreate trigger, which is
+  // authoritative — doing it here too was a second billed write on every
+  // message for a value the server was about to set anyway.
   return { ...msg, id: docRef.id };
 }
 
@@ -725,11 +744,26 @@ export async function deleteDmMessage(threadId: string, messageId: string): Prom
   await deleteDoc(doc(db, "dms", threadId, "messages", messageId));
 }
 
+/**
+ * Live unread counts per DM thread. Only threads with something unread are
+ * returned; callers already treat a missing key as zero.
+ *
+ * The query filters and caps server-side rather than reading every thread and
+ * discarding the zeros in the client. A listener bills a read per document it
+ * delivers, including the whole initial payload every time it re-subscribes,
+ * so filtering here is the difference between paying for the threads that
+ * matter and paying for every conversation the user has ever had.
+ */
 export function subscribeDmUnread(
   uid: string,
   onUpdate: (byThread: Record<string, number>) => void,
 ): () => void {
-  return onSnapshot(collection(db, "users", uid, "dmThreads"), (snap) => {
+  const q = query(
+    collection(db, "users", uid, "dmThreads"),
+    where("unreadCount", ">", 0),
+    limit(200),
+  );
+  return onSnapshot(q, (snap) => {
     const map: Record<string, number> = {};
     for (const d of snap.docs) {
       const count = (d.data() as { unreadCount?: number }).unreadCount ?? 0;
