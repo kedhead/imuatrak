@@ -1343,59 +1343,69 @@ export const openDmThread = onCall(async (request) => {
 // createdAt is an ISO-8601 string, which sorts chronologically, so the cutoff
 // compares directly without a schema change.
 // ---------------------------------------------------------------------------
-export const expireChatMessages = onSchedule("every day 04:00", async () => {
-  const db = getFirestore();
+export const expireChatMessages = onSchedule(
+  {
+    schedule: "every day 04:00",
+    // Iterates every club, then every channel, deleting in pages. Under the
+    // 60s default a growing project eventually times out part-way through, and
+    // a half-finished sweep is silent: the messages and their Storage objects
+    // simply stay, billing storage every month. 540s is the maximum here.
+    timeoutSeconds: 540,
+  },
+  async () => {
+    const db = getFirestore();
 
-  const clubs = await db.collection("clubs").where("chatRetentionDays", ">", 0).get();
-  if (clubs.empty) {
-    console.log("expireChatMessages: no clubs with retention set");
-    return;
-  }
+    const clubs = await db.collection("clubs").where("chatRetentionDays", ">", 0).get();
+    if (clubs.empty) {
+      console.log("expireChatMessages: no clubs with retention set");
+      return;
+    }
 
-  let deleted = 0;
-  for (const clubDoc of clubs.docs) {
-    const days = (clubDoc.data() as { chatRetentionDays?: number }).chatRetentionDays ?? 0;
-    if (days <= 0) continue;
-    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    let deleted = 0;
+    for (const clubDoc of clubs.docs) {
+      const days = (clubDoc.data() as { chatRetentionDays?: number }).chatRetentionDays ?? 0;
+      if (days <= 0) continue;
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-    const channels = await db.collection(`clubs/${clubDoc.id}/channels`).get();
-    for (const channelDoc of channels.docs) {
-      // Paged with a cursor rather than re-querying from the start each time.
-      // Re-querying would stall permanently on a channel whose oldest messages
-      // are pinned: they match the cutoff, survive the sweep, and would fill
-      // page one forever, hiding every deletable message behind them.
-      const PAGE = 200;
-      let cursor: QueryDocumentSnapshot | null = null;
-      for (;;) {
-        let q = db
-          .collection(`clubs/${clubDoc.id}/channels/${channelDoc.id}/messages`)
-          .where("createdAt", "<", cutoff)
-          .orderBy("createdAt")
-          .limit(PAGE);
-        if (cursor) q = q.startAfter(cursor);
+      const channels = await db.collection(`clubs/${clubDoc.id}/channels`).get();
+      for (const channelDoc of channels.docs) {
+        // Paged with a cursor rather than re-querying from the start each time.
+        // Re-querying would stall permanently on a channel whose oldest messages
+        // are pinned: they match the cutoff, survive the sweep, and would fill
+        // page one forever, hiding every deletable message behind them.
+        const PAGE = 200;
+        let cursor: QueryDocumentSnapshot | null = null;
+        for (;;) {
+          let q = db
+            .collection(`clubs/${clubDoc.id}/channels/${channelDoc.id}/messages`)
+            .where("createdAt", "<", cutoff)
+            .orderBy("createdAt")
+            .limit(PAGE);
+          if (cursor) q = q.startAfter(cursor);
 
-        const stale = await q.get();
-        if (stale.empty) break;
-        cursor = stale.docs[stale.docs.length - 1]!;
+          const stale = await q.get();
+          if (stale.empty) break;
+          cursor = stale.docs[stale.docs.length - 1]!;
 
-        const doomed = stale.docs.filter((d) => !(d.data() as { pinnedAt?: string }).pinnedAt);
-        if (doomed.length > 0) {
-          await Promise.all(
-            doomed.map((d) => purgeMessageMediaFiles(clubDoc.id, channelDoc.id, d.id)),
-          );
-          const batch = db.batch();
-          for (const d of doomed) batch.delete(d.ref);
-          await batch.commit();
-          deleted += doomed.length;
+          const doomed = stale.docs.filter((d) => !(d.data() as { pinnedAt?: string }).pinnedAt);
+          if (doomed.length > 0) {
+            await Promise.all(
+              doomed.map((d) => purgeMessageMediaFiles(clubDoc.id, channelDoc.id, d.id)),
+            );
+            const batch = db.batch();
+            for (const d of doomed) batch.delete(d.ref);
+            await batch.commit();
+            deleted += doomed.length;
+          }
+
+          if (stale.size < PAGE) break;
         }
-
-        if (stale.size < PAGE) break;
       }
     }
-  }
 
-  console.log(`expireChatMessages: deleted ${deleted} message(s)`);
-});
+    console.log(`expireChatMessages: deleted ${deleted} message(s)`);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // App stats.
@@ -1514,7 +1524,16 @@ async function computeAppStatsSnapshot(): Promise<AppStats> {
 // Rebuilds the snapshot once a day. maxInstances 1 because two concurrent
 // project-wide scans would double the cost to produce the same answer.
 export const computeAppStats = onSchedule(
-  { schedule: "every day 03:00", maxInstances: 1 },
+  {
+    schedule: "every day 03:00",
+    maxInstances: 1,
+    // Nobody is waiting on this, so give it the full 540s rather than the 60s
+    // default: it pages every Auth user and holds a 30-day session scan in
+    // memory, and both grow with the project. Timing out would leave the
+    // snapshot stale with nothing to indicate why.
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
   async () => {
     const stats = await computeAppStatsSnapshot();
     await getFirestore().doc("adminStats/current").set(stats);
