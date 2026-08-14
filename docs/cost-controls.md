@@ -28,20 +28,38 @@ move to Pro — at which point Vercel *can* bill you and this table changes.
 
 ### 1. Cloud Billing budget and alerts
 
-Google Cloud Console → **Billing** → **Budgets & alerts** → *Create budget*.
+> **A budget does not cap anything.** Google's naming is actively misleading
+> here: a Cloud Billing "budget" sends email and nothing else. Crossing it does
+> not throttle, pause, or block a single request. At 50× the target you get
+> more email and a 50× bill.
+>
+> The only hard stop is detaching billing from the project via a Pub/Sub-
+> triggered function, which takes the whole app offline until manually
+> re-enabled. That was deliberately not built — the ceilings in Part 2 are the
+> chosen mechanism, and they are what actually bounds spend.
 
-- **Scope**: restrict to the `imuatrak` project (not the whole billing account).
-- **Amount**: `$50`, monthly.
-- **Alert thresholds**: `50%`, `90%`, `100%`.
-- Tick **both** *Actual spend* and *Forecasted spend*. Forecasted is the one
-  that warns you on day 4 that the month is trending to $300 — actual-only
-  tells you after the money is gone.
-- **Email**: the billing-account admins, or add yours explicitly.
+**Current setup**: a $10/month budget exists on the project, with one alert
+rule at 50% ($5) on actual spend.
 
-> A budget does **not** cap anything. It is a smoke alarm, not a sprinkler. The
-> only hard stop is detaching billing from the project via a Pub/Sub-triggered
-> function, which takes the entire app offline until manually re-enabled. That
-> was deliberately not built here — the ceilings below are the chosen mechanism.
+$10 is a deliberately low tripwire, well under the ~$50 pain threshold, so it
+fires long before anything matters. What it still needs:
+
+- **More threshold rules.** One rule at 50% means a warning at $5 and then
+  silence while it climbs. Add `90%`, `100%`, and `200%`. The over-100% rule is
+  the one that distinguishes a runaway from ordinary drift.
+- **A forecasted-spend rule.** Actual-only reports the money after it is gone.
+  Forecasted fires when the month is *trending* past the target — on a runaway
+  that is hours of extra warning, which is the difference between noticing and
+  not.
+- **Confirm the recipients.** Alerts default to billing-account admins, which
+  may not be the inbox you actually read.
+
+**On the two "Savings" checkboxes**: ticking them makes the budget track cost
+*minus* credits. That is right for "what will I be charged", but while trial
+credit remains, spend reads near $0 no matter how much usage there is — a
+runaway stays invisible until the credit is exhausted and then lands all at
+once. If there is credit on the account, untick them so the budget tracks gross
+usage and the curve is visible early.
 
 ### 2. Record a baseline
 
