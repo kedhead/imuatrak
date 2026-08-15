@@ -27,6 +27,9 @@ import { syncSession } from "./sync";
 
 export interface LiveStats {
   isRecording: boolean;
+  /** True while the session is paused — the timer, distance and strokes hold
+   *  and GPS samples are dropped until the user resumes. */
+  isPaused: boolean;
   startedAtMs: number;
   durationSec: number;
   distanceMeters: number;
@@ -44,12 +47,15 @@ interface RecorderState extends LiveStats {
   craftType: CraftType;
   setCraftType: (c: CraftType) => void;
   start: () => Promise<void>;
+  pause: () => void;
+  resume: () => void;
   stopAndSave: () => Promise<Session | null>;
   discard: () => void;
 }
 
 const empty: LiveStats = {
   isRecording: false,
+  isPaused: false,
   startedAtMs: 0,
   durationSec: 0,
   distanceMeters: 0,
@@ -67,6 +73,11 @@ let sessionId: string | null = null;
 let unsubLocation: (() => void) | null = null;
 let unsubMotion: (() => void) | null = null;
 let tickHandle: ReturnType<typeof setInterval> | null = null;
+// Paused-time bookkeeping so the timer and track timeline exclude pauses.
+// pausedAccumMs is the total already-elapsed pause time; pauseStartedMs marks
+// the start of the current pause (0 when running).
+let pausedAccumMs = 0;
+let pauseStartedMs = 0;
 
 const sessionSource: SessionSource =
   Platform.OS === "ios" ? "ios-phone" : Platform.OS === "android" ? "android-phone" : "ios-phone";
@@ -91,6 +102,8 @@ export const useRecorder = create<RecorderState>((set, get) => ({
     track = [];
     strokeCount = 0;
     lastStrokeRate = 0;
+    pausedAccumMs = 0;
+    pauseStartedMs = 0;
     set({ ...empty, isRecording: true, startedAtMs: Date.now(), craftType: get().craftType });
 
     try {
@@ -103,6 +116,24 @@ export const useRecorder = create<RecorderState>((set, get) => ({
       get().discard();
       throw e;
     }
+  },
+
+  pause() {
+    if (!get().isRecording || get().isPaused) return;
+    // Keep the background location service running (so the foreground
+    // notification and permission stay live and resume is instant); the
+    // sample handlers just drop everything while paused.
+    pauseStartedMs = Date.now();
+    set({ isPaused: true });
+  },
+
+  resume() {
+    if (!get().isRecording || !get().isPaused) return;
+    if (pauseStartedMs > 0) {
+      pausedAccumMs += Date.now() - pauseStartedMs;
+      pauseStartedMs = 0;
+    }
+    set({ isPaused: false });
   },
 
   async stopAndSave() {
@@ -210,8 +241,13 @@ function subscribeAndStart(
   get: () => RecorderState,
 ): void {
   unsubLocation = location.subscribe((s) => {
+    // Drop fixes while paused so the route doesn't draw a straight line across
+    // the pause and distance/pace ignore the break. The timer owns durationSec.
+    if (get().isPaused) return;
     const startedAtMs = get().startedAtMs;
-    const tSec = (s.tEpochMs - startedAtMs) / 1000;
+    // Exclude accumulated pause time so the track timeline (and therefore pace
+    // and splits) matches the displayed elapsed time.
+    const tSec = (s.tEpochMs - startedAtMs - pausedAccumMs) / 1000;
     const point: TrackPoint = {
       t: tSec,
       lat: s.lat,
@@ -223,7 +259,6 @@ function subscribeAndStart(
     track.push(point);
     const totals = aggregator.totals(track, strokeCount);
     set({
-      durationSec: tSec,
       distanceMeters: totals.distanceMeters,
       currentSpeedMps: s.speedMps,
       strokeCount,
@@ -233,16 +268,20 @@ function subscribeAndStart(
   });
 
   unsubMotion = motion.subscribe((stroke) => {
+    if (get().isPaused) return;
     strokeCount += 1;
     lastStrokeRate = stroke.rateSpm;
     set({ currentStrokeRate: stroke.rateSpm, strokeCount });
   });
 
   // Tick every second so the timer advances even when no GPS sample lands.
+  // Elapsed excludes pause time; while paused the value holds steady.
   tickHandle = setInterval(() => {
     const startedAtMs = get().startedAtMs;
     if (!startedAtMs) return;
-    set({ durationSec: (Date.now() - startedAtMs) / 1000 });
+    const inPause = get().isPaused && pauseStartedMs > 0 ? Date.now() - pauseStartedMs : 0;
+    const effMs = Date.now() - startedAtMs - pausedAccumMs - inPause;
+    set({ durationSec: Math.max(0, effMs) / 1000 });
   }, 1000);
 }
 

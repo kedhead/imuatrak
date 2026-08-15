@@ -66,6 +66,16 @@ export default function Record() {
     await beginRecording();
   };
 
+  const onPause = () => {
+    recorder.pause();
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const onResume = () => {
+    recorder.resume();
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
   const onStop = async () => {
     setBusy(true);
     try {
@@ -121,7 +131,7 @@ export default function Record() {
             ))}
           </ScrollView>
 
-          <StatusPill recording={recorder.isRecording} />
+          <StatusPill recording={recorder.isRecording} paused={recorder.isPaused} />
 
           {/* Live GPS status: the point counter keeps climbing ~1/s even when
               stationary (and while backgrounded), so persistent location is
@@ -185,9 +195,14 @@ export default function Record() {
           {recorder.isRecording ? (
             <>
               <Button title="Discard" variant="danger" onPress={onDiscard} style={styles.flex} />
+              {recorder.isPaused ? (
+                <Button title="Resume" gradient="aqua" glow onPress={onResume} style={styles.flex} />
+              ) : (
+                <Button title="Pause" variant="outline" light onPress={onPause} style={styles.flex} />
+              )}
               <Button
-                title={busy ? "Saving…" : "Stop & save"}
-                gradient="aqua"
+                title={busy ? "Saving…" : "Stop"}
+                gradient="sunrise"
                 glow
                 onPress={onStop}
                 disabled={busy}
@@ -203,23 +218,25 @@ export default function Record() {
   );
 }
 
-function StatusPill({ recording }: { recording: boolean }) {
+function StatusPill({ recording, paused }: { recording: boolean; paused: boolean }) {
   const pulse = useSharedValue(1);
   useEffect(() => {
-    if (recording) {
+    // Pulse only while actively recording; hold steady when paused or ready.
+    if (recording && !paused) {
       pulse.value = withRepeat(withTiming(0.3, { duration: 700, easing: Easing.inOut(Easing.quad) }), -1, true);
     } else {
       pulse.value = withTiming(1);
     }
-  }, [recording, pulse]);
+  }, [recording, paused, pulse]);
   const dotStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
+  const label = !recording ? "READY" : paused ? "PAUSED" : "RECORDING";
+  const dotColor = !recording ? colors.seafoam : paused ? colors.gold : colors.coral;
 
   return (
     <View style={styles.statusWrap}>
-      <Animated.View
-        style={[styles.dot, { backgroundColor: recording ? colors.coral : colors.seafoam }, dotStyle]}
-      />
-      <Text style={styles.statusText}>{recording ? "RECORDING" : "READY"}</Text>
+      <Animated.View style={[styles.dot, { backgroundColor: dotColor }, dotStyle]} />
+      <Text style={styles.statusText}>{label}</Text>
     </View>
   );
 }
