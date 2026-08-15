@@ -456,6 +456,36 @@ export async function setRsvp(
   await updateDoc(ref, { rsvps });
 }
 
+/**
+ * Add ONE guest paddler to a member's RSVP, appended to whatever guests the
+ * server already has for them. Read-modify-write against the live doc so a
+ * stale client-side guest list can never overwrite (drop) a guest added a
+ * moment earlier — the bug that made it look like only one guest per person
+ * could be brought. Bringing a guest implies you're going, so the RSVP is set
+ * to "going".
+ */
+export async function addEventGuest(
+  clubId: string,
+  eventId: string,
+  uid: string,
+  name: string,
+): Promise<void> {
+  const ref = doc(db, "clubs", clubId, "events", eventId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const event = snap.data() as Omit<ClubEvent, "id">;
+  const existing = event.rsvps.find((r) => r.uid === uid);
+  const guests = [...(existing?.guests ?? []), name];
+  const rsvps = event.rsvps.filter((r) => r.uid !== uid);
+  rsvps.push({
+    uid,
+    status: "going",
+    updatedAt: new Date().toISOString(),
+    guests,
+  });
+  await updateDoc(ref, { rsvps });
+}
+
 // ── Posts ────────────────────────────────────────────────────────────────────
 
 export async function getPosts(clubId: string, maxItems = 30): Promise<ClubPost[]> {

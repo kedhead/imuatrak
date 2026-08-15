@@ -20,6 +20,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { deleteField } from "firebase/firestore";
 import { currentUser } from "@/services/auth";
 import {
+  addEventGuest,
   getEvent,
   setRsvp,
   deleteEvent,
@@ -210,7 +211,10 @@ function EventDetail({
     setGuestModal(false);
     setGuestName("");
     setRsvpLoading(true);
-    await setRsvp(clubId, eventId, me.uid, "going", [...myGuests, name]);
+    // Append server-side so adding a second guest can never overwrite the
+    // first with a stale client list. Members can bring as many as capacity
+    // allows.
+    await addEventGuest(clubId, eventId, me.uid, name);
     setEvent(await getEvent(clubId, eventId));
     setRsvpLoading(false);
   };
@@ -402,7 +406,9 @@ function EventDetail({
                   onPress={() => setGuestModal(true)}
                 >
                   <Ionicons name="add" size={15} color={colors.ocean} />
-                  <Text style={styles.addGuestText}>Bring a guest</Text>
+                  <Text style={styles.addGuestText}>
+                    {myGuests.length > 0 ? "Bring another guest" : "Bring a guest"}
+                  </Text>
                 </Pressable>
               </View>
             )}
