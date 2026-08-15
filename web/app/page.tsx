@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 const APP_STORE_URL = "https://apps.apple.com/us/app/imuatrak/id6774396124";
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.imuatrak";
 
 export default function Landing() {
   return (
@@ -39,10 +40,11 @@ export default function Landing() {
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <a className="btn" href={APP_STORE_URL}>Download on the App Store</a>
+            <a className="btn" href={PLAY_STORE_URL}>Get it on Google Play</a>
             <a className="btn btn-outline" href="#features">See features</a>
           </div>
           <p style={{ color: "var(--muted)", fontSize: 13, margin: "12px 0 0" }}>
-            Free on iPhone &amp; Apple Watch · Android coming soon
+            Free on iPhone, Apple Watch &amp; Android
           </p>
         </div>
 
@@ -218,21 +220,22 @@ export default function Landing() {
           Out now
         </p>
         <h2 style={{ fontSize: 32, margin: "0 0 12px", fontWeight: 700 }}>
-          ImuaTrak is live on the App Store
+          ImuaTrak is live on the App Store &amp; Google Play
         </h2>
         <p style={{ color: "var(--muted)", marginTop: 0, fontSize: 15 }}>
-          Free download for iPhone and Apple Watch.
+          Free download for iPhone, Apple Watch, and Android.
         </p>
-        <a
-          href={APP_STORE_URL}
-          className="btn"
-          style={{ marginTop: 20, display: "inline-block" }}
-        >
-          Download on the App Store
-        </a>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", marginTop: 20 }}>
+          <a href={APP_STORE_URL} className="btn" style={{ display: "inline-block" }}>
+            Download on the App Store
+          </a>
+          <a href={PLAY_STORE_URL} className="btn" style={{ display: "inline-block" }}>
+            Get it on Google Play
+          </a>
+        </div>
         <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 20 }}>
-          On Android? The app is coming soon — email{" "}
-          <a href="mailto:support@imuatrak.app">support@imuatrak.app</a> to join the beta.
+          Questions? Email{" "}
+          <a href="mailto:support@imuatrak.app">support@imuatrak.app</a>.
         </p>
       </section>
 
