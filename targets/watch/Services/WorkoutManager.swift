@@ -312,6 +312,15 @@ extension WorkoutManager: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager,
                                      didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.last else { return }
+        // Reject the junk fixes CoreLocation emits while reacquiring in a
+        // marginal or dead-GPS area: invalid accuracy (<0), wildly imprecise
+        // fixes, and stale cached points. Feeding these in corrupts distance
+        // and makes the live map jump around every second — the likely cause
+        // of the watch appearing to hang when signal drops. Dropping them is
+        // how tracking survives a dead zone: the duration clock keeps ticking
+        // and the track simply resumes when a good fix returns.
+        guard loc.horizontalAccuracy >= 0, loc.horizontalAccuracy <= 100 else { return }
+        guard -loc.timestamp.timeIntervalSinceNow < 5 else { return }
         Task { @MainActor in
             // Ignore fixes that land while paused (updates are stopped on
             // pause, but one can already be in flight).
@@ -336,6 +345,21 @@ extension WorkoutManager: CLLocationManagerDelegate {
                                        lat2: pt.lat, lon2: pt.lon)
                 self.distanceM += d
             }
+        }
+    }
+
+    /// CoreLocation calls this repeatedly while it can't get a fix (a dead
+    /// zone). kCLErrorLocationUnknown is transient — Apple's guidance is to
+    /// ignore it and keep going, and a later fix will arrive, so the session
+    /// must NOT stop or tear down location updates here. Only a hard denial is
+    /// terminal, and that path is handled by the authorization flow. Without
+    /// this handler the delegate's default behavior on repeated failures was
+    /// one suspect for the watch locking up in no-signal areas.
+    nonisolated func locationManager(_ manager: CLLocationManager,
+                                     didFailWithError error: Error) {
+        // Intentionally a no-op for transient errors — keep recording.
+        if let clError = error as? CLError, clError.code == .denied {
+            print("[WorkoutManager] Location denied: \(error)")
         }
     }
 
