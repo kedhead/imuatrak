@@ -21,7 +21,7 @@ import {
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
-import { getPosts, createPost, deletePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
+import { getPosts, createPost, deletePost, updatePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
 import { useClubUnreadCount, useDmUnreadCount } from "@/services/unread";
 import type { ClubPost, ClubEvent, ClubComment, PollOption } from "@/models/club";
@@ -195,6 +195,14 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
     setPosts(p.filter((post) => post.type !== "photo"));
     setEvents(e);
     setRefreshing(false);
+  };
+
+  const handleEdited = (postId: string, content: string) => {
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, content, updatedAt: new Date().toISOString() } : p,
+      ),
+    );
   };
 
   const handleDelete = (postId: string) => {
@@ -377,6 +385,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             currentUserId={user?.uid}
             isAdmin={isAdmin}
             onDelete={handleDelete}
+            onEdited={handleEdited}
             onLikeChange={(id, delta, liked) =>
               setPosts((prev) =>
                 prev.map((p) =>
@@ -429,6 +438,7 @@ function PostCard({
   currentUserId,
   isAdmin,
   onDelete,
+  onEdited,
   onLikeChange,
   onCommentAdded,
 }: {
@@ -438,15 +448,54 @@ function PostCard({
   currentUserId?: string;
   isAdmin?: boolean;
   onDelete: (id: string) => void;
+  onEdited: (id: string, content: string) => void;
   onLikeChange: (id: string, delta: number, liked: boolean) => void;
   onCommentAdded: (id: string) => void;
 }) {
   const date = new Date(post.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const edited = !!post.updatedAt && post.updatedAt !== post.createdAt;
   const isPinned = post.type === "announcement";
   const initial = (post.authorName?.[0] ?? "?").toUpperCase();
   const liked = currentUserId ? (post.likedBy ?? []).includes(currentUserId) : false;
   const [liking, setLiking] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  // Only text posts are editable here; polls and photos have their own flows.
+  const canEdit = post.type === "post" || post.type === "announcement";
+  const isOwnerOrAdmin = currentUserId === post.authorId || !!isAdmin;
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(post.content);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openMenu = () => {
+    const options: { text: string; style?: "cancel" | "destructive"; onPress?: () => void }[] = [];
+    if (canEdit) {
+      options.push({
+        text: "Edit",
+        onPress: () => {
+          setEditText(post.content);
+          setEditing(true);
+        },
+      });
+    }
+    options.push({ text: "Delete", style: "destructive", onPress: () => onDelete(post.id) });
+    options.push({ text: "Cancel", style: "cancel" });
+    Alert.alert("Post", undefined, options);
+  };
+
+  const saveEdit = async () => {
+    const content = editText.trim();
+    if (!content || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      await updatePost(clubId, post.id, content);
+      onEdited(post.id, content);
+      setEditing(false);
+    } catch (e) {
+      Alert.alert("Couldn't save", e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const handleLike = async () => {
     if (!currentUserId || liking) return;
@@ -476,10 +525,10 @@ function PostCard({
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.postAuthor}>{post.authorName}</Text>
-            <Text style={styles.postDate}>{date}</Text>
+            <Text style={styles.postDate}>{date}{edited ? " · edited" : ""}</Text>
           </View>
-          {(currentUserId === post.authorId || isAdmin) && (
-            <Pressable onPress={() => onDelete(post.id)} hitSlop={12}>
+          {isOwnerOrAdmin && (
+            <Pressable onPress={openMenu} hitSlop={12}>
               <Ionicons name="ellipsis-vertical" size={18} color={colors.muted} />
             </Pressable>
           )}
@@ -518,6 +567,39 @@ function PostCard({
           onCommentAdded={() => onCommentAdded(post.id)}
         />
       )}
+      <Modal visible={editing} animationType="slide" transparent onRequestClose={() => setEditing(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setEditing(false)} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.sheet}
+        >
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Edit post</Text>
+            <Pressable onPress={() => setEditing(false)} hitSlop={12}>
+              <Ionicons name="close" size={22} color={colors.muted} />
+            </Pressable>
+          </View>
+          <View style={{ padding: spacing.lg, gap: spacing.md }}>
+            <TextInput
+              style={styles.editInput}
+              value={editText}
+              onChangeText={setEditText}
+              placeholder="Update your post…"
+              placeholderTextColor={colors.muted}
+              multiline
+              maxLength={2000}
+              autoFocus
+            />
+            <Button
+              title={savingEdit ? "Saving…" : "Save changes"}
+              gradient="aqua"
+              onPress={() => void saveEdit()}
+              disabled={savingEdit || !editText.trim()}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </Animated.View>
   );
 }
@@ -937,6 +1019,7 @@ const styles = StyleSheet.create({
   commentText: { fontSize: type.size.sm, color: colors.inkSoft, lineHeight: 20 },
   commentComposer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.card },
   commentInput: { flex: 1, fontSize: type.size.sm, color: colors.ink, backgroundColor: colors.bgSoft, borderRadius: radii.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, maxHeight: 100 },
+  editInput: { fontSize: type.size.md, color: colors.ink, backgroundColor: colors.bgSoft, borderRadius: radii.md, padding: spacing.md, minHeight: 120, textAlignVertical: "top" },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.ocean, alignItems: "center", justifyContent: "center" },
   // Poll composer
   pollIconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.bgSoft, alignItems: "center", justifyContent: "center", marginBottom: 2 },

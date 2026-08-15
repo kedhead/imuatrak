@@ -559,6 +559,19 @@ export async function deletePost(clubId: string, postId: string): Promise<void> 
   await fn({ clubId, postId });
 }
 
+/**
+ * Edit the body of a text post. Author/admin only — enforced by Firestore
+ * rules, the same way toggleLike writes to the post doc directly. Bumps
+ * updatedAt so the feed can show an "edited" marker. Polls and photo posts are
+ * edited through their own flows, so this is for "post"/"announcement" content.
+ */
+export async function updatePost(clubId: string, postId: string, content: string): Promise<void> {
+  await updateDoc(doc(db, "clubs", clubId, "posts", postId), {
+    content,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 export async function toggleLike(
   clubId: string,
   postId: string,
