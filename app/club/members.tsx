@@ -78,31 +78,42 @@ export default function MembersScreen() {
 
   const handleLongPress = (member: ClubMember) => {
     if (!isAdmin || !club || member.uid === me?.uid) return;
-    Alert.alert(member.displayName, undefined, [
-      {
-        text: "Promote to Admin",
-        onPress: async () => {
-          await updateMemberRole(club.id, member.uid, "admin");
-          if (me) await switchClub(club.id, me.uid);
-        },
+
+    // The owner is the club's root authority and can't be demoted or removed
+    // from here — that's a transfer-ownership flow, not a role change.
+    if (member.role === "owner") return;
+
+    // Only the owner may change another admin's role. Without this, any admin
+    // could demote or remove a peer admin (or, before the owner guard above,
+    // even the owner). Admins keep managing coaches and members.
+    const canManageAdmins = role === "owner";
+    if (member.role === "admin" && !canManageAdmins) {
+      Alert.alert("Owner only", "Only the club owner can change an admin's role.");
+      return;
+    }
+
+    const setRole = (next: MemberRole) => async () => {
+      await updateMemberRole(club.id, member.uid, next);
+      if (me) await switchClub(club.id, me.uid);
+    };
+
+    // Build the menu from the member's current role so the current role is
+    // never offered and demotion is available for admins/coaches.
+    const options: { text: string; style?: "destructive" | "cancel"; onPress?: () => void }[] = [];
+    if (member.role !== "admin") options.push({ text: "Promote to Admin", onPress: setRole("admin") });
+    if (member.role !== "coach") options.push({ text: "Make Coach", onPress: setRole("coach") });
+    if (member.role !== "member") options.push({ text: "Demote to Member", onPress: setRole("member") });
+    options.push({
+      text: "Remove from Club",
+      style: "destructive",
+      onPress: async () => {
+        await removeMember(club.id, member.uid);
+        if (me) await switchClub(club.id, me.uid);
       },
-      {
-        text: "Make Coach",
-        onPress: async () => {
-          await updateMemberRole(club.id, member.uid, "coach");
-          if (me) await switchClub(club.id, me.uid);
-        },
-      },
-      {
-        text: "Remove from Club",
-        style: "destructive",
-        onPress: async () => {
-          await removeMember(club.id, member.uid);
-          if (me) await switchClub(club.id, me.uid);
-        },
-      },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    });
+    options.push({ text: "Cancel", style: "cancel" });
+
+    Alert.alert(member.displayName, `Change ${ROLE_LABEL[member.role]} role`, options);
   };
 
   if (!club) return null;
