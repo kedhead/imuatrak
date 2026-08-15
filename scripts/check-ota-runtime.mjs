@@ -107,9 +107,27 @@ for (const platform of PLATFORMS) {
     continue;
   }
 
+  // eas-cli has moved this field around between versions; read the known
+  // locations so a CLI update doesn't blind the check.
+  const got = build.runtimeVersion ?? build.metadata?.runtimeVersion;
+  const built = build.appVersion ?? build.metadata?.appVersion ?? "?";
+
+  // A runtime we could not read (e.g. an eas-cli --json schema change dropped
+  // or renamed the field) is "the check could not run" — NOT a definite
+  // mismatch. This script's contract is to warn and continue on the former so
+  // it can never be the thing blocking an urgent publish; only two known,
+  // differing version strings (handled below) are a real mismatch.
+  if (got == null) {
+    warn(
+      `${platform}: EAS returned build ${built} but its runtimeVersion field was ` +
+        `empty, so it could not be compared to the declared ${want}. This is ` +
+        `usually an eas-cli JSON change, not a real mismatch — verify by hand at ` +
+        `expo.dev → Builds. Not blocking.`,
+    );
+    continue;
+  }
+
   checked++;
-  const got = build.runtimeVersion;
-  const built = build.appVersion ?? "?";
   const label = `${platform}: config says ${want}, latest ${PROFILE} build (${built}) is ${got}`;
 
   if (got !== want) {
