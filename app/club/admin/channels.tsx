@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { httpsCallable } from "firebase/functions";
 import { useEffect, useState } from "react";
 import {
@@ -47,6 +48,7 @@ export default function ManageChannelsScreen() {
   const role = useClub((s) => s.role);
   const members = useClub((s) => s.members);
   const user = currentUser();
+  const router = useRouter();
 
   const [channels, setChannels] = useState<ClubChannel[]>([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -105,12 +107,13 @@ export default function ManageChannelsScreen() {
               <Text style={styles.addBtnText}>New Channel</Text>
             </Pressable>
           ) : (
-            <View style={styles.lockedNote}>
-              <Ionicons name="lock-closed-outline" size={14} color={colors.muted} />
+            <Pressable style={styles.lockedNote} onPress={() => router.push("/paywall")}>
+              <Ionicons name="lock-closed-outline" size={14} color={colors.ocean} />
               <Text style={styles.lockedText}>
-                Upgrade to create additional channels
+                Upgrade to ImuaTrak+ to add more channels
               </Text>
-            </View>
+              <Ionicons name="chevron-forward" size={14} color={colors.ocean} />
+            </Pressable>
           )
         }
       />
@@ -384,7 +387,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.lg,
   },
-  lockedText: { fontSize: type.size.sm, color: colors.muted },
+  lockedText: { flex: 1, fontSize: type.size.sm, color: colors.ocean, fontWeight: type.weight.bold },
   formContainer: { flex: 1, backgroundColor: colors.bg },
   formHeader: {
     flexDirection: "row",

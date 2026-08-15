@@ -30,10 +30,12 @@ import {
   toggleLike,
   uploadPostMedia,
 } from "@/services/clubService";
+import { useRouter } from "expo-router";
 import { useClub } from "@/services/clubStore";
-import { hashtagRegex, parseHashtags } from "@/models/club";
+import { clubIsPro, hashtagRegex, parseHashtags } from "@/models/club";
 import type { ClubComment, ClubMember, ClubPost } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
+import { Button } from "@/ui/Button";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
 const SCREEN_W = Dimensions.get("window").width;
@@ -57,6 +59,7 @@ export default function GalleryScreen() {
   const members = useClub((s) => s.members);
   const role = useClub((s) => s.role);
   const user = currentUser();
+  const router = useRouter();
   // Read here rather than inside the viewer: the viewer renders in a Modal,
   // which is its own native window, and SafeAreaView measures nothing there —
   // the header ended up under the status bar with the close button untappable.
@@ -167,6 +170,36 @@ export default function GalleryScreen() {
   );
 
   if (!club) return null;
+
+  // Photo gallery is a Pro-tier club feature. Free clubs see an upgrade prompt
+  // instead — owners/admins can buy the plan, members are pointed to them.
+  if (!clubIsPro(club)) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
+        <View style={styles.lockWrap}>
+          <View style={styles.lockBadge}>
+            <Ionicons name="images-outline" size={40} color={colors.ocean} />
+          </View>
+          <Text style={styles.lockTitle}>Photo gallery is an ImuaTrak+ feature</Text>
+          <Text style={styles.lockText}>
+            Upgrade your club to share race-day and practice photos, tag teammates, and build a
+            shared album — plus unlimited chat channels and no ads for every member.
+          </Text>
+          {isStaff ? (
+            <Button
+              title="Upgrade club"
+              gradient="sunrise"
+              glow
+              onPress={() => router.push("/paywall")}
+              style={styles.lockBtn}
+            />
+          ) : (
+            <Text style={styles.lockHint}>Ask a club owner or admin to upgrade.</Text>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const empty = loaded ? (
     <View style={styles.emptyWrap}>
@@ -918,6 +951,20 @@ function PhotoViewer({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
+  lockWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.sm },
+  lockBadge: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: colors.bgSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+  },
+  lockTitle: { fontSize: type.size.lg, fontWeight: type.weight.heavy, color: colors.ink, textAlign: "center" },
+  lockText: { fontSize: type.size.sm, color: colors.muted, textAlign: "center", lineHeight: 20 },
+  lockBtn: { alignSelf: "stretch", marginTop: spacing.md },
+  lockHint: { fontSize: type.size.sm, color: colors.ocean, fontWeight: type.weight.bold, marginTop: spacing.sm },
   tile: { width: TILE, height: TILE, backgroundColor: colors.line },
   emptyWrap: { padding: spacing.xl, alignItems: "center", gap: spacing.sm, marginTop: spacing.xl },
   emptyTitle: { fontSize: type.size.lg, fontWeight: type.weight.bold, color: colors.ink },

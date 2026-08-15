@@ -75,6 +75,24 @@ export function clubGrantsAdFree(
   );
 }
 
+/**
+ * Whether a club is on a paid (or still-valid trial) plan, which unlocks the
+ * Pro-tier features — the photo gallery and additional chat channels — on top
+ * of ad-free access. Same condition as clubGrantsAdFree today; named separately
+ * so feature-gating call sites read clearly and the two can diverge later
+ * (e.g. a cheaper ad-free-only tier) without hunting every reference.
+ */
+export function clubIsPro(
+  club: Pick<Club, "subscriptionStatus" | "trialEndsAt"> | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  return clubGrantsAdFree(club, now);
+}
+
+/** Chat channels a free (basic) club may have — the default "general" only.
+ *  Additional channels require the Pro club plan. */
+export const FREE_CHANNEL_LIMIT = 1;
+
 export interface ClubMember {
   uid: string;
   role: MemberRole;
