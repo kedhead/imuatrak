@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
+import * as Sharing from "expo-sharing";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -68,6 +70,10 @@ export default function ChannelChatScreen() {
   const [actionTarget, setActionTarget] = useState<ClubMessage | null>(null);
   const [replyTarget, setReplyTarget] = useState<NonNullable<ClubMessage["replyTo"]> | null>(null);
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
+  // Which page the viewer is currently showing (updated on swipe), plus a
+  // guard so the save button can't fire twice mid-download.
+  const [viewerPage, setViewerPage] = useState(0);
+  const [savingImage, setSavingImage] = useState(false);
   // Roster fallback for @-mentions. The club store's copy is filled by the
   // club loader; if that hasn't run for this club the picker would have
   // nobody to offer and could never open, with no visible reason why.
@@ -183,6 +189,33 @@ export default function ChannelChatScreen() {
         },
       },
     ]);
+  };
+
+  /**
+   * Save/share the image currently shown in the full-screen viewer. shareAsync
+   * needs a local file and chat images are remote URLs, so download to the
+   * cache first, then hand it to the OS share sheet — which is where iOS
+   * "Save Image" and the Android "Save"/"Download" options live.
+   */
+  const onSaveImage = async () => {
+    if (!viewer || savingImage) return;
+    const url = viewer.urls[viewerPage];
+    if (!url) return;
+    setSavingImage(true);
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("Saving unavailable", "This device can't save or share files.");
+        return;
+      }
+      const target = `${FileSystem.cacheDirectory}imuatrak-chat-${Date.now()}.jpg`;
+      const { uri } = await FileSystem.downloadAsync(url, target);
+      await Sharing.shareAsync(uri, { mimeType: "image/jpeg", UTI: "public.jpeg" });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert("Couldn't save", msg);
+    } finally {
+      setSavingImage(false);
+    }
   };
 
   const onTogglePin = (message: ClubMessage) => {
@@ -351,7 +384,10 @@ export default function ChannelChatScreen() {
               mentionTargets={mentionTargets}
               onLongPress={() => setActionTarget(item)}
               onToggleReaction={(emoji) => onToggleReaction(item, emoji)}
-              onPressImage={(urls, index) => setViewer({ urls, index })}
+              onPressImage={(urls, index) => {
+                setViewerPage(index);
+                setViewer({ urls, index });
+              }}
             />
           )}
           ListEmptyComponent={
@@ -530,6 +566,9 @@ export default function ChannelChatScreen() {
               initialScrollIndex={viewer.index}
               getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
               keyExtractor={(_, i) => String(i)}
+              onMomentumScrollEnd={(e) =>
+                setViewerPage(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))
+              }
               renderItem={({ item }) => (
                 <Pressable style={styles.viewerPage} onPress={() => setViewer(null)}>
                   <Image source={{ uri: item }} style={styles.viewerImage} resizeMode="contain" />
@@ -542,6 +581,22 @@ export default function ChannelChatScreen() {
               hitSlop={16}
             >
               <Ionicons name="close" size={30} color={colors.white} />
+            </Pressable>
+            <Pressable
+              style={[styles.viewerSave, { top: Math.max(insets.top, spacing.sm) }]}
+              onPress={onSaveImage}
+              hitSlop={16}
+              disabled={savingImage}
+            >
+              {savingImage ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Ionicons
+                  name={Platform.OS === "ios" ? "share-outline" : "download-outline"}
+                  size={28}
+                  color={colors.white}
+                />
+              )}
             </Pressable>
           </View>
         </Modal>
@@ -972,6 +1027,14 @@ const styles = StyleSheet.create({
   viewerClose: {
     position: "absolute",
     right: spacing.md,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewerSave: {
+    position: "absolute",
+    left: spacing.md,
     width: 44,
     height: 44,
     alignItems: "center",
