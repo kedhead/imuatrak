@@ -870,27 +870,44 @@ export async function uploadMessageMedia(
   const user = auth.currentUser;
   if (!user) throw new Error("not signed in");
 
-  // Upload via a Cloud Function (Admin SDK write) rather than from the client.
-  // React Native can't build the Blob the Firebase Storage SDK needs, and the
-  // raw REST endpoint fought us on auth/rules/bucket (403s). The function
-  // handles auth + membership and writes to the real bucket, bypassing rules.
-  const base64 = await FileSystem.readAsStringAsync(localUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  // Guard against pathologically large uploads (a full-length 4K clip). The
+  // signed-URL path below has no hard ceiling, but streaming hundreds of MB
+  // over cellular is a bad idea — surface a clear message instead.
+  const info = await FileSystem.getInfoAsync(localUri);
+  if (info.exists && info.size > 100 * 1024 * 1024) {
+    throw new Error("That file is too large to share (max 100 MB).");
+  }
 
-  const fn = httpsCallable<
-    {
-      clubId: string;
-      channelId: string;
-      messageId: string;
-      base64: string;
-      contentType: string;
-      fileKey?: string;
-    },
+  // Direct-to-Storage upload via a short-lived signed URL. This replaces the
+  // old base64-in-a-callable path, which capped uploads at ~7 MB (base64
+  // inflates the payload past the callable limit) — so videos, which never
+  // fit, always failed. Streaming the file straight to the bucket has no such
+  // ceiling.
+  //
+  // 1. Ask the server (which checks club membership) for a signed PUT URL.
+  const create = httpsCallable<
+    { clubId: string; channelId: string; messageId: string; contentType: string; fileKey?: string },
+    { uploadUrl: string }
+  >(functions, "createChannelUploadUrl");
+  const { data: created } = await create({ clubId, channelId, messageId, contentType: mimeType, fileKey });
+
+  // 2. Stream the file itself to Storage — no base64, no in-memory copy.
+  const res = await FileSystem.uploadAsync(created.uploadUrl, localUri, {
+    httpMethod: "PUT",
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+  });
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`Upload failed (HTTP ${res.status})`);
+  }
+
+  // 3. Finalize: the server confirms the object, stamps its download token, and
+  //    records the URL on the message. Returns the URL the app should show.
+  const finalize = httpsCallable<
+    { clubId: string; channelId: string; messageId: string; contentType: string; fileKey?: string },
     { mediaUrl: string }
-  >(functions, "uploadChannelMedia");
-  const { data } = await fn({ clubId, channelId, messageId, base64, contentType: mimeType, fileKey });
-  return data.mediaUrl;
+  >(functions, "finalizeChannelMedia");
+  const { data: finalized } = await finalize({ clubId, channelId, messageId, contentType: mimeType, fileKey });
+  return finalized.mediaUrl;
 }
 
 // ── Channel preferences & FCM ─────────────────────────────────────────────────

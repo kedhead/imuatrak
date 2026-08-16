@@ -175,6 +175,118 @@ export const uploadChannelMedia = onCall({ memory: "512MiB" }, async (request) =
 });
 
 // ---------------------------------------------------------------------------
+// createChannelUploadUrl + finalizeChannelMedia — the large-file (video) path.
+//
+// uploadChannelMedia carries the file inside the callable payload, which caps
+// at ~7 MB after base64 — fine for photos, but real videos never fit, so the
+// picker offered video that always failed. This pair lets the app upload
+// straight to Storage with no size ceiling:
+//   1. createChannelUploadUrl checks membership and returns a short-lived
+//      signed PUT URL for the object path.
+//   2. the client streams the file directly to that URL (expo-file-system
+//      uploadAsync — no base64, no memory blowup).
+//   3. finalizeChannelMedia confirms the object landed, stamps it with a
+//      download token + content type, and records the URL on the message.
+//
+// Deploy note: createChannelUploadUrl calls getSignedUrl, which needs the
+// functions runtime service account to hold "Service Account Token Creator"
+// (roles/iam.serviceAccountTokenCreator) so it can sign. If uploads fail with
+// an iam.serviceAccounts.signBlob error, grant that role to the functions SA.
+// ---------------------------------------------------------------------------
+
+function channelMediaPath(
+  clubId: string,
+  channelId: string,
+  messageId: string,
+  key: string,
+  contentType: string,
+): string {
+  const ext = contentType.split("/")[1] || "bin";
+  return `clubs/${clubId}/channels/${channelId}/messages/${messageId}/${key}.${ext}`;
+}
+
+export const createChannelUploadUrl = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { clubId, channelId, messageId, contentType, fileKey } = request.data ?? {};
+  if (
+    typeof clubId !== "string" ||
+    typeof channelId !== "string" ||
+    typeof messageId !== "string" ||
+    typeof contentType !== "string"
+  ) {
+    throw new HttpsError("invalid-argument", "Missing upload fields");
+  }
+  if (!/^(image|video)\//.test(contentType)) {
+    throw new HttpsError("invalid-argument", "Only image or video uploads are allowed");
+  }
+  const key: string = typeof fileKey === "string" ? fileKey : "media";
+  if (!/^media(-\d{1,2})?$/.test(key)) {
+    throw new HttpsError("invalid-argument", "Bad fileKey");
+  }
+
+  const memberSnap = await getFirestore().doc(`clubs/${clubId}/members/${uid}`).get();
+  if (!memberSnap.exists) throw new HttpsError("permission-denied", "Not a club member");
+
+  const path = channelMediaPath(clubId, channelId, messageId, key, contentType);
+  const [uploadUrl] = await getStorage()
+    .bucket()
+    .file(path)
+    .getSignedUrl({ version: "v4", action: "write", expires: Date.now() + 15 * 60 * 1000 });
+
+  return { uploadUrl };
+});
+
+export const finalizeChannelMedia = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { clubId, channelId, messageId, contentType, fileKey } = request.data ?? {};
+  if (
+    typeof clubId !== "string" ||
+    typeof channelId !== "string" ||
+    typeof messageId !== "string" ||
+    typeof contentType !== "string"
+  ) {
+    throw new HttpsError("invalid-argument", "Missing fields");
+  }
+  const key: string = typeof fileKey === "string" ? fileKey : "media";
+  if (!/^media(-\d{1,2})?$/.test(key)) {
+    throw new HttpsError("invalid-argument", "Bad fileKey");
+  }
+
+  const memberSnap = await getFirestore().doc(`clubs/${clubId}/members/${uid}`).get();
+  if (!memberSnap.exists) throw new HttpsError("permission-denied", "Not a club member");
+
+  const path = channelMediaPath(clubId, channelId, messageId, key, contentType);
+  const bucket = getStorage().bucket();
+  const file = bucket.file(path);
+  const [exists] = await file.exists();
+  if (!exists) throw new HttpsError("failed-precondition", "Upload not found — try again");
+
+  // Stamp the object so it renders inline and gets a stable download token URL,
+  // the same scheme uploadChannelMedia uses for the small-file path.
+  const token = crypto.randomUUID();
+  await file.setMetadata({ contentType, metadata: { firebaseStorageDownloadTokens: token } });
+
+  const mediaUrl =
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+    `${encodeURIComponent(path)}?alt=media&token=${token}`;
+
+  const msgRef = getFirestore().doc(
+    `clubs/${clubId}/channels/${channelId}/messages/${messageId}`,
+  );
+  if (key === "media") {
+    await msgRef.update({ mediaUrl, mediaStoragePath: `gs://${bucket.name}/${path}` });
+  } else {
+    await msgRef.update({ mediaUrls: FieldValue.arrayUnion(mediaUrl) });
+  }
+
+  return { mediaUrl };
+});
+
+// ---------------------------------------------------------------------------
 // uploadPostMedia — attach a photo to a club post (the gallery).
 //
 // Same shape as uploadChannelMedia: the client can't write to Storage directly
