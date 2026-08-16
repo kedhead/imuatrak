@@ -77,13 +77,15 @@ const config = {
   // two binaries apart. Set that platform's runtime constant above to whatever
   // number you land on, in the same commit.
   //
-  // Queued for whenever that build happens — all native config, none of it
-  // OTA-able: the corrected ADMOB_IOS_APP_ID, the userInterfaceStyle pin
-  // below, and expo-camera for invite QR scanning on the QR branch. The
-  // userInterfaceStyle pin is the one gap that OTA cannot close for the live
-  // Android 1.0.1 build, whose manifest still says "automatic" — its native
-  // date/time pickers stay dark-on-dark for users in dark mode until it is
-  // rebuilt.
+  // 1.0.3 is the number for the build produced from this commit. Everything it
+  // carries is native, none of it OTA-able: the corrected ADMOB_IOS_APP_ID, the
+  // userInterfaceStyle pin below, expo-media-library (chat "Save to Photos"),
+  // the watch dead-GPS hardening, and expo-camera for in-app invite QR
+  // scanning. The QR scanner is loaded through a dynamic import, so the live
+  // 1.0.2 binary shows an "update required" prompt instead of crashing if this
+  // JS ever reaches it. The userInterfaceStyle pin is the one gap OTA cannot
+  // close for the live Android 1.0.1 build, whose manifest still says
+  // "automatic" — its native pickers stay dark-on-dark until rebuilt.
   version: "1.0.3",
   orientation: "portrait",
   icon: "./assets/icon.png",
@@ -221,6 +223,21 @@ const config = {
   plugins: [
     "expo-router",
     "expo-notifications",
+    [
+      "expo-camera",
+      {
+        // Invite QR scanning only — no video capture anywhere in the app.
+        cameraPermission:
+          "ImuaTrak uses the camera to scan a club's invite QR code so you can join.",
+        // `false` DELETES NSMicrophoneUsageDescription; leaving it undefined
+        // makes the plugin add its own default string, which would re-declare
+        // the microphone permission the app deliberately dropped (no audio
+        // feature exists yet — Guideline 5.1.1 / 2.5.1). Same for Android's
+        // RECORD_AUDIO, which is why recordAudioAndroid is off.
+        microphonePermission: false,
+        recordAudioAndroid: false,
+      },
+    ],
     [
       "react-native-google-mobile-ads",
       {

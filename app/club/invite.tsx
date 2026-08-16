@@ -127,7 +127,8 @@ export default function InviteScreen() {
         <GradientCard>
           <Text style={styles.cardTitle}>Scan to join</Text>
           <Text style={styles.cardBody}>
-            Show this at practice — members scan it with their phone camera to join instantly.
+            Show this at practice. In ImuaTrak, tap Club → Join a club → Scan QR code.
+            A phone camera works too, as long as the app is installed.
           </Text>
           <View style={styles.qrWrap}>
             <QRCode
