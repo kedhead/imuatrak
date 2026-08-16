@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
 import * as Sharing from "expo-sharing";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -70,9 +71,11 @@ export default function ChannelChatScreen() {
   const [actionTarget, setActionTarget] = useState<ClubMessage | null>(null);
   const [replyTarget, setReplyTarget] = useState<NonNullable<ClubMessage["replyTo"]> | null>(null);
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
-  // Which page the viewer is currently showing (updated on swipe), plus a
-  // guard so the save button can't fire twice mid-download.
+  // Which page the viewer is currently showing (updated on swipe), the
+  // WhatsApp-style action menu, and a guard so a save/share can't fire twice
+  // mid-download.
   const [viewerPage, setViewerPage] = useState(0);
+  const [viewerMenu, setViewerMenu] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
   // Roster fallback for @-mentions. The club store's copy is filled by the
   // club loader; if that hasn't run for this club the picker would have
@@ -191,28 +194,66 @@ export default function ChannelChatScreen() {
     ]);
   };
 
+  // Both viewer actions need the visible image downloaded to a local file
+  // first, since chat images are remote URLs.
+  const downloadViewerImage = async () => {
+    const url = viewer?.urls[viewerPage];
+    if (!url) return null;
+    const target = `${FileSystem.cacheDirectory}imuatrak-chat-${Date.now()}.jpg`;
+    const { uri } = await FileSystem.downloadAsync(url, target);
+    return uri;
+  };
+
   /**
-   * Save/share the image currently shown in the full-screen viewer. shareAsync
-   * needs a local file and chat images are remote URLs, so download to the
-   * cache first, then hand it to the OS share sheet — which is where iOS
-   * "Save Image" and the Android "Save"/"Download" options live.
+   * One-tap "Save to Photos" — download the visible image, then write it
+   * straight to the device camera roll via MediaLibrary. Requests add-only
+   * permission the first time; if the user has denied it, point them to
+   * Settings rather than failing silently.
    */
-  const onSaveImage = async () => {
+  const onSaveToPhotos = async () => {
     if (!viewer || savingImage) return;
-    const url = viewer.urls[viewerPage];
-    if (!url) return;
     setSavingImage(true);
     try {
-      if (!(await Sharing.isAvailableAsync())) {
-        Alert.alert("Saving unavailable", "This device can't save or share files.");
+      const perm = await MediaLibrary.requestPermissionsAsync(true);
+      if (!perm.granted) {
+        Alert.alert(
+          "Permission needed",
+          "Allow photo access in Settings to save images to your library.",
+        );
         return;
       }
-      const target = `${FileSystem.cacheDirectory}imuatrak-chat-${Date.now()}.jpg`;
-      const { uri } = await FileSystem.downloadAsync(url, target);
-      await Sharing.shareAsync(uri, { mimeType: "image/jpeg", UTI: "public.jpeg" });
+      const uri = await downloadViewerImage();
+      if (!uri) return;
+      await MediaLibrary.saveToLibraryAsync(uri);
+      setViewerMenu(false);
+      Alert.alert("Saved", "The photo was saved to your library.");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert("Couldn't save", msg);
+    } finally {
+      setSavingImage(false);
+    }
+  };
+
+  /**
+   * Hand the visible image to the OS share sheet — for sending it on to
+   * another app (Messages, Instagram, etc.).
+   */
+  const onShareImage = async () => {
+    if (!viewer || savingImage) return;
+    setSavingImage(true);
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("Sharing unavailable", "This device can't share files.");
+        return;
+      }
+      const uri = await downloadViewerImage();
+      if (!uri) return;
+      setViewerMenu(false);
+      await Sharing.shareAsync(uri, { mimeType: "image/jpeg", UTI: "public.jpeg" });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert("Couldn't share", msg);
     } finally {
       setSavingImage(false);
     }
@@ -386,6 +427,7 @@ export default function ChannelChatScreen() {
               onToggleReaction={(emoji) => onToggleReaction(item, emoji)}
               onPressImage={(urls, index) => {
                 setViewerPage(index);
+                setViewerMenu(false);
                 setViewer({ urls, index });
               }}
             />
@@ -584,20 +626,35 @@ export default function ChannelChatScreen() {
             </Pressable>
             <Pressable
               style={[styles.viewerSave, { top: Math.max(insets.top, spacing.sm) }]}
-              onPress={onSaveImage}
+              onPress={() => setViewerMenu(true)}
               hitSlop={16}
-              disabled={savingImage}
             >
-              {savingImage ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <Ionicons
-                  name={Platform.OS === "ios" ? "share-outline" : "download-outline"}
-                  size={28}
-                  color={colors.white}
-                />
-              )}
+              <Ionicons name="ellipsis-horizontal" size={28} color={colors.white} />
             </Pressable>
+
+            {/* WhatsApp-style action menu for the visible image */}
+            {viewerMenu && (
+              <Pressable style={styles.viewerMenuBackdrop} onPress={() => setViewerMenu(false)}>
+                <Pressable style={styles.viewerMenuSheet} onPress={(e) => e.stopPropagation()}>
+                  <Pressable style={styles.sheetRow} onPress={onSaveToPhotos} disabled={savingImage}>
+                    {savingImage ? (
+                      <ActivityIndicator size="small" color={colors.ink} />
+                    ) : (
+                      <Ionicons name="download-outline" size={22} color={colors.ink} />
+                    )}
+                    <Text style={styles.sheetRowText}>Save to Photos</Text>
+                  </Pressable>
+                  <Pressable style={styles.sheetRow} onPress={onShareImage} disabled={savingImage}>
+                    <Ionicons name="share-outline" size={22} color={colors.ink} />
+                    <Text style={styles.sheetRowText}>Share</Text>
+                  </Pressable>
+                  <Pressable style={styles.sheetRow} onPress={() => setViewerMenu(false)}>
+                    <Ionicons name="close-outline" size={22} color={colors.muted} />
+                    <Text style={[styles.sheetRowText, { color: colors.muted }]}>Cancel</Text>
+                  </Pressable>
+                </Pressable>
+              </Pressable>
+            )}
           </View>
         </Modal>
       )}
@@ -1039,6 +1096,20 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
+  },
+  viewerMenuBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+    padding: spacing.lg,
+  },
+  viewerMenuSheet: {
+    backgroundColor: colors.white,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    gap: spacing.xs,
+    marginBottom: spacing.xl,
+    ...shadow.sm,
   },
   uploadingOverlay: {
     ...StyleSheet.absoluteFill,

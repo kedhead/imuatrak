@@ -228,6 +228,18 @@ const config = {
       : []),
     "expo-secure-store",
     [
+      "expo-media-library",
+      {
+        // Save-only: members download chat photos to their camera roll. We
+        // never read the library, so keep the add-only string front and center.
+        photosPermission:
+          "ImuaTrak saves photos you download from club chat to your photo library.",
+        savePhotosPermission:
+          "ImuaTrak saves photos you download from club chat to your photo library.",
+        isAccessMediaLocationEnabled: false,
+      },
+    ],
+    [
       "expo-tracking-transparency",
       {
         userTrackingPermission:
