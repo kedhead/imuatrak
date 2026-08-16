@@ -39,14 +39,20 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // ⚠️ When you ship a native build to a store, set that platform's runtime here
 // to the version of that build, in the same commit that produces it. Run
 // `npm run check:ota` to verify these against the builds EAS actually has.
-const IOS_RUNTIME_VERSION = "1.0.2";
-// Confirmed against Play Console: the released app bundle is versionCode 25,
-// versionName 1.0.1, targetSdk 36, API 26+. targetSdk 36 landed 2026-07-21 and
-// `version` moved to 1.0.2 on 2026-08-01, so that binary was built inside that
-// window — after the SDK 56 package alignment and the native Google Sign-In
-// module, both 2026-07-16. It therefore has every native module current JS
-// calls, which is what makes the backlog shippable over the air.
-const ANDROID_RUNTIME_VERSION = "1.0.1";
+//
+// Both constants are set to 1.0.3 for the build produced from this commit —
+// the first native build on either platform since iOS 1.0.2 / Android 1.0.1,
+// carrying expo-media-library (chat "Save to Photos") and the watch dead-GPS
+// hardening. Because it adds a native module the old binaries lack, this build
+// MUST get its own runtime so OTAs targeting the new native code can never
+// fall back onto a 1.0.2/1.0.1 binary that would crash on the missing module.
+//
+// ⚠️ Do NOT push an OTA (`eas update --channel production`) until 1.0.3 is
+// LIVE and installed on each store: until then these runtimes point at a build
+// no device has, and an update would reach nobody — the #62 outage again.
+const IOS_RUNTIME_VERSION = "1.0.3";
+// The build this replaces was Play Console versionCode 25, versionName 1.0.1.
+const ANDROID_RUNTIME_VERSION = "1.0.3";
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
@@ -78,7 +84,7 @@ const config = {
   // Android 1.0.1 build, whose manifest still says "automatic" — its native
   // date/time pickers stay dark-on-dark for users in dark mode until it is
   // rebuilt.
-  version: "1.0.2",
+  version: "1.0.3",
   orientation: "portrait",
   icon: "./assets/icon.png",
   // Every screen is styled with hardcoded light colors — there is no dark
