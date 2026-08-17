@@ -194,39 +194,42 @@ export default function ChannelChatScreen() {
     ]);
   };
 
-  // Both viewer actions need the visible image downloaded to a local file
-  // first, since chat images are remote URLs.
-  const downloadViewerImage = async () => {
-    const url = viewer?.urls[viewerPage];
-    if (!url) return null;
-    const target = `${FileSystem.cacheDirectory}imuatrak-chat-${Date.now()}.jpg`;
+  // Chat media are remote URLs; both saving and sharing need a local file
+  // first. Download to the cache with the right extension so Photos and the
+  // share sheet recognize the type.
+  const downloadOne = async (url: string, isVideo: boolean) => {
+    const rand = Math.random().toString(36).slice(2, 7);
+    const target = `${FileSystem.cacheDirectory}imuatrak-chat-${Date.now()}-${rand}.${isVideo ? "mp4" : "jpg"}`;
     const { uri } = await FileSystem.downloadAsync(url, target);
     return uri;
   };
 
   /**
-   * One-tap "Save to Photos" — download the visible image, then write it
-   * straight to the device camera roll via MediaLibrary. Requests add-only
-   * permission the first time; if the user has denied it, point them to
-   * Settings rather than failing silently.
+   * One-tap "Save to Photos" — write the media straight to the device camera
+   * roll via MediaLibrary. Handles a whole message's worth of photos (or a
+   * single video). Requests add-only permission the first time; if denied,
+   * points to Settings rather than failing silently.
    */
-  const onSaveToPhotos = async () => {
-    if (!viewer || savingImage) return;
+  const saveUrlsToPhotos = async (rawUrls: (string | undefined)[], isVideo: boolean) => {
+    const urls = rawUrls.filter((u): u is string => !!u);
+    if (!urls.length || savingImage) return;
     setSavingImage(true);
     try {
       const perm = await MediaLibrary.requestPermissionsAsync(true);
       if (!perm.granted) {
         Alert.alert(
           "Permission needed",
-          "Allow photo access in Settings to save images to your library.",
+          "Allow photo access in Settings to save to your library.",
         );
         return;
       }
-      const uri = await downloadViewerImage();
-      if (!uri) return;
-      await MediaLibrary.saveToLibraryAsync(uri);
+      for (const url of urls) {
+        const uri = await downloadOne(url, isVideo);
+        await MediaLibrary.saveToLibraryAsync(uri);
+      }
       setViewerMenu(false);
-      Alert.alert("Saved", "The photo was saved to your library.");
+      const label = isVideo ? "Video" : urls.length > 1 ? `${urls.length} photos` : "Photo";
+      Alert.alert("Saved", `${label} saved to your library.`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert("Couldn't save", msg);
@@ -235,28 +238,35 @@ export default function ChannelChatScreen() {
     }
   };
 
-  /**
-   * Hand the visible image to the OS share sheet — for sending it on to
-   * another app (Messages, Instagram, etc.).
-   */
-  const onShareImage = async () => {
-    if (!viewer || savingImage) return;
+  /** Hand a single item to the OS share sheet (Messages, Instagram, etc.). */
+  const shareOne = async (url: string | undefined, isVideo: boolean) => {
+    if (!url || savingImage) return;
     setSavingImage(true);
     try {
       if (!(await Sharing.isAvailableAsync())) {
         Alert.alert("Sharing unavailable", "This device can't share files.");
         return;
       }
-      const uri = await downloadViewerImage();
-      if (!uri) return;
+      const uri = await downloadOne(url, isVideo);
       setViewerMenu(false);
-      await Sharing.shareAsync(uri, { mimeType: "image/jpeg", UTI: "public.jpeg" });
+      await Sharing.shareAsync(
+        uri,
+        isVideo ? { mimeType: "video/mp4" } : { mimeType: "image/jpeg", UTI: "public.jpeg" },
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert("Couldn't share", msg);
     } finally {
       setSavingImage(false);
     }
+  };
+
+  // Pull the savable media out of a message: a video's single URL, or all of
+  // its photos (multi-image grid, or the legacy single mediaUrl).
+  const mediaOf = (m: ClubMessage): { urls: string[]; isVideo: boolean } => {
+    if (m.mediaType === "video" && m.mediaUrl) return { urls: [m.mediaUrl], isVideo: true };
+    const photos = m.mediaUrls && m.mediaUrls.length > 0 ? m.mediaUrls : m.mediaUrl ? [m.mediaUrl] : [];
+    return { urls: photos, isVideo: false };
   };
 
   const onTogglePin = (message: ClubMessage) => {
@@ -559,6 +569,36 @@ export default function ChannelChatScreen() {
                 <Ionicons name="arrow-undo-outline" size={20} color={colors.ink} />
                 <Text style={styles.sheetRowText}>Reply</Text>
               </Pressable>
+              {mediaOf(actionTarget).urls.length > 0 && (
+                <>
+                  <Pressable
+                    style={styles.sheetRow}
+                    disabled={savingImage}
+                    onPress={() => {
+                      const { urls, isVideo } = mediaOf(actionTarget);
+                      setActionTarget(null);
+                      void saveUrlsToPhotos(urls, isVideo);
+                    }}
+                  >
+                    <Ionicons name="download-outline" size={20} color={colors.ink} />
+                    <Text style={styles.sheetRowText}>
+                      {mediaOf(actionTarget).isVideo ? "Save video" : "Save to Photos"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.sheetRow}
+                    disabled={savingImage}
+                    onPress={() => {
+                      const { urls, isVideo } = mediaOf(actionTarget);
+                      setActionTarget(null);
+                      void shareOne(urls[0], isVideo);
+                    }}
+                  >
+                    <Ionicons name="share-outline" size={20} color={colors.ink} />
+                    <Text style={styles.sheetRowText}>Share</Text>
+                  </Pressable>
+                </>
+              )}
               {(myRole === "owner" || myRole === "admin") && (
                 <Pressable
                   style={styles.sheetRow}
@@ -636,7 +676,11 @@ export default function ChannelChatScreen() {
             {viewerMenu && (
               <Pressable style={styles.viewerMenuBackdrop} onPress={() => setViewerMenu(false)}>
                 <Pressable style={styles.viewerMenuSheet} onPress={(e) => e.stopPropagation()}>
-                  <Pressable style={styles.sheetRow} onPress={onSaveToPhotos} disabled={savingImage}>
+                  <Pressable
+                    style={styles.sheetRow}
+                    onPress={() => saveUrlsToPhotos([viewer.urls[viewerPage]], false)}
+                    disabled={savingImage}
+                  >
                     {savingImage ? (
                       <ActivityIndicator size="small" color={colors.ink} />
                     ) : (
@@ -644,7 +688,11 @@ export default function ChannelChatScreen() {
                     )}
                     <Text style={styles.sheetRowText}>Save to Photos</Text>
                   </Pressable>
-                  <Pressable style={styles.sheetRow} onPress={onShareImage} disabled={savingImage}>
+                  <Pressable
+                    style={styles.sheetRow}
+                    onPress={() => shareOne(viewer.urls[viewerPage], false)}
+                    disabled={savingImage}
+                  >
                     <Ionicons name="share-outline" size={22} color={colors.ink} />
                     <Text style={styles.sheetRowText}>Share</Text>
                   </Pressable>
@@ -884,14 +932,25 @@ function MediaGrid({
 
 function VideoBubble({ uri, uploading }: { uri: string; uploading: boolean }) {
   const player = useVideoPlayer(uri, (p) => { p.loop = false; });
+  const viewRef = useRef<VideoView>(null);
   return (
     <View style={styles.mediaWrap}>
       <VideoView
+        ref={viewRef}
         player={player}
         style={styles.mediaImage}
         nativeControls
         fullscreenOptions={{ enable: true }}
       />
+      {/* The native fullscreen control is tiny in a 220px bubble, so give it an
+          obvious tap target that blows the video up to full screen. */}
+      <Pressable
+        style={styles.videoExpand}
+        onPress={() => void viewRef.current?.enterFullscreen()}
+        hitSlop={8}
+      >
+        <Ionicons name="expand" size={16} color={colors.white} />
+      </Pressable>
       {uploading && (
         <View style={styles.uploadingOverlay}>
           <ActivityIndicator color={colors.white} />
@@ -994,6 +1053,17 @@ const styles = StyleSheet.create({
   timestampMe: { color: "rgba(255,255,255,0.65)" },
   mediaWrap: { position: "relative", marginBottom: spacing.xs },
   mediaImage: { width: 220, height: 160, borderRadius: radii.md },
+  videoExpand: {
+    position: "absolute",
+    top: spacing.xs,
+    right: spacing.xs,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   gridWrap: { width: 220, flexDirection: "row", flexWrap: "wrap", gap: 4 },
   gridTile: {
     width: 108,
@@ -1081,19 +1151,25 @@ const styles = StyleSheet.create({
   viewerImage: { width: "100%", height: "100%" },
   // `top` is set inline from the safe-area inset — a Modal is its own native
   // window, so SafeAreaView measures nothing inside it.
+  // A dark translucent chip keeps the icons legible over any photo — white
+  // glyphs vanished against light images before.
   viewerClose: {
     position: "absolute",
     right: spacing.md,
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
   },
   viewerSave: {
     position: "absolute",
     left: spacing.md,
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
   },
