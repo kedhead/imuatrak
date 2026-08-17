@@ -65,6 +65,10 @@ describe("clubGrantsAdFree", () => {
       clubGrantsAdFree({ subscriptionStatus: "expired", trialEndsAt: future }, now),
     ).toBe(false);
   });
+
+  it("is false for a free club (the default — no automatic trial)", () => {
+    expect(clubGrantsAdFree({ subscriptionStatus: "free" }, now)).toBe(false);
+  });
 });
 
 describe("parseHashtags", () => {

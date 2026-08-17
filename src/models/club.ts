@@ -2,7 +2,11 @@
 
 export type ClubId = string;
 export type MemberRole = "owner" | "admin" | "coach" | "member";
-export type SubscriptionStatus = "trial" | "active" | "expired";
+// "free" is the default for a newly created club: no plan, ads shown, Pro
+// features locked. Clubs are NOT put on an automatic trial — a trial is now
+// opt-in. "trial"/"active" grant ad-free + Pro; "expired" is a lapsed
+// trial/plan (same access as "free", but labeled so the owner sees it ended).
+export type SubscriptionStatus = "free" | "trial" | "active" | "expired";
 export type SubscriptionTier = "basic" | "pro";
 export type EventType = "practice" | "race" | "social";
 /**

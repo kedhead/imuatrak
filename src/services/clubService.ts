@@ -102,7 +102,6 @@ export async function createClub(
 ): Promise<Club> {
   const id = doc(collection(db, "clubs")).id;
   const now = new Date().toISOString();
-  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const club: Club = {
     id,
@@ -112,9 +111,10 @@ export async function createClub(
     sport: "outrigger",
     location: { city: opts.city, country: opts.country },
     ownerId: uid,
-    subscriptionStatus: "trial",
+    // New clubs start on the free plan — ads shown, Pro locked. No automatic
+    // trial: the owner either subscribes or opts into a trial explicitly.
+    subscriptionStatus: "free",
     subscriptionTier: "basic",
-    trialEndsAt,
     // Starts at 0; the onMemberJoin trigger increments to 1 when the owner's
     // member doc is created below. Counting it here too would double it.
     memberCount: 0,

@@ -229,22 +229,31 @@ export default function ClubAdminScreen() {
     ? `Free trial — expires ${club.trialEndsAt ? new Date(club.trialEndsAt).toLocaleDateString() : "soon"}`
     : subStatus === "active"
     ? "Active subscription"
-    : "Subscription expired";
+    : subStatus === "expired"
+    ? "Subscription expired — tap to renew"
+    : "Free plan — tap to unlock Pro & remove ads";
+  const subAttention = subStatus === "expired";
+  const subIcon =
+    subStatus === "active" ? "checkmark-circle" : subStatus === "free" ? "sparkles-outline" : "time-outline";
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Subscription status */}
-        <View style={[styles.subBanner, subStatus === "expired" && { backgroundColor: "#FEE2E2" }]}>
+        {/* Subscription status — tappable to the paywall unless already active. */}
+        <Pressable
+          style={[styles.subBanner, subAttention && { backgroundColor: "#FEE2E2" }]}
+          onPress={() => subStatus !== "active" && router.push("/paywall")}
+          disabled={subStatus === "active"}
+        >
           <Ionicons
-            name={subStatus === "active" ? "checkmark-circle" : "time-outline"}
+            name={subIcon}
             size={18}
-            color={subStatus === "expired" ? colors.danger : colors.blue}
+            color={subAttention ? colors.danger : colors.blue}
           />
-          <Text style={[styles.subText, subStatus === "expired" && { color: colors.danger }]}>
+          <Text style={[styles.subText, subAttention && { color: colors.danger }]}>
             {subLabel}
           </Text>
-        </View>
+        </Pressable>
 
         {/* Club logo */}
         <Text style={styles.sectionLabel}>CLUB LOGO</Text>
