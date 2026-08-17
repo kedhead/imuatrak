@@ -287,6 +287,60 @@ export const finalizeChannelMedia = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
+// startClubTrial — opt-in, one-time 7-day free trial for a club.
+//
+// Clubs no longer get an automatic trial; an owner/admin starts it explicitly.
+// Billing fields are server-only (clients can't write subscriptionStatus per
+// the Firestore rules), so this runs with the Admin SDK. trialStartedAt is the
+// durable guard that a club only ever gets one trial.
+// ---------------------------------------------------------------------------
+const CLUB_TRIAL_DAYS = 7;
+
+export const startClubTrial = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { clubId } = request.data ?? {};
+  if (typeof clubId !== "string" || !clubId) {
+    throw new HttpsError("invalid-argument", "clubId is required");
+  }
+
+  const db = getFirestore();
+  const memberSnap = await db.doc(`clubs/${clubId}/members/${uid}`).get();
+  const role = memberSnap.exists ? (memberSnap.data()?.role as string | undefined) : undefined;
+  if (role !== "owner" && role !== "admin") {
+    throw new HttpsError("permission-denied", "Only a club owner or admin can start the trial");
+  }
+
+  const clubRef = db.doc(`clubs/${clubId}`);
+  const clubSnap = await clubRef.get();
+  if (!clubSnap.exists) throw new HttpsError("not-found", "Club not found");
+  const club = clubSnap.data() as
+    | { subscriptionStatus?: string; trialStartedAt?: string }
+    | undefined;
+
+  if (club?.trialStartedAt) {
+    throw new HttpsError("failed-precondition", "This club has already used its free trial");
+  }
+  if (club?.subscriptionStatus === "active") {
+    throw new HttpsError("failed-precondition", "This club already has an active subscription");
+  }
+  if (club?.subscriptionStatus !== "free") {
+    throw new HttpsError("failed-precondition", "A trial can only start from the free plan");
+  }
+
+  const now = new Date();
+  const trialEndsAt = new Date(now.getTime() + CLUB_TRIAL_DAYS * 86400000).toISOString();
+  await clubRef.update({
+    subscriptionStatus: "trial",
+    trialEndsAt,
+    trialStartedAt: now.toISOString(),
+  });
+
+  return { status: "trial", trialEndsAt };
+});
+
+// ---------------------------------------------------------------------------
 // uploadPostMedia — attach a photo to a club post (the gallery).
 //
 // Same shape as uploadChannelMedia: the client can't write to Storage directly

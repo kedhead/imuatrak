@@ -268,6 +268,20 @@ export async function removeMember(clubId: string, uid: string): Promise<void> {
   // memberCount handled by the onMemberLeave trigger.
 }
 
+/**
+ * Start the club's one-time, opt-in 7-day free trial. Server-side (billing
+ * fields are not client-writable); throws if the club already used its trial
+ * or isn't on the free plan.
+ */
+export async function startClubTrial(clubId: string): Promise<{ trialEndsAt: string }> {
+  const fn = httpsCallable<{ clubId: string }, { status: string; trialEndsAt: string }>(
+    functions,
+    "startClubTrial",
+  );
+  const { data } = await fn({ clubId });
+  return { trialEndsAt: data.trialEndsAt };
+}
+
 // ── Invite links ─────────────────────────────────────────────────────────────
 
 export async function createInviteToken(clubId: string): Promise<string> {

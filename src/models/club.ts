@@ -35,6 +35,9 @@ export interface Club {
   subscriptionStatus: SubscriptionStatus;
   subscriptionTier: SubscriptionTier;
   trialEndsAt?: string;
+  /** Set once, server-side, when an owner opts into the one-time free trial.
+   *  Its presence is the durable proof a club has already used its trial. */
+  trialStartedAt?: string;
   subscriptionRenewsAt?: string;
   /** Set by the syncClubPlan/revenuecatWebhook Cloud Functions when an
    *  owner/admin's in-app club plan is keeping this club active. */

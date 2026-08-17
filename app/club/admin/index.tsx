@@ -20,7 +20,7 @@ import { deleteField } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/services/firebase";
 import { useClub } from "@/services/clubStore";
-import { updateClub, leaveClub, countExpiringMessages } from "@/services/clubService";
+import { updateClub, leaveClub, countExpiringMessages, startClubTrial } from "@/services/clubService";
 import { CHAT_RETENTION_OPTIONS } from "@/models/club";
 import { currentUser } from "@/services/auth";
 import { colors, spacing, radii } from "@/ui/theme";
@@ -31,6 +31,8 @@ export default function ClubAdminScreen() {
   const role = useClub((s) => s.role);
   const setClub = useClub((s) => s.setClub);
   const clearClub = useClub((s) => s.clearClub);
+  const loadClubs = useClub((s) => s.load);
+  const [startingTrial, setStartingTrial] = useState(false);
 
   const [name, setName] = useState(club?.name ?? "");
   const [description, setDescription] = useState(club?.description ?? "");
@@ -224,6 +226,25 @@ export default function ClubAdminScreen() {
     ]);
   };
 
+  const handleStartTrial = async () => {
+    if (!club || startingTrial) return;
+    setStartingTrial(true);
+    try {
+      const { trialEndsAt } = await startClubTrial(club.id);
+      const uid = currentUser()?.uid;
+      if (uid) await loadClubs(uid);
+      Alert.alert(
+        "Trial started 🎉",
+        `${club.name} is Pro until ${new Date(trialEndsAt).toLocaleDateString()} — ads off and every feature unlocked for all members.`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert("Couldn't start trial", msg);
+    } finally {
+      setStartingTrial(false);
+    }
+  };
+
   const subStatus = club.subscriptionStatus;
   const subLabel = subStatus === "trial"
     ? `Free trial — expires ${club.trialEndsAt ? new Date(club.trialEndsAt).toLocaleDateString() : "soon"}`
@@ -254,6 +275,18 @@ export default function ClubAdminScreen() {
             {subLabel}
           </Text>
         </Pressable>
+
+        {/* One-time opt-in trial — only for a free club that hasn't used it. */}
+        {subStatus === "free" && !club.trialStartedAt && (
+          <Pressable style={styles.trialBtn} onPress={handleStartTrial} disabled={startingTrial}>
+            {startingTrial ? (
+              <ActivityIndicator size="small" color={colors.blue} />
+            ) : (
+              <Ionicons name="gift-outline" size={18} color={colors.blue} />
+            )}
+            <Text style={styles.trialBtnText}>Start 7-day free trial</Text>
+          </Pressable>
+        )}
 
         {/* Club logo */}
         <Text style={styles.sectionLabel}>CLUB LOGO</Text>
@@ -387,6 +420,18 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.xs },
   subBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#EBF3FB", borderRadius: radii.md, padding: spacing.md },
   subText: { fontSize: 14, color: colors.blue, fontWeight: "600", flex: 1 },
+  trialBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: colors.blue,
+  },
+  trialBtnText: { fontSize: 14, color: colors.blue, fontWeight: "700" },
   sectionLabel: { fontSize: 11, fontWeight: "700", color: colors.muted, letterSpacing: 1.2, marginTop: spacing.lg },
   retentionRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm },
   retentionPill: {
