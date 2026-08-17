@@ -652,7 +652,12 @@ export default function ChannelChatScreen() {
                 setViewerPage(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))
               }
               renderItem={({ item }) => (
-                <Pressable style={styles.viewerPage} onPress={() => setViewer(null)}>
+                <Pressable
+                  style={styles.viewerPage}
+                  onPress={() => setViewer(null)}
+                  onLongPress={() => setViewerMenu(true)}
+                  delayLongPress={300}
+                >
                   <Image source={{ uri: item }} style={styles.viewerImage} resizeMode="contain" />
                 </Pressable>
               )}
@@ -663,13 +668,6 @@ export default function ChannelChatScreen() {
               hitSlop={16}
             >
               <Ionicons name="close" size={30} color={colors.white} />
-            </Pressable>
-            <Pressable
-              style={[styles.viewerSave, { top: Math.max(insets.top, spacing.sm) }]}
-              onPress={() => setViewerMenu(true)}
-              hitSlop={16}
-            >
-              <Ionicons name="ellipsis-horizontal" size={28} color={colors.white} />
             </Pressable>
 
             {/* WhatsApp-style action menu for the visible image */}
@@ -829,6 +827,7 @@ function MessageBubble({
             urls={photoUrls}
             uploading={uploading}
             onPressImage={(i) => onPressImage(photoUrls, i)}
+            onLongPress={onLongPress}
           />
         )}
 
@@ -837,7 +836,13 @@ function MessageBubble({
         )}
 
         {linkedImages.map((url) => (
-          <Pressable key={url} style={styles.mediaWrap} onPress={() => onPressImage([url], 0)}>
+          <Pressable
+            key={url}
+            style={styles.mediaWrap}
+            onPress={() => onPressImage([url], 0)}
+            onLongPress={onLongPress}
+            delayLongPress={300}
+          >
             <Image source={{ uri: url }} style={styles.mediaImage} resizeMode="cover" />
           </Pressable>
         ))}
@@ -887,14 +892,21 @@ function MediaGrid({
   urls,
   uploading,
   onPressImage,
+  onLongPress,
 }: {
   urls: string[];
   uploading: boolean;
   onPressImage: (index: number) => void;
+  onLongPress: () => void;
 }) {
   if (urls.length === 1) {
     return (
-      <Pressable style={styles.mediaWrap} onPress={() => onPressImage(0)}>
+      <Pressable
+        style={styles.mediaWrap}
+        onPress={() => onPressImage(0)}
+        onLongPress={onLongPress}
+        delayLongPress={300}
+      >
         <Image source={{ uri: urls[0] }} style={styles.mediaImage} resizeMode="cover" />
         {uploading && (
           <View style={styles.uploadingOverlay}>
@@ -911,7 +923,13 @@ function MediaGrid({
     <View style={styles.mediaWrap}>
       <View style={styles.gridWrap}>
         {shown.map((u, i) => (
-          <Pressable key={`${u}-${i}`} style={styles.gridTile} onPress={() => onPressImage(i)}>
+          <Pressable
+            key={`${u}-${i}`}
+            style={styles.gridTile}
+            onPress={() => onPressImage(i)}
+            onLongPress={onLongPress}
+            delayLongPress={300}
+          >
             <Image source={{ uri: u }} style={styles.gridImage} resizeMode="cover" />
             {i === shown.length - 1 && extra > 0 && (
               <View style={styles.gridMore}>
@@ -1156,16 +1174,6 @@ const styles = StyleSheet.create({
   viewerClose: {
     position: "absolute",
     right: spacing.md,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  viewerSave: {
-    position: "absolute",
-    left: spacing.md,
     width: 40,
     height: 40,
     borderRadius: 20,
