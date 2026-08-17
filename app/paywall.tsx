@@ -35,6 +35,22 @@ function periodLabel(pkg: PurchasesPackage): string {
   }
 }
 
+// The App Store product title is the same ("ImuaTrak+") for every plan, so
+// two cards look like duplicates. Title each card by its billing period
+// instead, which is the thing that actually distinguishes them.
+function planTitle(pkg: PurchasesPackage): string {
+  switch (pkg.packageType) {
+    case PACKAGE_TYPE.WEEKLY:       return "Weekly";
+    case PACKAGE_TYPE.MONTHLY:      return "Monthly";
+    case PACKAGE_TYPE.TWO_MONTH:    return "2 months";
+    case PACKAGE_TYPE.THREE_MONTH:  return "3 months";
+    case PACKAGE_TYPE.SIX_MONTH:    return "6 months";
+    case PACKAGE_TYPE.ANNUAL:       return "Yearly";
+    case PACKAGE_TYPE.LIFETIME:     return "Lifetime";
+    default:                        return pkg.product.title || "Plan";
+  }
+}
+
 const FEATURES = [
   { icon: "water-outline" as const, text: "GPS session tracking with pace, stroke rate & distance" },
   { icon: "map-outline" as const, text: "Route maps, splits & session history" },
@@ -159,7 +175,7 @@ export default function Paywall() {
           </GradientCard>
         </View>
 
-        {packages.length > 0 && (
+        {canBuyPersonal && packages.length > 0 && (
           <View style={styles.packages}>
             {packages.map((pkg) => (
               <PackageCard
@@ -264,7 +280,7 @@ function PackageCard({
       style={[styles.pkgCard, selected && styles.pkgCardSelected]}
     >
       <Text style={[styles.pkgTitle, selected && styles.pkgTitleSelected]}>
-        {pkg.product.title || pkg.packageType}
+        {planTitle(pkg)}
       </Text>
       <Text style={[styles.pkgPrice, selected && styles.pkgPriceSelected]}>
         {pkg.product.priceString}
