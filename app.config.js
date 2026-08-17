@@ -260,6 +260,13 @@ const config = {
         savePhotosPermission:
           "ImuaTrak saves photos you download from club chat to your photo library.",
         isAccessMediaLocationEnabled: false,
+        // Add NO broad read-media permissions on Android. The default would
+        // inject READ_MEDIA_IMAGES/VIDEO/AUDIO, which forces Google Play's
+        // "Photo and video permissions declaration" and blocked our submit —
+        // but we only ever call saveToLibraryAsync (a MediaStore write), so we
+        // don't need read access. Saving still works via the retained
+        // WRITE_EXTERNAL_STORAGE (<=API 32) and scoped MediaStore on newer OS.
+        granularPermissions: [],
       },
     ],
     [
