@@ -350,6 +350,16 @@ export default function ChannelChatScreen() {
     if (result.canceled || result.assets.length === 0) return;
 
     const name = user.displayName ?? "Member";
+    // Anything typed in the composer becomes the caption on the media (like
+    // WhatsApp). It lands on the first message sent; clear the box so it isn't
+    // also posted as a separate text message.
+    let pendingCaption = text.trim();
+    const takeCaption = () => {
+      const c = pendingCaption;
+      pendingCaption = "";
+      return c;
+    };
+    if (pendingCaption) setText("");
     const isVideo = (a: ImagePicker.ImagePickerAsset) =>
       (a.mimeType ?? "").startsWith("video") || a.type === "video";
     const videos = result.assets.filter(isVideo);
@@ -359,7 +369,7 @@ export default function ChannelChatScreen() {
       // Each video is its own message (single-attachment flow).
       for (const v of videos) {
         const mime = v.mimeType ?? "video/mp4";
-        const msg = await sendMessage(club.id, channelId, user.uid, name, "", { mediaType: "video" });
+        const msg = await sendMessage(club.id, channelId, user.uid, name, takeCaption(), { mediaType: "video" });
         setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: v.uri } : m)));
         setUploadingId(msg.id);
         const url = await uploadMessageMedia(club.id, channelId, msg.id, v.uri, mime);
@@ -370,14 +380,14 @@ export default function ChannelChatScreen() {
       if (images.length === 1) {
         const img = images[0]!;
         const mime = img.mimeType ?? "image/jpeg";
-        const msg = await sendMessage(club.id, channelId, user.uid, name, "", { mediaType: "photo" });
+        const msg = await sendMessage(club.id, channelId, user.uid, name, takeCaption(), { mediaType: "photo" });
         setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: img.uri } : m)));
         setUploadingId(msg.id);
         const url = await uploadMessageMedia(club.id, channelId, msg.id, img.uri, mime);
         setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrl: url } : m)));
       } else if (images.length > 1) {
         // One message carrying all images — rendered as a WhatsApp-style grid.
-        const msg = await sendMessage(club.id, channelId, user.uid, name, "", { mediaType: "photo" });
+        const msg = await sendMessage(club.id, channelId, user.uid, name, takeCaption(), { mediaType: "photo" });
         const localUris = images.map((i) => i.uri);
         setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, mediaUrls: localUris } : m)));
         setUploadingId(msg.id);
@@ -413,7 +423,11 @@ export default function ChannelChatScreen() {
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        // Android already resizes the window for the keyboard (adjustResize is
+        // Expo's default softwareKeyboardLayoutMode), so KeyboardAvoidingView
+        // must NOT also adjust — "height" double-shifted the composer and hid
+        // the text being typed. Let the window resize handle it (undefined).
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         // Header = status bar (safe-area top inset, varies by device) + 44pt
         // nav bar. The old hardcoded 88 was wrong on notched iPhones, so the
         // keyboard overlapped the newest chat bubbles.
@@ -711,6 +725,22 @@ export default function ChannelChatScreen() {
 const SCREEN_W = Dimensions.get("window").width;
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
+// Timestamp under each bubble. Today's messages show just the time (the date
+// is implied); older ones prepend the date so you can tell when it was sent.
+function formatMessageTime(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return time;
+  const date = d.toLocaleDateString(
+    [],
+    d.getFullYear() === now.getFullYear()
+      ? { month: "short", day: "numeric" }
+      : { year: "numeric", month: "short", day: "numeric" },
+  );
+  return `${date}, ${time}`;
+}
+
 // Per-role accents for chat. Members get no badge and the default bubble so
 // the feed stays clean; owner/admin/coach are highlighted.
 const ROLE_META: Record<MemberRole, { label: string; color: string; bubbleBg: string } | null> = {
@@ -744,10 +774,7 @@ function MessageBubble({
   onToggleReaction: (emoji: string) => void;
   onPressImage: (urls: string[], index: number) => void;
 }) {
-  const time = new Date(message.createdAt).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const time = formatMessageTime(message.createdAt);
   const roleMeta = role ? ROLE_META[role] : null;
 
   // Pasted GIF/image links (Giphy/Tenor media URLs etc.) render inline; when
