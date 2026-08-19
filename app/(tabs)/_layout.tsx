@@ -7,26 +7,47 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
+import { currentUser } from "@/services/auth";
+import { useClub } from "@/services/clubStore";
+import { useClubUnreadCount } from "@/services/unread";
 import { colors, shadow, type } from "@/ui/theme";
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
-function TabIcon({ name, color, focused }: { name: IoniconName; color: ColorValue; focused: boolean }) {
+function TabIcon({
+  name,
+  color,
+  focused,
+  alert,
+}: {
+  name: IoniconName;
+  color: ColorValue;
+  focused: boolean;
+  alert?: boolean;
+}) {
   const scale = useSharedValue(1);
   useEffect(() => {
     scale.value = withSpring(focused ? 1.18 : 1, { damping: 12, stiffness: 260 });
   }, [focused, scale]);
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  // Unread club messages tint the icon and show a dot — but only when this
+  // isn't the active tab, since opening the tab reads the messages anyway.
+  const showAlert = !!alert && !focused;
 
   return (
     <Animated.View style={[styles.icon, style]}>
-      <Ionicons name={name} color={color} size={24} />
+      <Ionicons name={name} color={showAlert ? colors.coral : color} size={24} />
       {focused && <View style={[styles.dot, { backgroundColor: color }]} />}
+      {showAlert && <View style={styles.unreadDot} />}
     </Animated.View>
   );
 }
 
 export default function TabsLayout() {
+  const clubId = useClub((s) => s.club?.id);
+  const role = useClub((s) => s.role);
+  const clubUnread = useClubUnreadCount(clubId, currentUser()?.uid, role);
+
   return (
     <Tabs
       screenOptions={{
@@ -56,7 +77,9 @@ export default function TabsLayout() {
         name="club"
         options={{
           title: "Club",
-          tabBarIcon: ({ color, focused }) => <TabIcon name="people" color={color} focused={focused} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="people" color={color} focused={focused} alert={clubUnread > 0} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -86,4 +109,15 @@ const styles = StyleSheet.create({
   label: { fontSize: 11, fontWeight: type.weight.bold, marginTop: 2 },
   icon: { alignItems: "center", justifyContent: "center" },
   dot: { width: 5, height: 5, borderRadius: 3, marginTop: 3 },
+  unreadDot: {
+    position: "absolute",
+    top: -2,
+    right: -3,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.coral,
+    borderWidth: 1.5,
+    borderColor: colors.white,
+  },
 });
