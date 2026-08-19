@@ -725,16 +725,14 @@ export default function ChannelChatScreen() {
 const SCREEN_W = Dimensions.get("window").width;
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
-// Timestamp under each bubble. Today's messages show just the time (the date
-// is implied); older ones prepend the date so you can tell when it was sent.
+// Timestamp under each bubble — always shows the date and the time. The year
+// is included only when the message is from a previous year, to keep it short.
 function formatMessageTime(iso: string): string {
   const d = new Date(iso);
-  const now = new Date();
   const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (d.toDateString() === now.toDateString()) return time;
   const date = d.toLocaleDateString(
     [],
-    d.getFullYear() === now.getFullYear()
+    d.getFullYear() === new Date().getFullYear()
       ? { month: "short", day: "numeric" }
       : { year: "numeric", month: "short", day: "numeric" },
   );
