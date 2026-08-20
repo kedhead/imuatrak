@@ -580,9 +580,9 @@ function EventDetail({
         onRequestClose={() => setAssignTarget(null)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setAssignTarget(null)}>
-          <View style={styles.modalSheet}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Assign seat</Text>
-            <ScrollView>
+            <ScrollView style={styles.assignScroll}>
               <Pressable style={styles.assignRow} onPress={() => handleAssignSeat(null)}>
                 <Ionicons name="close-circle-outline" size={20} color={colors.muted} />
                 <Text style={[styles.assignName, { color: colors.muted }]}>Clear seat</Text>
@@ -620,7 +620,7 @@ function EventDetail({
                 </Pressable>
               ))}
             </ScrollView>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -1026,7 +1026,11 @@ const styles = StyleSheet.create({
 
   // Seat assignment modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: colors.white, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing.lg, maxHeight: "60%" },
+  modalSheet: { backgroundColor: colors.white, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing.lg, maxHeight: "80%" },
+  // flexShrink lets the ScrollView bound itself to the sheet's height instead
+  // of expanding to its full content height (which left the list unscrollable
+  // and clipped the people at the bottom).
+  assignScroll: { flexShrink: 1 },
   modalTitle: { fontSize: type.size.lg, fontWeight: type.weight.heavy, color: colors.ink, marginBottom: spacing.md },
   assignRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
   assignName: { fontSize: type.size.md, color: colors.ink },
