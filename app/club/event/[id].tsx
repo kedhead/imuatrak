@@ -1029,7 +1029,10 @@ const styles = StyleSheet.create({
 
   // Seat assignment modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: colors.white, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing.lg, maxHeight: "80%" },
+  // minHeight brings the sheet up to a consistent position instead of hugging
+  // the bottom when only a few paddlers are listed; it still grows to maxHeight
+  // (and the list scrolls) as the roster fills.
+  modalSheet: { backgroundColor: colors.white, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: spacing.lg, minHeight: "60%", maxHeight: "85%" },
   // flexShrink lets the ScrollView bound itself to the sheet's height instead
   // of expanding to its full content height (which left the list unscrollable
   // and clipped the people at the bottom).
