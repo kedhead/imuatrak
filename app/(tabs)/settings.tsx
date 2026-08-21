@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { router, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CRAFT_TYPES, type CraftType } from "@/models";
+import { formatBirthday, paddleSideLabel, type PaddleSide } from "@/models/club";
 import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
-import { leaveClub, syncMemberDisplayName, uploadAvatar } from "@/services/clubService";
+import { leaveClub, syncMemberDisplayName, syncMemberProfile, uploadAvatar } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
@@ -28,6 +30,16 @@ function kgDisplay(kg: number, imperial: boolean) {
 }
 function kmDisplay(km: number, imperial: boolean) {
   return km > 0 ? String(Math.round(km * (imperial ? KM_TO_MI : 1) * 10) / 10) : "";
+}
+
+// The birthday is stored as "MM-DD"; the date picker needs a Date. Use a
+// fixed year (the value is only read for month/day).
+function birthdayToDate(mmdd: string | undefined): Date {
+  if (mmdd) {
+    const [m, d] = mmdd.split("-").map(Number);
+    if (m && d) return new Date(2000, m - 1, d);
+  }
+  return new Date(2000, 0, 1);
 }
 
 export default function Settings() {
@@ -79,11 +91,40 @@ export default function Settings() {
   // when the club store reloads — hold the freshly uploaded URL locally so the
   // new picture appears immediately.
   const members = useClub((s) => s.members);
-  const rosterAvatarUrl = useMemo(
-    () => members.find((m) => m.uid === user?.uid)?.avatarUrl,
+  const myMember = useMemo(
+    () => members.find((m) => m.uid === user?.uid),
     [members, user?.uid],
   );
+  const rosterAvatarUrl = myMember?.avatarUrl;
   const avatarUrl = uploadedAvatarUrl ?? rosterAvatarUrl;
+
+  // Paddling profile (birthday + preferred side), stored on the member doc and
+  // synced across every club. Seeded from the roster copy; re-seed when it loads.
+  const [birthday, setBirthday] = useState<string | undefined>(undefined);
+  const [paddleSide, setPaddleSide] = useState<PaddleSide | undefined>(undefined);
+  const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  useEffect(() => {
+    setBirthday(myMember?.birthday);
+    setPaddleSide(myMember?.paddleSide);
+  }, [myMember?.birthday, myMember?.paddleSide]);
+
+  const profileDirty =
+    !!myMember && (birthday !== myMember.birthday || paddleSide !== myMember.paddleSide);
+
+  const onSaveProfile = async () => {
+    if (!user || savingProfile) return;
+    setSavingProfile(true);
+    try {
+      await syncMemberProfile(user.uid, { birthday, paddleSide });
+      await loadClubs(user.uid);
+      Alert.alert("Saved", "Your paddling profile is updated.");
+    } catch {
+      Alert.alert("Error", "Couldn't save your paddling profile.");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const onPickAvatar = async () => {
     if (!user || uploadingAvatar) return;
@@ -302,6 +343,77 @@ export default function Settings() {
                     style={{ marginTop: spacing.sm }}
                   />
                 )}
+                {myMember && (
+                  <>
+                    <Text style={[styles.label, { marginTop: spacing.md }]}>BIRTHDAY</Text>
+                    <Pressable style={styles.selectRow} onPress={() => setShowBirthdayPicker(true)}>
+                      <Ionicons name="gift-outline" size={18} color={colors.ocean} />
+                      <Text style={styles.selectValue}>
+                        {formatBirthday(birthday) ?? "Add your birthday"}
+                      </Text>
+                      {birthday && (
+                        <Pressable onPress={() => setBirthday(undefined)} hitSlop={10}>
+                          <Ionicons name="close-circle" size={18} color={colors.muted} />
+                        </Pressable>
+                      )}
+                    </Pressable>
+                    <Text style={styles.fieldHint}>
+                      Only the month and day are saved, so your club can celebrate it.
+                    </Text>
+
+                    <Text style={[styles.label, { marginTop: spacing.md }]}>PADDLING SIDE</Text>
+                    <View style={styles.sideRow}>
+                      {(["left", "right", "either"] as PaddleSide[]).map((s) => (
+                        <Pressable
+                          key={s}
+                          style={[styles.sideChip, paddleSide === s && styles.sideChipOn]}
+                          onPress={() => setPaddleSide(paddleSide === s ? undefined : s)}
+                        >
+                          <Text style={[styles.sideChipText, paddleSide === s && styles.sideChipTextOn]}>
+                            {paddleSideLabel(s)}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <Text style={styles.fieldHint}>Helps coaches seat you on the right side.</Text>
+
+                    {showBirthdayPicker && (
+                      <>
+                        <DateTimePicker
+                          value={birthdayToDate(birthday)}
+                          mode="date"
+                          display={Platform.OS === "ios" ? "spinner" : "default"}
+                          onChange={(event, date) => {
+                            if (Platform.OS !== "ios") setShowBirthdayPicker(false);
+                            if (event.type === "dismissed" || !date) return;
+                            const mm = String(date.getMonth() + 1).padStart(2, "0");
+                            const dd = String(date.getDate()).padStart(2, "0");
+                            setBirthday(`${mm}-${dd}`);
+                          }}
+                        />
+                        {Platform.OS === "ios" && (
+                          <Button
+                            title="Done"
+                            gradient="ocean"
+                            onPress={() => setShowBirthdayPicker(false)}
+                            style={{ marginTop: spacing.sm }}
+                          />
+                        )}
+                      </>
+                    )}
+
+                    {profileDirty && (
+                      <Button
+                        title={savingProfile ? "Saving…" : "Save paddling profile"}
+                        gradient="aqua"
+                        onPress={onSaveProfile}
+                        disabled={savingProfile}
+                        style={{ marginTop: spacing.sm }}
+                      />
+                    )}
+                  </>
+                )}
+
                 <Button
                   title={dmUnread > 0 ? `Messages (${dmUnread > 9 ? "9+" : dmUnread})` : "Messages"}
                   gradient="ocean"
@@ -580,6 +692,29 @@ const styles = StyleSheet.create({
   body: { color: colors.ink, fontSize: type.size.md },
   label: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.muted, letterSpacing: type.spacing.label, textTransform: "uppercase", marginBottom: spacing.xs },
   nameInput: { backgroundColor: colors.bgSoft, borderRadius: radii.md, padding: spacing.sm + 2, fontSize: type.size.md, color: colors.ink },
+  selectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.bgSoft,
+    borderRadius: radii.md,
+    padding: spacing.sm + 2,
+  },
+  selectValue: { flex: 1, fontSize: type.size.md, color: colors.ink },
+  fieldHint: { fontSize: type.size.xs, color: colors.muted, marginTop: spacing.xs },
+  sideRow: { flexDirection: "row", gap: spacing.sm },
+  sideChip: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.bgSoft,
+  },
+  sideChipOn: { borderColor: colors.ocean, backgroundColor: "rgba(7,49,79,0.06)" },
+  sideChipText: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.muted },
+  sideChipTextOn: { color: colors.ocean },
   avatarRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.xs },
   avatarHint: { fontSize: type.size.sm, color: colors.ocean, fontWeight: type.weight.medium },
   sectionTitle: {

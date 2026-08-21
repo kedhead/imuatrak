@@ -16,7 +16,14 @@ import { openDmThread } from "@/services/dmService";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
 import { useDmUnreadByThread } from "@/services/unread";
-import { clubGrantsAdFree, dmThreadId, type ClubMember, type MemberRole } from "@/models/club";
+import {
+  clubGrantsAdFree,
+  dmThreadId,
+  isBirthdayToday,
+  paddleSideLabel,
+  type ClubMember,
+  type MemberRole,
+} from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
 import { colors, spacing, radii } from "@/ui/theme";
 
@@ -128,8 +135,14 @@ export default function MembersScreen() {
           <Pressable style={styles.row} onLongPress={() => handleLongPress(item)}>
             <Avatar uri={item.avatarUrl} name={item.displayName} uid={item.uid} role={item.role} size={40} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{item.displayName}</Text>
-              <Text style={styles.role}>{ROLE_LABEL[item.role]}</Text>
+              <Text style={styles.name}>
+                {item.displayName}
+                {isBirthdayToday(item.birthday) ? "  🎂" : ""}
+              </Text>
+              <Text style={styles.role}>
+                {ROLE_LABEL[item.role]}
+                {paddleSideLabel(item.paddleSide) ? ` · ${paddleSideLabel(item.paddleSide)} side` : ""}
+              </Text>
             </View>
             {item.uid === me?.uid ? (
               <Text style={styles.youBadge}>You</Text>

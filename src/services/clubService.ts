@@ -37,6 +37,7 @@ import type {
   ChannelPreference,
   FcmToken,
   MemberRole,
+  PaddleSide,
   EventType,
   PostType,
   PollOption,
@@ -171,6 +172,25 @@ export async function syncMemberDisplayName(uid: string, displayName: string): P
   await Promise.all(
     userClubs.clubIds.map((clubId) =>
       updateMemberDisplayName(clubId, uid, displayName).catch(() => undefined),
+    ),
+  );
+}
+
+/**
+ * Propagate a paddler's profile fields (birthday, paddling side) to their
+ * member doc in every club they belong to, so rosters and lineups everywhere
+ * see the same values. A member may write these on their own doc per the
+ * Firestore rules (role/uid unchanged).
+ */
+export async function syncMemberProfile(
+  uid: string,
+  fields: { birthday?: string; paddleSide?: PaddleSide },
+): Promise<void> {
+  const userClubs = await getUserClubs(uid);
+  if (!userClubs?.clubIds?.length) return;
+  await Promise.all(
+    userClubs.clubIds.map((clubId) =>
+      updateDoc(doc(db, "clubs", clubId, "members", uid), fields).catch(() => undefined),
     ),
   );
 }

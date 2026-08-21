@@ -24,6 +24,7 @@ import { useClub } from "@/services/clubStore";
 import { getPosts, createPost, deletePost, updatePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
 import { useClubUnreadCount, useDmUnreadCount } from "@/services/unread";
+import { isBirthdayToday } from "@/models/club";
 import type { ClubPost, ClubEvent, ClubComment, PollOption } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { LinkifiedText } from "@/ui/LinkifiedText";
@@ -154,6 +155,8 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const unread = useClubUnreadCount(clubId, user?.uid, role);
   // DMs are reached through the roster, so the people icon carries their badge.
   const dmUnread = useDmUnreadCount(user?.uid);
+  const members = useClub((s) => s.members);
+  const birthdayNames = members.filter((m) => isBirthdayToday(m.birthday)).map((m) => m.displayName);
 
   useEffect(() => {
     const load = async () => {
@@ -287,6 +290,14 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
         contentContainerStyle={{ paddingBottom: 120 }}
         ListHeaderComponent={
           <>
+            {birthdayNames.length > 0 && (
+              <View style={styles.birthdayBanner}>
+                <Text style={styles.birthdayText}>
+                  🎂 Happy birthday, {birthdayNames.join(", ")}!
+                </Text>
+              </View>
+            )}
+
             {/* Club identity card */}
             {(club?.logoUrl || club?.websiteUrl) && (
               <View style={styles.identityRow}>
@@ -961,6 +972,16 @@ const styles = StyleSheet.create({
   websiteChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.card, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, flex: 1 },
   websiteText: { fontSize: 13, color: colors.ocean, fontWeight: "600", flex: 1 },
   eventsStrip: { paddingTop: spacing.md },
+  birthdayBanner: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: "#FFF7E6",
+    borderWidth: 1,
+    borderColor: "#FCE7B0",
+  },
+  birthdayText: { fontSize: type.size.md, fontWeight: type.weight.bold, color: "#8A6D1B", textAlign: "center" },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, marginBottom: spacing.sm, marginTop: spacing.sm },
   sectionLabel: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.muted, letterSpacing: type.spacing.label },
   seeAll: { fontSize: type.size.sm, color: colors.ocean, fontWeight: type.weight.bold },

@@ -100,6 +100,9 @@ export function clubIsPro(
  *  Additional channels require the Pro club plan. */
 export const FREE_CHANNEL_LIMIT = 1;
 
+/** A paddler's preferred rigging side, so coaches can seat them correctly. */
+export type PaddleSide = "left" | "right" | "either";
+
 export interface ClubMember {
   uid: string;
   role: MemberRole;
@@ -107,6 +110,37 @@ export interface ClubMember {
   avatarUrl?: string;
   joinedAt: string;
   invitedBy?: string;
+  /** Birthday as "MM-DD" (no year — only month/day is needed to celebrate it,
+   *  and it keeps the paddler's age private). */
+  birthday?: string;
+  /** Preferred paddling side. Absent means not set. */
+  paddleSide?: PaddleSide;
+}
+
+/** Short label for a paddling side, or null when unset. */
+export function paddleSideLabel(side: PaddleSide | undefined): string | null {
+  switch (side) {
+    case "left": return "Left";
+    case "right": return "Right";
+    case "either": return "Either";
+    default: return null;
+  }
+}
+
+/** True when the "MM-DD" birthday falls on `now`'s month/day. */
+export function isBirthdayToday(birthday: string | undefined, now: Date = new Date()): boolean {
+  if (!birthday) return false;
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return birthday === `${mm}-${dd}`;
+}
+
+/** Format a "MM-DD" birthday as e.g. "Aug 20", or null when unset/invalid. */
+export function formatBirthday(birthday: string | undefined): string | null {
+  if (!birthday) return null;
+  const [mm, dd] = birthday.split("-").map(Number);
+  if (!mm || !dd) return null;
+  return new Date(2000, mm - 1, dd).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 export interface EventRsvp {

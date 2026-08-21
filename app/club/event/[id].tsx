@@ -37,6 +37,7 @@ import {
   findSeatOf,
   inferBoatType,
   isGuestStillGoing,
+  paddleSideLabel,
   seatableGuests,
   BOAT_SPECS,
   BOAT_TYPES,
@@ -589,12 +590,14 @@ function EventDetail({
               </Pressable>
               {goingUids.map((uid) => {
                 const m = memberByUid(uid);
+                const side = paddleSideLabel(m?.paddleSide);
                 return (
                   <Pressable key={uid} style={styles.assignRow} onPress={() => handleAssignSeat({ uid })}>
                     <View style={[styles.rosterAvatar, { backgroundColor: colors.ocean }]}>
                       <Text style={styles.rosterInitial}>{(m?.displayName?.[0] ?? "?").toUpperCase()}</Text>
                     </View>
                     <Text style={styles.assignName}>{m?.displayName ?? uid.slice(0, 8)}</Text>
+                    {side && <Text style={styles.sideTag}>{side}</Text>}
                     <Text style={styles.assignSeatedTag}>{seatedLabel({ uid })}</Text>
                   </Pressable>
                 );
@@ -1033,7 +1036,17 @@ const styles = StyleSheet.create({
   assignScroll: { flexShrink: 1 },
   modalTitle: { fontSize: type.size.lg, fontWeight: type.weight.heavy, color: colors.ink, marginBottom: spacing.md },
   assignRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
-  assignName: { fontSize: type.size.md, color: colors.ink },
+  assignName: { flex: 1, fontSize: type.size.md, color: colors.ink },
+  sideTag: {
+    fontSize: 11,
+    fontWeight: type.weight.bold,
+    color: colors.ocean,
+    backgroundColor: "rgba(7,49,79,0.08)",
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+    borderRadius: radii.sm,
+    overflow: "hidden",
+  },
 
   // Event form
   typeSelector: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xs },
