@@ -21,6 +21,7 @@ import {
   runTransaction,
   Timestamp,
   onSnapshot,
+  type FieldValue,
 } from "firebase/firestore";
 import * as FileSystem from "expo-file-system/legacy";
 import { httpsCallable } from "firebase/functions";
@@ -188,9 +189,16 @@ export async function syncMemberProfile(
 ): Promise<void> {
   const userClubs = await getUserClubs(uid);
   if (!userClubs?.clubIds?.length) return;
+  // Firestore rejects `undefined` field values, so an unset field must be sent
+  // as deleteField() — which both avoids the crash and correctly clears a value
+  // the user removed (the X on birthday, tapping a selected side off).
+  const payload: Record<string, string | FieldValue> = {
+    birthday: fields.birthday ?? deleteField(),
+    paddleSide: fields.paddleSide ?? deleteField(),
+  };
   await Promise.all(
     userClubs.clubIds.map((clubId) =>
-      updateDoc(doc(db, "clubs", clubId, "members", uid), fields).catch(() => undefined),
+      updateDoc(doc(db, "clubs", clubId, "members", uid), payload).catch(() => undefined),
     ),
   );
 }

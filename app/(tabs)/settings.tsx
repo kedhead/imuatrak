@@ -119,8 +119,9 @@ export default function Settings() {
       await syncMemberProfile(user.uid, { birthday, paddleSide });
       await loadClubs(user.uid);
       Alert.alert("Saved", "Your paddling profile is updated.");
-    } catch {
-      Alert.alert("Error", "Couldn't save your paddling profile.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Please try again.";
+      Alert.alert("Couldn't save your paddling profile", msg);
     } finally {
       setSavingProfile(false);
     }
