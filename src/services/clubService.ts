@@ -328,12 +328,22 @@ export async function resolveInviteToken(token: string): Promise<string | null> 
 
 // ── Events ───────────────────────────────────────────────────────────────────
 
+// Events are bucketed by their start DAY, not the current instant: an event
+// stays "upcoming" (and reachable, so the boat lineup is visible) from the
+// start of its day right through practice, and only moves to "past" once the
+// day rolls over. Keying off `now` instead dropped an in-progress practice out
+// of both lists — invisible while it was actually happening.
+function startOfTodayISO(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
 export async function getUpcomingEvents(clubId: string, maxItems = 10): Promise<ClubEvent[]> {
-  const now = new Date().toISOString();
   const snap = await getDocs(
     query(
       collection(db, "clubs", clubId, "events"),
-      where("startAt", ">=", now),
+      where("startAt", ">=", startOfTodayISO()),
       orderBy("startAt"),
       limit(maxItems),
     ),
@@ -342,12 +352,11 @@ export async function getUpcomingEvents(clubId: string, maxItems = 10): Promise<
 }
 
 export async function getPastEvents(clubId: string, maxItems = 20): Promise<ClubEvent[]> {
-  const now = new Date().toISOString();
   const snap = await getDocs(
     query(
       collection(db, "clubs", clubId, "events"),
-      where("endAt", "<", now),
-      orderBy("endAt", "desc"),
+      where("startAt", "<", startOfTodayISO()),
+      orderBy("startAt", "desc"),
       limit(maxItems),
     ),
   );
