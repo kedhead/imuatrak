@@ -16,6 +16,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -67,6 +68,10 @@ export default function ChannelChatScreen() {
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<TextInput>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  // Media picked but not yet sent — staged in the caption preview sheet.
+  const [pendingMedia, setPendingMedia] = useState<
+    { assets: ImagePicker.ImagePickerAsset[]; caption: string } | null
+  >(null);
   // Long-press action sheet target, reply-compose target, full-screen viewer.
   const [actionTarget, setActionTarget] = useState<ClubMessage | null>(null);
   const [replyTarget, setReplyTarget] = useState<NonNullable<ClubMessage["replyTo"]> | null>(null);
@@ -334,6 +339,9 @@ export default function ChannelChatScreen() {
     }
   };
 
+  // Pick media, then stage it in a preview so the sender can add a caption
+  // before it posts (rather than posting immediately with no chance to). Any
+  // text already in the composer pre-fills the caption.
   const onPickMedia = async () => {
     if (!club || !channelId || !user) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -348,22 +356,28 @@ export default function ChannelChatScreen() {
       selectionLimit: 8,
     });
     if (result.canceled || result.assets.length === 0) return;
+    setPendingMedia({ assets: result.assets, caption: text.trim() });
+    if (text.trim()) setText("");
+  };
+
+  const sendPendingMedia = async () => {
+    if (!club || !channelId || !user || !pendingMedia) return;
+    const { assets, caption } = pendingMedia;
+    setPendingMedia(null);
 
     const name = user.displayName ?? "Member";
-    // Anything typed in the composer becomes the caption on the media (like
-    // WhatsApp). It lands on the first message sent; clear the box so it isn't
-    // also posted as a separate text message.
-    let pendingCaption = text.trim();
+    // The caption lands on the first message sent (a multi-image batch is one
+    // message; mixed video+image batches put it on the first).
+    let pendingCaption = caption.trim();
     const takeCaption = () => {
       const c = pendingCaption;
       pendingCaption = "";
       return c;
     };
-    if (pendingCaption) setText("");
     const isVideo = (a: ImagePicker.ImagePickerAsset) =>
       (a.mimeType ?? "").startsWith("video") || a.type === "video";
-    const videos = result.assets.filter(isVideo);
-    const images = result.assets.filter((a) => !isVideo(a));
+    const videos = assets.filter(isVideo);
+    const images = assets.filter((a) => !isVideo(a));
 
     try {
       // Each video is its own message (single-attachment flow).
@@ -716,6 +730,57 @@ export default function ChannelChatScreen() {
               </Pressable>
             )}
           </View>
+        </Modal>
+      )}
+
+      {/* Media caption preview — pick, add a caption, then send. */}
+      {pendingMedia && (
+        <Modal visible transparent animationType="slide" onRequestClose={() => setPendingMedia(null)}>
+          <KeyboardAvoidingView
+            style={styles.previewFill}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+            <Pressable style={styles.previewBackdrop} onPress={() => setPendingMedia(null)}>
+              <Pressable style={styles.previewSheet} onPress={(e) => e.stopPropagation()}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.previewThumbs}
+                >
+                  {pendingMedia.assets.map((a, i) => {
+                    const vid = (a.mimeType ?? "").startsWith("video") || a.type === "video";
+                    return (
+                      <View key={`${a.uri}-${i}`} style={styles.previewThumbWrap}>
+                        <Image source={{ uri: a.uri }} style={styles.previewThumb} resizeMode="cover" />
+                        {vid && (
+                          <View style={styles.previewPlay}>
+                            <Ionicons name="play" size={18} color={colors.white} />
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+                <View style={styles.previewInputRow}>
+                  <TextInput
+                    style={styles.previewInput}
+                    value={pendingMedia.caption}
+                    onChangeText={(t) =>
+                      setPendingMedia((p) => (p ? { ...p, caption: t } : p))
+                    }
+                    placeholder="Add a caption…"
+                    placeholderTextColor={colors.muted}
+                    multiline
+                    maxLength={1000}
+                    autoFocus
+                  />
+                  <Pressable style={styles.previewSend} onPress={sendPendingMedia} hitSlop={8}>
+                    <Ionicons name="send" size={20} color={colors.white} />
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
         </Modal>
       )}
     </SafeAreaView>
@@ -1224,6 +1289,46 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.4)",
     borderRadius: radii.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewFill: { flex: 1 },
+  previewBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  previewSheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  previewThumbs: { gap: spacing.sm, paddingVertical: spacing.xs },
+  previewThumbWrap: { position: "relative" },
+  previewThumb: { width: 96, height: 96, borderRadius: radii.md, backgroundColor: colors.bgSoft },
+  previewPlay: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewInputRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
+  previewInput: {
+    flex: 1,
+    backgroundColor: colors.bgSoft,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: Platform.OS === "ios" ? spacing.sm : spacing.xs,
+    fontSize: type.size.md,
+    color: colors.ink,
+    maxHeight: 120,
+  },
+  previewSend: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.ocean,
     justifyContent: "center",
     alignItems: "center",
   },
