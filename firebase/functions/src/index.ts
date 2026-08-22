@@ -4,7 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { setGlobalOptions } from "firebase-functions/v2";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
@@ -338,6 +338,123 @@ export const startClubTrial = onCall(async (request) => {
   });
 
   return { status: "trial", trialEndsAt };
+});
+
+// ---------------------------------------------------------------------------
+// clubCalendar — public, read-only feed of a club's events, so an external
+// website (or a personal calendar app) can show the schedule and auto-update.
+//
+//   GET /clubCalendar?club={slug}              → iCalendar (.ics) feed
+//   GET /clubCalendar?club={slug}&format=json  → JSON array of events
+//
+// Runs with the Admin SDK, so it reads events past the member-only Firestore
+// rule — the feed is intentionally public (link-accessible by design). No auth.
+// CORS is open so a browser page can fetch the JSON.
+// ---------------------------------------------------------------------------
+interface CalendarEvent {
+  title?: string;
+  type?: string;
+  startAt?: string;
+  endAt?: string;
+  location?: { name?: string };
+  meetTime?: string;
+  description?: string;
+}
+
+function icsEscape(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+}
+// 2026-08-20T19:30:00.000Z -> 20260820T193000Z
+function toIcsDate(iso: string): string {
+  return new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+export const clubCalendar = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Methods", "GET");
+    res.status(204).send("");
+    return;
+  }
+
+  const slug = String(req.query.club ?? "").trim().toLowerCase();
+  const format = String(req.query.format ?? "ics").toLowerCase();
+  if (!slug) {
+    res.status(400).send("Missing ?club=<slug>");
+    return;
+  }
+
+  const db = getFirestore();
+  const clubSnap = await db.collection("clubs").where("slug", "==", slug).limit(1).get();
+  if (clubSnap.empty) {
+    res.status(404).send("Club not found");
+    return;
+  }
+  const clubDoc = clubSnap.docs[0];
+  const clubName = (clubDoc.data().name as string | undefined) ?? "Club";
+
+  // From 60 days ago forward — enough history for a calendar view, bounded.
+  const since = new Date(Date.now() - 60 * 86400000).toISOString();
+  const evSnap = await clubDoc.ref
+    .collection("events")
+    .where("startAt", ">=", since)
+    .orderBy("startAt")
+    .limit(500)
+    .get();
+  const events = evSnap.docs.map((d) => ({ id: d.id, ...(d.data() as CalendarEvent) }));
+
+  res.set("Cache-Control", "public, max-age=300");
+
+  if (format === "json") {
+    res.set("Content-Type", "application/json; charset=utf-8");
+    res.status(200).json({
+      club: clubName,
+      events: events.map((e) => ({
+        id: e.id,
+        title: e.title ?? "Event",
+        type: e.type ?? null,
+        startAt: e.startAt ?? null,
+        endAt: e.endAt ?? null,
+        location: e.location?.name ?? null,
+        meetTime: e.meetTime ?? null,
+        description: e.description ?? null,
+      })),
+    });
+    return;
+  }
+
+  const stamp = toIcsDate(new Date().toISOString());
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//ImuaTrak//Club Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    `X-WR-CALNAME:${icsEscape(clubName)} Schedule`,
+  ];
+  for (const e of events) {
+    if (!e.startAt) continue;
+    const end = e.endAt ?? new Date(new Date(e.startAt).getTime() + 90 * 60000).toISOString();
+    const desc: string[] = [];
+    if (e.meetTime) desc.push(`Meet: ${e.meetTime}`);
+    if (e.description) desc.push(e.description);
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${e.id}@imuatrak.app`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART:${toIcsDate(e.startAt)}`,
+      `DTEND:${toIcsDate(end)}`,
+      `SUMMARY:${icsEscape(`${e.title ?? "Event"}${e.type ? ` (${e.type})` : ""}`)}`,
+    );
+    if (e.location?.name) lines.push(`LOCATION:${icsEscape(e.location.name)}`);
+    if (desc.length) lines.push(`DESCRIPTION:${icsEscape(desc.join(" — "))}`);
+    lines.push("END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+
+  res.set("Content-Type", "text/calendar; charset=utf-8");
+  res.set("Content-Disposition", `inline; filename="${slug}.ics"`);
+  res.status(200).send(lines.join("\r\n"));
 });
 
 // ---------------------------------------------------------------------------
