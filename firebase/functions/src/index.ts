@@ -344,8 +344,12 @@ export const startClubTrial = onCall(async (request) => {
 // clubCalendar — public, read-only feed of a club's events, so an external
 // website (or a personal calendar app) can show the schedule and auto-update.
 //
-//   GET /clubCalendar?club={slug}              → iCalendar (.ics) feed
-//   GET /clubCalendar?club={slug}&format=json  → JSON array of events
+//   GET /clubCalendar?club={id-or-slug}              → iCalendar (.ics) feed
+//   GET /clubCalendar?club={id-or-slug}&format=json  → JSON array of events
+//
+// `club` accepts either the club's document ID (the value in an invite link,
+// imuatrak.app/join/{id}) or its slug — the ID is what a club owner can
+// actually see, so it's tried first.
 //
 // Runs with the Admin SDK, so it reads events past the member-only Firestore
 // rule — the feed is intentionally public (link-accessible by design). No auth.
@@ -377,21 +381,32 @@ export const clubCalendar = onRequest(async (req, res) => {
     return;
   }
 
-  const slug = String(req.query.club ?? "").trim().toLowerCase();
+  const clubParam = String(req.query.club ?? "").trim();
   const format = String(req.query.format ?? "ics").toLowerCase();
-  if (!slug) {
-    res.status(400).send("Missing ?club=<slug>");
+  if (!clubParam) {
+    res.status(400).send("Missing ?club=<id-or-slug>");
     return;
   }
 
   const db = getFirestore();
-  const clubSnap = await db.collection("clubs").where("slug", "==", slug).limit(1).get();
-  if (clubSnap.empty) {
+  // Try the document ID first (what an owner sees in an invite link), then fall
+  // back to a slug lookup.
+  let clubDoc = (await db.collection("clubs").doc(clubParam).get()) as
+    | FirebaseFirestore.DocumentSnapshot
+    | undefined;
+  if (!clubDoc?.exists) {
+    const bySlug = await db
+      .collection("clubs")
+      .where("slug", "==", clubParam.toLowerCase())
+      .limit(1)
+      .get();
+    clubDoc = bySlug.empty ? undefined : bySlug.docs[0];
+  }
+  if (!clubDoc?.exists) {
     res.status(404).send("Club not found");
     return;
   }
-  const clubDoc = clubSnap.docs[0];
-  const clubName = (clubDoc.data().name as string | undefined) ?? "Club";
+  const clubName = (clubDoc.data()?.name as string | undefined) ?? "Club";
 
   // From 60 days ago forward — enough history for a calendar view, bounded.
   const since = new Date(Date.now() - 60 * 86400000).toISOString();
@@ -453,7 +468,7 @@ export const clubCalendar = onRequest(async (req, res) => {
   lines.push("END:VCALENDAR");
 
   res.set("Content-Type", "text/calendar; charset=utf-8");
-  res.set("Content-Disposition", `inline; filename="${slug}.ics"`);
+  res.set("Content-Disposition", `inline; filename="${clubDoc.id}.ics"`);
   res.status(200).send(lines.join("\r\n"));
 });
 
