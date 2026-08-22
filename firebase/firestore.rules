@@ -254,10 +254,16 @@ service cloud.firestore {
           // message (same affectedKeys pattern as poll votes on posts).
           // Owners/admins may additionally pin, again touching nothing else, so
           // a pin can't smuggle an edit into someone else's message.
+          // The author may edit their own message's text — content, the
+          // editedAt marker, and the re-resolved mentions, and nothing else, so
+          // an "edit" can't change authorship, reactions, or media.
           allow update: if (isChannelMember()
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"]))
             || (hasClubRole(clubId, ["owner", "admin"])
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pinnedAt", "pinnedBy"]));
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pinnedAt", "pinnedBy"]))
+            || (isChannelMember()
+              && resource.data.authorId == request.auth.uid
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["content", "editedAt", "mentions"]));
         }
       }
 

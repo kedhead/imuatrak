@@ -34,6 +34,7 @@ import {
   deleteChannelMessage,
   setMessagePinned,
   toggleMessageReaction,
+  updateChannelMessage,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
 import {
@@ -75,6 +76,9 @@ export default function ChannelChatScreen() {
   // Long-press action sheet target, reply-compose target, full-screen viewer.
   const [actionTarget, setActionTarget] = useState<ClubMessage | null>(null);
   const [replyTarget, setReplyTarget] = useState<NonNullable<ClubMessage["replyTo"]> | null>(null);
+  // Message being edited, plus its working text.
+  const [editTarget, setEditTarget] = useState<ClubMessage | null>(null);
+  const [editText, setEditText] = useState("");
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
   // Which page the viewer is currently showing (updated on swipe), the
   // WhatsApp-style action menu, and a guard so a save/share can't fire twice
@@ -197,6 +201,32 @@ export default function ChannelChatScreen() {
         },
       },
     ]);
+  };
+
+  const beginEdit = (message: ClubMessage) => {
+    setEditTarget(message);
+    setEditText(message.content);
+  };
+
+  const saveEdit = async () => {
+    if (!club || !channelId || !editTarget) return;
+    const content = editText.trim();
+    if (!content || content === editTarget.content) {
+      setEditTarget(null);
+      return;
+    }
+    const mentions = resolveMentions(content, mentionTargets);
+    const editedAt = new Date().toISOString();
+    // Optimistic; the subscription reconciles if the write is rejected.
+    setMessages((prev) =>
+      prev.map((m) => (m.id === editTarget.id ? { ...m, content, mentions, editedAt } : m)),
+    );
+    setEditTarget(null);
+    try {
+      await updateChannelMessage(club.id, channelId, editTarget.id, content, mentions);
+    } catch {
+      Alert.alert("Couldn't save edit", "Please try again.");
+    }
   };
 
   // Chat media are remote URLs; both saving and sharing need a local file
@@ -597,6 +627,19 @@ export default function ChannelChatScreen() {
                 <Ionicons name="arrow-undo-outline" size={20} color={colors.ink} />
                 <Text style={styles.sheetRowText}>Reply</Text>
               </Pressable>
+              {!!user && actionTarget.authorId === user.uid && actionTarget.content.length > 0 && (
+                <Pressable
+                  style={styles.sheetRow}
+                  onPress={() => {
+                    const target = actionTarget;
+                    setActionTarget(null);
+                    beginEdit(target);
+                  }}
+                >
+                  <Ionicons name="create-outline" size={20} color={colors.ink} />
+                  <Text style={styles.sheetRowText}>Edit</Text>
+                </Pressable>
+              )}
               {mediaOf(actionTarget).urls.length > 0 && (
                 <>
                   <Pressable
@@ -776,6 +819,37 @@ export default function ChannelChatScreen() {
                   />
                   <Pressable style={styles.previewSend} onPress={sendPendingMedia} hitSlop={8}>
                     <Ionicons name="send" size={20} color={colors.white} />
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
+
+      {/* Edit message */}
+      {editTarget && (
+        <Modal visible transparent animationType="slide" onRequestClose={() => setEditTarget(null)}>
+          <KeyboardAvoidingView
+            style={styles.previewFill}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+            <Pressable style={styles.previewBackdrop} onPress={() => setEditTarget(null)}>
+              <Pressable style={styles.previewSheet} onPress={(e) => e.stopPropagation()}>
+                <Text style={styles.editTitle}>Edit message</Text>
+                <View style={styles.previewInputRow}>
+                  <TextInput
+                    style={styles.previewInput}
+                    value={editText}
+                    onChangeText={setEditText}
+                    placeholder="Message…"
+                    placeholderTextColor={colors.muted}
+                    multiline
+                    maxLength={1000}
+                    autoFocus
+                  />
+                  <Pressable style={styles.previewSend} onPress={saveEdit} hitSlop={8}>
+                    <Ionicons name="checkmark" size={22} color={colors.white} />
                   </Pressable>
                 </View>
               </Pressable>
@@ -968,7 +1042,9 @@ function MessageBubble({
           </View>
         )}
 
-        <Text style={[styles.timestamp, isMe && styles.timestampMe]}>{time}</Text>
+        <Text style={[styles.timestamp, isMe && styles.timestampMe]}>
+          {time}{message.editedAt ? " · edited" : ""}
+        </Text>
       </View>
     </Pressable>
   );
@@ -1305,6 +1381,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
   },
+  editTitle: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ink, marginBottom: spacing.xs },
   previewThumbs: { gap: spacing.sm, paddingVertical: spacing.xs },
   previewThumbWrap: { position: "relative" },
   previewThumb: { width: 96, height: 96, borderRadius: radii.md, backgroundColor: colors.bgSoft },

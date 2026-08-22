@@ -909,6 +909,26 @@ export async function setMessagePinned(
   );
 }
 
+/**
+ * Edit a message's text (author only, enforced by the Firestore rule). Stamps
+ * editedAt so the bubble can show an "edited" marker, and re-writes the
+ * resolved @-mentions since the text changed.
+ */
+export async function updateChannelMessage(
+  clubId: string,
+  channelId: string,
+  messageId: string,
+  content: string,
+  mentions: string[],
+): Promise<void> {
+  const ref = doc(db, "clubs", clubId, "channels", channelId, "messages", messageId);
+  await updateDoc(ref, {
+    content,
+    editedAt: new Date().toISOString(),
+    mentions: mentions.length ? mentions : deleteField(),
+  });
+}
+
 export async function uploadMessageMedia(
   clubId: string,
   channelId: string,

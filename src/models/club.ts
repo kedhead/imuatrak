@@ -485,6 +485,8 @@ export interface ClubMessage {
    */
   pinnedAt?: string;
   pinnedBy?: string;
+  /** Set when the author edited the message, so the bubble can show "edited". */
+  editedAt?: string;
   createdAt: string;
 }
 
