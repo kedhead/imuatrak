@@ -435,7 +435,7 @@ function EventDetail({
                 <Text style={styles.statLabel}>Maybe</Text>
               </View>
             </View>
-            {goingCount > 0 && (
+            {(goingCount > 0 || maybeUids.length > 0) && (
               <View style={styles.rosterWrap}>
                 {goingUids.map((uid) => {
                   const m = memberByUid(uid);
@@ -464,6 +464,21 @@ function EventDetail({
                       </View>
                     )),
                   )}
+                {maybeUids.map((uid) => {
+                  const m = memberByUid(uid);
+                  const initial = (m?.displayName?.[0] ?? "?").toUpperCase();
+                  return (
+                    <View key={`maybe-${uid}`} style={styles.rosterChip}>
+                      <View style={[styles.rosterAvatar, { backgroundColor: colors.muted }]}>
+                        <Text style={styles.rosterInitial}>{initial}</Text>
+                      </View>
+                      <Text style={styles.rosterName} numberOfLines={1}>
+                        {m?.displayName ?? uid.slice(0, 6)}
+                      </Text>
+                      <Text style={styles.maybeTag}>maybe</Text>
+                    </View>
+                  );
+                })}
               </View>
             )}
           </GradientCard>
