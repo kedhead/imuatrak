@@ -171,6 +171,9 @@ function EventDetail({
   const isAdmin = role === "owner" || role === "admin" || role === "coach";
 
   const goingUids = event?.rsvps.filter((r) => r.status === "going").map((r) => r.uid) ?? [];
+  // "Maybe" paddlers are seatable too, but shown greyed with a Maybe tag so a
+  // coach knows the lineup slot is tentative.
+  const maybeUids = event?.rsvps.filter((r) => r.status === "maybe").map((r) => r.uid) ?? [];
   // Guests brought by going members, offered in the seat picker alongside them.
   const guestOptions = seatableGuests(event?.rsvps ?? []);
   // Headcount includes guests brought by going members.
@@ -597,6 +600,21 @@ function EventDetail({
                       <Text style={styles.rosterInitial}>{(m?.displayName?.[0] ?? "?").toUpperCase()}</Text>
                     </View>
                     <Text style={styles.assignName}>{m?.displayName ?? uid.slice(0, 8)}</Text>
+                    {side && <Text style={styles.sideTag}>{side}</Text>}
+                    <Text style={styles.assignSeatedTag}>{seatedLabel({ uid })}</Text>
+                  </Pressable>
+                );
+              })}
+              {maybeUids.map((uid) => {
+                const m = memberByUid(uid);
+                const side = paddleSideLabel(m?.paddleSide);
+                return (
+                  <Pressable key={uid} style={styles.assignRow} onPress={() => handleAssignSeat({ uid })}>
+                    <View style={[styles.rosterAvatar, { backgroundColor: colors.muted }]}>
+                      <Text style={styles.rosterInitial}>{(m?.displayName?.[0] ?? "?").toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.assignName}>{m?.displayName ?? uid.slice(0, 8)}</Text>
+                    <Text style={styles.maybeTag}>Maybe</Text>
                     {side && <Text style={styles.sideTag}>{side}</Text>}
                     <Text style={styles.assignSeatedTag}>{seatedLabel({ uid })}</Text>
                   </Pressable>
@@ -1045,6 +1063,16 @@ const styles = StyleSheet.create({
     fontWeight: type.weight.bold,
     color: colors.ocean,
     backgroundColor: "rgba(7,49,79,0.08)",
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+    borderRadius: radii.sm,
+    overflow: "hidden",
+  },
+  maybeTag: {
+    fontSize: 11,
+    fontWeight: type.weight.bold,
+    color: "#B4780A",
+    backgroundColor: "rgba(255,194,75,0.22)",
     paddingHorizontal: spacing.xs,
     paddingVertical: 1,
     borderRadius: radii.sm,
