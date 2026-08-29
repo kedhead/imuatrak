@@ -1934,6 +1934,18 @@ export const migrateMessagesToGeneralChannel = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
+// Garmin Connect IQ watch support — pairing + session ingest. Unlike
+// revenuecat.ts below, this module declares no secrets, so re-exporting it here
+// is safe for the deploy.
+// ---------------------------------------------------------------------------
+export {
+  createGarminPairingCode,
+  listGarminDevices,
+  unlinkGarminDevice,
+  garminIngest,
+} from "./garmin";
+
+// ---------------------------------------------------------------------------
 // Club plan billing (RevenueCat) lives in ./revenuecat and is deliberately NOT
 // imported here, which keeps it out of the deployed backend.
 //

@@ -54,7 +54,7 @@ render the home/list map preview. The full track lives in Cloud Storage as GPX.
   "id": "string",
   "userId": "string",
   "schemaVersion": 1,
-  "source": "ios-phone | ios-watch | android-phone | android-wear",
+  "source": "ios-phone | ios-watch | android-phone | android-wear | garmin | gpx-import",
   "appVersion": "string",
   "craftType": "OC1 | OC2 | OC6 | V1 | SUP | SURFSKI | DB10 | DB20 | OTHER",
   "startedAt": "ISO-8601 timestamp",
@@ -119,10 +119,17 @@ render the home/list map preview. The full track lives in Cloud Storage as GPX.
   "trackStoragePath": "users/{uid}/tracks/{sessionId}.gpx",
   "fitStoragePath":   "users/{uid}/tracks/{sessionId}.fit",
   "cardStoragePath":  "users/{uid}/cards/{sessionId}.png",
+  "garminTrackPath":  "users/{uid}/garminTracks/{sessionId}.json",
 
   "isPublic": false
 }
 ```
+
+`garminTrackPath` is set only on `source: "garmin"` sessions. A Garmin watch
+uploads to the `garminIngest` Cloud Function rather than handing off to the
+phone, so its full-resolution track is written to Storage there; the phone
+downloads it when it pulls the session into local storage, and falls back to
+the embedded `trackSummary` if the object is gone.
 
 `isPublic` defaults to `false`. When the user toggles "Share publicly"
 on in the app, the client writes a denormalized copy of this document

@@ -24,6 +24,21 @@ service cloud.firestore {
       return isClubMember(clubId) && getClubMember(clubId).role in roles;
     }
 
+    // ── Garmin watch pairing (server-only) ───────────────────────────────────
+    // Pairing codes and upload-token hashes are written and read exclusively by
+    // the garminIngest / createGarminPairingCode functions through the Admin
+    // SDK, which bypasses these rules. Spelled out rather than left to the
+    // default deny so it's obvious that direct client access is not an
+    // oversight: a readable garminPairing would let anyone claim someone else's
+    // watch, and a readable garminLinks would expose which accounts have one.
+    match /garminPairing/{code} {
+      allow read, write: if false;
+    }
+
+    match /garminLinks/{linkId} {
+      allow read, write: if false;
+    }
+
     // ── User sessions (private) ──────────────────────────────────────────────
     match /users/{uid} {
       allow read, write: if isOwner(uid);

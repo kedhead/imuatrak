@@ -1,0 +1,90 @@
+name: Garmin
+
+on:
+  pull_request:
+    paths: ["garmin/**", ".github/workflows/garmin.yml"]
+  push:
+    branches: [main]
+    paths: ["garmin/**", ".github/workflows/garmin.yml"]
+  workflow_dispatch:
+
+jobs:
+  # Cheap checks that need nothing but the repo. The Connect IQ compiler is not
+  # obtainable unattended (see the build job), so this is what every push gets.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate XML
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils
+          find garmin -name '*.xml' -print0 | xargs -0 -n1 xmllint --noout
+
+      - name: Check the Firebase project id is still a placeholder
+        # A real project id committed here would ship in every store build and
+        # be impossible to rotate per environment.
+        run: grep -q '__FIREBASE_PROJECT_ID__' garmin/resources/strings/strings.xml
+
+      - name: Check the developer key never landed in the repo
+        run: |
+          if git ls-files | grep -E 'developer_key'; then
+            echo "A Connect IQ developer key is committed — rotate it and remove it." >&2
+            exit 1
+          fi
+
+  # Compiling needs the Connect IQ SDK, which sits behind a Garmin licence
+  # click-through and has no unattended download. Point CONNECT_IQ_SDK_URL
+  # (repo variable) at a mirror your team controls and add the developer key as
+  # GARMIN_DEVELOPER_KEY_BASE64, and this job builds the store package; without
+  # them it skips, the way wear.yml skips its release steps without a keystore.
+  build:
+    runs-on: ubuntu-latest
+    needs: validate
+    env:
+      CONNECT_IQ_SDK_URL: ${{ vars.CONNECT_IQ_SDK_URL }}
+      HAS_KEY: ${{ secrets.GARMIN_DEVELOPER_KEY_BASE64 != '' }}
+      EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Skip notice
+        if: env.CONNECT_IQ_SDK_URL == '' || env.HAS_KEY != 'true'
+        run: |
+          echo "::notice::Connect IQ build skipped — set the CONNECT_IQ_SDK_URL variable" \
+               "and the GARMIN_DEVELOPER_KEY_BASE64 secret to enable it."
+
+      - uses: actions/setup-java@v4
+        if: env.CONNECT_IQ_SDK_URL != '' && env.HAS_KEY == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-node@v4
+        if: env.CONNECT_IQ_SDK_URL != '' && env.HAS_KEY == 'true'
+        with:
+          node-version: "22"
+
+      - name: Install the Connect IQ SDK
+        if: env.CONNECT_IQ_SDK_URL != '' && env.HAS_KEY == 'true'
+        run: |
+          curl -fsSL "$CONNECT_IQ_SDK_URL" -o sdk.zip
+          unzip -q sdk.zip -d "$HOME/connectiq"
+          echo "$HOME/connectiq/bin" >> "$GITHUB_PATH"
+          chmod +x "$HOME/connectiq/bin/"* || true
+
+      - name: Restore the developer key
+        if: env.CONNECT_IQ_SDK_URL != '' && env.HAS_KEY == 'true'
+        run: echo "${{ secrets.GARMIN_DEVELOPER_KEY_BASE64 }}" | base64 -d > garmin/developer_key.der
+
+      - name: Build the store package
+        if: env.CONNECT_IQ_SDK_URL != '' && env.HAS_KEY == 'true'
+        run: ./garmin/build.sh --store
+
+      - name: Upload artifact
+        if: env.CONNECT_IQ_SDK_URL != '' && env.HAS_KEY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: imuatrak-garmin
+          path: garmin/build/imuatrak.iq
+          retention-days: 30

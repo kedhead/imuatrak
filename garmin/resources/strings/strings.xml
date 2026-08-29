@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string id="AppName">ImuaTrak</string>
+
+  <!--
+    Firebase project the watch uploads to. Substituted at build time from
+    EXPO_PUBLIC_FIREBASE_PROJECT_ID by garmin/build.sh (and by CI), the same
+    way the Wear app injects it through BuildConfig. Left as the literal
+    placeholder in the repo so no project id is committed; an unsubstituted
+    value disables uploading and the watch just queues sessions.
+  -->
+  <string id="FirebaseProjectId">__FIREBASE_PROJECT_ID__</string>
+
+  <!--
+    Stamped onto every session as `appVersion`. Substituted by garmin/build.sh
+    from app.config.js so watch sessions report the same version the phone does.
+  -->
+  <string id="AppVersion">0.0.0</string>
+
+  <!-- Settings shown in Garmin Connect Mobile -->
+  <string id="SettingPairingCode">Pairing code</string>
+  <string id="SettingPairingCodePrompt">6-digit code from ImuaTrak - Settings - Garmin watch</string>
+  <string id="SettingUnits">Distance units</string>
+  <string id="SettingUnitsKm">Kilometres</string>
+  <string id="SettingUnitsMi">Miles</string>
+
+  <!-- Screens -->
+  <string id="Start">START</string>
+  <string id="Paused">PAUSED</string>
+  <string id="Saved">SAVED</string>
+  <string id="Queued">QUEUED</string>
+  <string id="StopPrompt">End paddle?</string>
+  <string id="Distance">DIST</string>
+  <string id="Pace">PACE</string>
+  <string id="StrokeRate">SPM</string>
+  <string id="HeartRate">HR</string>
+  <string id="Time">TIME</string>
+</resources>

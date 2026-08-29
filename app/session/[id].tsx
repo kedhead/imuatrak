@@ -17,7 +17,16 @@ import { colors, craftColor, radii, shadow, spacing, type } from "@/ui/theme";
 import { gpxUriFor, load, type StoredSession } from "@/services/storage";
 import { useSettings } from "@/services/settings";
 import { deleteSession, setSessionPublic } from "@/services/sync";
-import { emptyTotals, emptyHr } from "@/models";
+import { emptyTotals, emptyHr, type SessionSource } from "@/models";
+
+// Badge shown next to the craft type for sessions that didn't come from the
+// phone app itself. Sources not listed here get no badge.
+const SOURCE_LABELS: Partial<Record<SessionSource, string>> = {
+  "ios-watch": "Apple Watch",
+  "android-wear": "Wear OS",
+  garmin: "Garmin",
+  "gpx-import": "Imported",
+};
 
 const PUBLIC_BASE_URL = "https://imuatrak.app";
 
@@ -143,17 +152,8 @@ export default function SessionDetail() {
           <GradientCard gradient="ocean">
             <View style={{ flexDirection: "row", gap: spacing.xs }}>
               {s.craftType && <Badge label={s.craftType} color="rgba(255,255,255,0.25)" />}
-              {(s.source === "ios-watch" || s.source === "android-wear" || s.source === "gpx-import") && (
-                <Badge
-                  label={
-                    s.source === "ios-watch"
-                      ? "Apple Watch"
-                      : s.source === "android-wear"
-                        ? "Wear OS"
-                        : "Imported"
-                  }
-                  color="rgba(255,255,255,0.18)"
-                />
+              {SOURCE_LABELS[s.source] && (
+                <Badge label={SOURCE_LABELS[s.source]!} color="rgba(255,255,255,0.18)" />
               )}
             </View>
             <Text style={styles.heroDate}>

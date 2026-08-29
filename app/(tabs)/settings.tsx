@@ -9,6 +9,7 @@ import { formatBirthday, paddleSideLabel, type PaddleSide } from "@/models/club"
 import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
 import { leaveClub, syncMemberDisplayName, syncMemberProfile, uploadAvatar } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
+import { createPairingCode, listLinkedDevices, unlinkDevice, type LinkedDevice } from "@/services/garmin";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
 import { useDmUnreadCount } from "@/services/unread";
@@ -97,6 +98,55 @@ export default function Settings() {
   );
   const rosterAvatarUrl = myMember?.avatarUrl;
   const avatarUrl = uploadedAvatarUrl ?? rosterAvatarUrl;
+
+  // ── Garmin watch pairing ──────────────────────────────────────────────────
+  // A Garmin watch can't hold a Firebase credential, so it authenticates with a
+  // token traded for this short-lived code, typed into the ImuaTrak app's
+  // settings inside Garmin Connect Mobile.
+  const [garminCode, setGarminCode] = useState<string | null>(null);
+  const [garminDevices, setGarminDevices] = useState<LinkedDevice[]>([]);
+  const [garminBusy, setGarminBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setGarminDevices([]);
+      setGarminCode(null);
+      return;
+    }
+    void listLinkedDevices().then(setGarminDevices).catch(() => undefined);
+  }, [user]);
+
+  const onPairGarmin = async () => {
+    if (garminBusy) return;
+    if (!user) {
+      Alert.alert("Sign in first", "Pairing a watch needs an account to send its paddles to.");
+      return;
+    }
+    setGarminBusy(true);
+    try {
+      const { code } = await createPairingCode();
+      setGarminCode(code);
+    } catch {
+      Alert.alert("Error", "Couldn't create a pairing code. Try again.");
+    } finally {
+      setGarminBusy(false);
+    }
+  };
+
+  const onUnlinkGarmin = (device: LinkedDevice) => {
+    Alert.alert("Unlink watch", `Stop accepting paddles from ${device.deviceName}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Unlink",
+        style: "destructive",
+        onPress: () => {
+          void unlinkDevice(device.id)
+            .then(() => setGarminDevices((prev) => prev.filter((d) => d.id !== device.id)))
+            .catch(() => Alert.alert("Error", "Couldn't unlink that watch."));
+        },
+      },
+    ]);
+  };
 
   // Paddling profile (birthday + preferred side), stored on the member doc and
   // synced across every club. Seeded from the roster copy; re-seed when it loads.
@@ -648,8 +698,50 @@ export default function Settings() {
 
         <Section title="Data">
           <GradientCard>
+            <Text style={styles.settingsRowText}>Garmin watch</Text>
+            <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs, marginTop: spacing.xs }]}>
+              Install ImuaTrak from the Connect IQ store, then pair it here. Paddles
+              recorded on the watch — distance, splits, heart rate and stroke rate —
+              arrive on their own, and still land in Garmin Connect as usual.
+            </Text>
+
+            {garminDevices.map((device) => (
+              <Pressable
+                key={device.id}
+                style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+                onPress={() => onUnlinkGarmin(device)}
+              >
+                <Text style={styles.settingsRowText}>{device.deviceName}</Text>
+                <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs }]}>Unlink</Text>
+              </Pressable>
+            ))}
+
+            {garminCode ? (
+              <View style={styles.pairingBox}>
+                <Text style={styles.pairingCode}>{garminCode}</Text>
+                <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs }]}>
+                  Expires in 15 minutes. In Garmin Connect Mobile, open Connect IQ
+                  Store → My Device → ImuaTrak → Settings and enter this code, then
+                  start a paddle on the watch.
+                </Text>
+              </View>
+            ) : null}
+
+            <Pressable
+              style={({ pressed }) => [styles.settingsRow, (pressed || garminBusy) && styles.rowPressed]}
+              onPress={() => void onPairGarmin()}
+              disabled={garminBusy}
+            >
+              <Text style={styles.settingsRowText}>
+                {garminBusy ? "Creating code…" : garminCode ? "New pairing code" : "Pair a Garmin watch"}
+              </Text>
+              <Ionicons name="watch-outline" size={18} color={colors.muted} />
+            </Pressable>
+          </GradientCard>
+
+          <GradientCard>
             <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs }]}>
-              Have a Garmin, Suunto, Polar or other watch? Export your workout as a
+              Have a Suunto, Polar or other watch? Export your workout as a
               GPX file and import it here — distance, splits and heart rate come along.
             </Text>
             <Pressable
@@ -743,5 +835,19 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   rowPressed: { opacity: 0.7 },
+  pairingBox: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgSoft,
+    gap: spacing.xs,
+  },
+  pairingCode: {
+    color: colors.ink,
+    fontSize: type.size.xl,
+    fontWeight: type.weight.heavy,
+    letterSpacing: 6,
+    textAlign: "center",
+  },
   settingsRowText: { color: colors.ink, fontSize: type.size.md },
 });

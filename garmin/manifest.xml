@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<!--
+  ImuaTrak for Garmin (Connect IQ).
+
+  The application id is this app's identity in the Connect IQ Store and in
+  Garmin Connect Mobile's app settings — it must never change once published.
+
+  minApiLevel 3.2.0 is what the target devices share: it is the first level with
+  Activity.SPORT_* on the ActivityRecording session options and with the
+  sensor-data listener sample rates used by StrokeDetector.
+-->
+<iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
+  <iq:application
+      entry="ImuaTrakApp"
+      id="98e8f2ba89c74e4a9c6fec3b3dd939e6"
+      launcherIcon="@Drawables.LauncherIcon"
+      minApiLevel="3.2.0"
+      name="@Strings.AppName"
+      type="watch-app">
+
+    <!--
+      The devices this app is built and published for. Modern GPS watches only:
+      older hardware (fenix 5, FR235, vivoactive 3) does not have the memory for
+      the 300-point track plus the stroke detector. `monkeyc -e` packages every
+      product listed here; `-d <product>` builds just one for the simulator.
+    -->
+    <iq:products>
+      <iq:product id="fenix6"/>
+      <iq:product id="fenix6pro"/>
+      <iq:product id="fenix6s"/>
+      <iq:product id="fenix6spro"/>
+      <iq:product id="fenix6xpro"/>
+      <iq:product id="fenix7"/>
+      <iq:product id="fenix7s"/>
+      <iq:product id="fenix7x"/>
+      <iq:product id="fenix8solar47mm"/>
+      <iq:product id="fenix8solar51mm"/>
+      <iq:product id="epix2"/>
+      <iq:product id="forerunner255"/>
+      <iq:product id="forerunner265"/>
+      <iq:product id="forerunner955"/>
+      <iq:product id="forerunner965"/>
+      <iq:product id="instinct2"/>
+      <iq:product id="instinct3amoled45mm"/>
+      <iq:product id="venu2"/>
+      <iq:product id="venu3"/>
+      <iq:product id="descentmk2"/>
+      <iq:product id="descentmk3i51mm"/>
+    </iq:products>
+
+    <iq:permissions>
+      <iq:uses-permission id="Positioning"/>
+      <iq:uses-permission id="Sensor"/>
+      <iq:uses-permission id="SensorHistory"/>
+      <iq:uses-permission id="Communications"/>
+      <iq:uses-permission id="Fit"/>
+    </iq:permissions>
+
+    <iq:languages>
+      <iq:language>eng</iq:language>
+    </iq:languages>
+
+    <iq:barrels/>
+  </iq:application>
+</iq:manifest>

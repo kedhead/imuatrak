@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, Platform, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
@@ -13,6 +13,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { listSummaries, type SessionSummary } from "@/services/storage";
 import { syncSession } from "@/services/sync";
+import { pullGarminSessions } from "@/services/garmin";
 import { watchAuth } from "@/services/auth";
 import { takePendingInvite } from "@/services/pendingInvite";
 import { useSettings } from "@/services/settings";
@@ -28,6 +29,13 @@ import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { formatDate, formatDistance, formatDuration } from "@/ui/format";
 import { colors, craftColor, radii, shadow, spacing, type } from "@/ui/theme";
+
+/**
+ * How often the Home tab checks Firestore for new Garmin sessions. The tab is
+ * focused constantly, and each check is a query — a paddle takes longer than
+ * this to finish anyway.
+ */
+const GARMIN_PULL_INTERVAL_MS = 60_000;
 
 function thisWeekMonday(): Date {
   const now = new Date();
@@ -47,7 +55,22 @@ export default function HomeTab() {
 
   const reload = useCallback(() => { void listSummaries().then(setSessions); }, []);
 
-  useFocusEffect(reload);
+  // Garmin watches upload straight to Firestore rather than through a watch
+  // bridge (there is no Connect IQ equivalent of the Data Layer), so their
+  // sessions have to be pulled down into the local store every screen reads.
+  const lastGarminPull = useRef(0);
+  const pullGarmin = useCallback(() => {
+    if (Date.now() - lastGarminPull.current < GARMIN_PULL_INTERVAL_MS) return;
+    lastGarminPull.current = Date.now();
+    void pullGarminSessions()
+      .then((pulled) => { if (pulled > 0) reload(); })
+      .catch(() => undefined);
+  }, [reload]);
+
+  useFocusEffect(useCallback(() => {
+    reload();
+    pullGarmin();
+  }, [reload, pullGarmin]));
 
   // When the user signs in, push any locally-stored sessions that never made
   // it to Firestore (recorded offline, before sign-in, or before sync existed).
@@ -56,6 +79,9 @@ export default function HomeTab() {
   useEffect(() => {
     return watchAuth((user) => {
       if (!user) return;
+      // A fresh sign-in should see its Garmin paddles right away.
+      lastGarminPull.current = 0;
+      pullGarmin();
       listSummaries().then((stored) => {
         for (const { session, synced } of stored) {
           if (synced) continue;
@@ -68,7 +94,7 @@ export default function HomeTab() {
         }
       });
     });
-  }, []);
+  }, [pullGarmin]);
 
   // Receive sessions transferred from Apple Watch (iOS) or Wear OS (Android)
   useEffect(() => {

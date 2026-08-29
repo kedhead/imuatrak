@@ -1,0 +1,7 @@
+# Connect IQ build config. `products` must match the <iq:products> list in
+# manifest.xml — the compiler reads the manifest, this file drives which
+# device the SDK builds and simulates.
+project.manifest = manifest.xml
+
+base.sourcePath = source
+base.resourcePath = resources

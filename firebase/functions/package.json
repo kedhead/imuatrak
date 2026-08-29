@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint --ext .ts src",
+    "check:garmin": "npm run build && node scripts/garmin-ingest-check.js",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions"
   },

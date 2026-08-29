@@ -34,6 +34,7 @@ export type SessionSource =
   | "ios-watch"
   | "android-phone"
   | "android-wear"
+  | "garmin"
   | "gpx-import";
 
 export interface Totals {
@@ -130,6 +131,13 @@ export interface Session {
   trackSummary: TrackSummaryPoint[];
   trackStoragePath?: string;
   fitStoragePath?: string;
+  /**
+   * Full-resolution track for a Garmin session, written to Storage by the
+   * garminIngest Cloud Function. Garmin sessions arrive over HTTPS rather than
+   * through a watch bridge, so their track has nowhere else to live until the
+   * phone pulls it down (`pullGarminSessions()` in services/garmin.ts).
+   */
+  garminTrackPath?: string;
   cardStoragePath?: string;
   /**
    * When true, anyone with the session URL can view it on the web.

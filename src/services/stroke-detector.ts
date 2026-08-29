@@ -13,11 +13,25 @@ export interface Stroke {
 }
 
 export interface StrokeDetectorOptions {
+  /** Defaults to 50 Hz, what the phone and Wear OS accelerometers deliver. */
   sampleRateHz?: number;
   minStrokeRateSpm?: number;
   maxStrokeRateSpm?: number;
   peakThreshold?: number;
 }
+
+/**
+ * The two filter coefficients are per-sample, so they only mean what they say
+ * at the rate they were tuned for. Running the same values at half the rate
+ * halves both corner frequencies and skews the reported stroke rate — which
+ * matters because Connect IQ caps its accelerometer listener at 25 Hz (see
+ * garmin/source/StrokeDetector.mc). Applying one pole at half the rate is
+ * equivalent to applying it twice at the full rate, so each is raised to
+ * `REFERENCE_RATE_HZ / sampleRateHz` and 50 Hz stays exactly as it was.
+ */
+const REFERENCE_RATE_HZ = 50;
+const REFERENCE_HP_ALPHA = 0.97;
+const REFERENCE_LP_ALPHA = 0.25;
 
 export class StrokeDetector {
   private readonly minSpm: number;
@@ -25,8 +39,8 @@ export class StrokeDetector {
   private readonly peakThreshold: number;
   private readonly refractorySec: number;
 
-  private readonly hpAlpha = 0.97;
-  private readonly lpAlpha = 0.25;
+  private readonly hpAlpha: number;
+  private readonly lpAlpha: number;
 
   private hpPrevIn = 0;
   private hpPrevOut = 0;
@@ -42,6 +56,10 @@ export class StrokeDetector {
     this.maxSpm = opts.maxStrokeRateSpm ?? 120;
     this.peakThreshold = opts.peakThreshold ?? 0.6;
     this.refractorySec = 60 / this.maxSpm;
+
+    const exponent = REFERENCE_RATE_HZ / (opts.sampleRateHz ?? REFERENCE_RATE_HZ);
+    this.hpAlpha = REFERENCE_HP_ALPHA ** exponent;
+    this.lpAlpha = 1 - (1 - REFERENCE_LP_ALPHA) ** exponent;
   }
 
   /**

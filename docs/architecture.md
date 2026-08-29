@@ -51,9 +51,23 @@ best in Kotlin):
   (`modules/watch-bridge`, wired by `plugins/withWatchBridge.js`) that
   surfaces those files to JS via an event emitter, then routes them through
   the same `sync.ts` path.
-- **Wear OS** (`wear/`): Compose for Wear skeleton using
-  `HealthServicesClient` — not yet buildable or shipped (no UI/manifest, no
-  Android bridge module).
+- **Wear OS** (`wear/`): Compose for Wear app using `HealthServicesClient`.
+  After Stop it sends session JSON + track JSON over the Wearable Data Layer
+  (`ChannelClient`); the phone receives them in `modules/wear-bridge` and emits
+  the same `sessionReceived` event the iOS bridge does.
+- **Garmin** (`garmin/`): Connect IQ (Monkey C) app. This one does **not**
+  hand off to the phone. Connect IQ offers no transport a React Native app can
+  listen on without embedding Garmin's Connect IQ Mobile SDK natively on both
+  platforms, so the watch POSTs the finished session to the `garminIngest`
+  Cloud Function (`firebase/functions/src/garmin.ts`) through Garmin Connect
+  Mobile's phone connection, and the Home tab pulls Garmin sessions down from
+  Firestore into the local store (`pullGarminSessions()` in
+  `src/services/garmin.ts`). The watch has no Firebase credential, so uploads
+  carry a token traded for a 6-digit pairing code minted in the phone app;
+  only the token's SHA-256 is stored. Sessions that cannot upload (no phone in
+  range) queue on the watch and retry on the next launch. The Garmin app also
+  records an ordinary FIT activity, so the paddle appears in Garmin Connect
+  regardless.
 
 The Expo app remains the source of truth on the phone.
 
@@ -91,6 +105,7 @@ public viewer uses the polyline `trackSummary` baked into the doc.
 
 ## Out-of-scope for v1
 
-Live remote tracking, social feed, training plans, direct OAuth uploads to
-Strava/Garmin (manual GPX upload covers this for v1), and standalone
-watch apps (Phase 5).
+Live remote tracking, social feed, training plans, and direct OAuth uploads to
+Strava (manual GPX upload covers this for v1). Garmin no longer needs the
+OAuth path in either direction: the Connect IQ app writes a FIT activity to
+Garmin Connect on one side and uploads to ImuaTrak on the other.

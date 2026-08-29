@@ -2,10 +2,10 @@
 
 > *Imua* — Hawaiian for "charge forward".
 
-Outrigger canoe paddling fitness app for iPhone and Android (with watch
-support arriving in Phase 2). Records GPS, heart rate, stroke rate, splits,
-weather, and audio-detected side switches ("huts") for OC1, OC2, OC6, V1,
-SUP, and surfski sessions. Sessions sync to Firebase, export to Android
+Outrigger canoe paddling fitness app for iPhone and Android, with watch apps
+for Apple Watch, Wear OS and Garmin. Records GPS, heart rate, stroke rate,
+splits, weather, and audio-detected side switches ("huts") for OC1, OC2, OC6,
+V1, SUP, and surfski sessions. Sessions sync to Firebase, export to Android
 Health Connect, and export to GPX/FIT for upload to Strava, Garmin
 Connect, etc.
 
@@ -65,13 +65,22 @@ gets you the iOS dev build. No project config changes required.
 
 ## Watch path
 
-The Apple Watch app lives in `targets/watch/` (SwiftUI, standalone GPS +
-heart rate) and is embedded into every iOS build automatically by
-`@bacons/apple-targets` — see `targets/watch/README.md` for the one-time
-EAS credentials setup. Finished watch sessions transfer to the phone via
-WatchConnectivity and sync through the normal pipeline. `wear/` holds a
-Wear OS (Kotlin) skeleton that is not yet buildable or shipped. The phone
-remains the source of truth. See `docs/architecture.md`.
+Three watch apps, each native to its platform:
+
+- **Apple Watch** — `targets/watch/` (SwiftUI), embedded into every iOS build
+  automatically by `@bacons/apple-targets`. See `targets/watch/README.md` for
+  the one-time EAS credentials setup. Sessions transfer over WatchConnectivity.
+- **Wear OS** — `wear/` (Kotlin/Compose), built by `.github/workflows/wear.yml`
+  and shipped on the Play Store Wear OS track. Sessions transfer over the
+  Wearable Data Layer.
+- **Garmin** — `garmin/` (Connect IQ / Monkey C). Connect IQ has no bridge a
+  React Native app can receive on, so the watch uploads straight to the
+  `garminIngest` Cloud Function and the phone pulls the session back down from
+  Firestore. Pairing is a 6-digit code from Settings → Data. See
+  `garmin/README.md`.
+
+Both bridged watches route received sessions through the normal `sync.ts`
+pipeline. The phone remains the source of truth. See `docs/architecture.md`.
 
 ## Roadmap
 

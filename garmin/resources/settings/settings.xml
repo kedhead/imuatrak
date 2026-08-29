@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App settings, edited in Garmin Connect Mobile under
+  Connect IQ Store - My Device - ImuaTrak - Settings.
+
+  The pairing code is the whole of the account setup: the watch trades it for a
+  long-lived upload token on its first upload and then ignores this field. It is
+  deliberately a plain text field rather than a login — a Connect IQ app has no
+  way to hold a Firebase credential.
+-->
+<settings>
+  <setting propertyKey="@Properties.pairingCode" title="@Strings.SettingPairingCode">
+    <settingConfig type="alphaNumeric" maxLength="6" prompt="@Strings.SettingPairingCodePrompt"/>
+  </setting>
+
+  <setting propertyKey="@Properties.imperial" title="@Strings.SettingUnits">
+    <settingConfig type="list">
+      <listEntry value="false">@Strings.SettingUnitsKm</listEntry>
+      <listEntry value="true">@Strings.SettingUnitsMi</listEntry>
+    </settingConfig>
+  </setting>
+</settings>
