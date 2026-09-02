@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, SectionList, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { currentUser } from "@/services/auth";
 import { useClub } from "@/services/clubStore";
 import { getUpcomingEvents, getPastEvents } from "@/services/clubService";
 import { eventGoingCount, type ClubEvent } from "@/models/club";
@@ -10,6 +11,7 @@ import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { GradientHeader } from "@/ui/GradientHeader";
+import { RsvpBadge } from "@/ui/RsvpBadge";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 
@@ -144,6 +146,9 @@ function EventCard({ event, onPress }: { event: ClubEvent; onPress: () => void }
               🚣 {event.boatAssignments!.length} boat{event.boatAssignments!.length !== 1 ? "s" : ""}
             </Text>
           )}
+        </View>
+        <View style={{ marginTop: spacing.xs }}>
+          <RsvpBadge status={event.rsvps.find((r) => r.uid === currentUser()?.uid)?.status} />
         </View>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.muted} style={{ alignSelf: "center" }} />

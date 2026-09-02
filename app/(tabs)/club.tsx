@@ -34,6 +34,7 @@ import { ClubSwitcher } from "@/ui/ClubSwitcher";
 import { Gradient } from "@/ui/Gradient";
 import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
+import { RsvpBadge } from "@/ui/RsvpBadge";
 import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
@@ -428,6 +429,7 @@ function EventCard({ event, onPress }: { event: ClubEvent; onPress: () => void }
   const date = new Date(event.startAt);
   const day = date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
   const color = EVENT_COLORS[event.type] ?? colors.ocean;
+  const myStatus = event.rsvps?.find((r) => r.uid === currentUser()?.uid)?.status;
   return (
     <AnimatedPressable onPress={onPress} style={styles.eventCard}>
       <Badge label={event.type} color={color} />
@@ -435,6 +437,9 @@ function EventCard({ event, onPress }: { event: ClubEvent; onPress: () => void }
       <View style={styles.eventDateRow}>
         <Ionicons name="calendar-outline" size={13} color={colors.muted} />
         <Text style={styles.eventDate}>{day}</Text>
+      </View>
+      <View style={{ marginTop: spacing.xs }}>
+        <RsvpBadge status={myStatus} />
       </View>
     </AnimatedPressable>
   );
