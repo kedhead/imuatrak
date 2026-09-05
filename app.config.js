@@ -40,19 +40,22 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // to the version of that build, in the same commit that produces it. Run
 // `npm run check:ota` to verify these against the builds EAS actually has.
 //
-// Both constants are set to 1.0.3 for the build produced from this commit —
-// the first native build on either platform since iOS 1.0.2 / Android 1.0.1,
-// carrying expo-media-library (chat "Save to Photos") and the watch dead-GPS
-// hardening. Because it adds a native module the old binaries lack, this build
-// MUST get its own runtime so OTAs targeting the new native code can never
-// fall back onto a 1.0.2/1.0.1 binary that would crash on the missing module.
+// Both constants are set to 1.0.4 for the build produced from this commit.
+// Its headline native change is the watchOS workout recovery fix: watchOS was
+// terminating the watch app mid-paddle, and without recoverActiveWorkoutSession
+// the relaunched app came up on the craft picker with a live workout stranded
+// in HealthKit — which also blocked starting a new one, so tracking looked
+// locked up. The rest of the release is JS that ships inside this binary.
 //
-// ⚠️ Do NOT push an OTA (`eas update --channel production`) until 1.0.3 is
+// ⚠️ Do NOT push an OTA (`eas update --channel production`) until 1.0.4 is
 // LIVE and installed on each store: until then these runtimes point at a build
 // no device has, and an update would reach nobody — the #62 outage again.
-const IOS_RUNTIME_VERSION = "1.0.3";
-// The build this replaces was Play Console versionCode 25, versionName 1.0.1.
-const ANDROID_RUNTIME_VERSION = "1.0.3";
+// (1.0.3 users keep the JS they already have; they get the rest by updating.)
+const IOS_RUNTIME_VERSION = "1.0.4";
+// Kept in step with iOS: both platforms are built and submitted from this
+// commit. If only ONE platform ships this round, put the other back to 1.0.3 so
+// its live build keeps receiving OTAs.
+const ANDROID_RUNTIME_VERSION = "1.0.4";
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
@@ -71,22 +74,18 @@ const config = {
   // this field cannot retarget a live update any more. Bumping it early is now
   // harmless; bumping it is in fact required before any store submission.
   //
-  // Because it is shared, treat 1.0.3 as the floor for the next native build
-  // on either platform: 1.0.2 is already taken on the App Store, and shipping
-  // Play a second, different 1.0.2 would make the number useless for telling
-  // two binaries apart. Set that platform's runtime constant above to whatever
-  // number you land on, in the same commit.
+  // Because it is shared, every native build needs a number no store has seen:
+  // 1.0.3 shipped to both stores, so the next one starts at 1.0.4. Set that
+  // platform's runtime constant above to whatever number you land on, in the
+  // same commit.
   //
-  // 1.0.3 is the number for the build produced from this commit. Everything it
-  // carries is native, none of it OTA-able: the corrected ADMOB_IOS_APP_ID, the
-  // userInterfaceStyle pin below, expo-media-library (chat "Save to Photos"),
-  // the watch dead-GPS hardening, and expo-camera for in-app invite QR
-  // scanning. The QR scanner is loaded through a dynamic import, so the live
-  // 1.0.2 binary shows an "update required" prompt instead of crashing if this
-  // JS ever reaches it. The userInterfaceStyle pin is the one gap OTA cannot
-  // close for the live Android 1.0.1 build, whose manifest still says
-  // "automatic" — its native pickers stay dark-on-dark until rebuilt.
-  version: "1.0.3",
+  // 1.0.4 is the number for the build produced from this commit. The native
+  // reason for it is the watchOS fix: recovering the HKWorkoutSession when
+  // watchOS relaunches the watch app mid-paddle, which is not something an OTA
+  // can deliver. It also carries the JS accumulated since 1.0.3 went live
+  // (member profiles, RSVP markers on event cards, "maybe" paddlers in lineups,
+  // chat message editing, media captions).
+  version: "1.0.4",
   orientation: "portrait",
   icon: "./assets/icon.png",
   // Every screen is styled with hardcoded light colors — there is no dark

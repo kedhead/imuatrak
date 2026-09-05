@@ -132,7 +132,11 @@ export default function MembersScreen() {
         keyExtractor={(m) => m.uid}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <Pressable style={styles.row} onLongPress={() => handleLongPress(item)}>
+          <Pressable
+            style={styles.row}
+            onPress={() => router.push(`/club/member/${item.uid}` as never)}
+            onLongPress={() => handleLongPress(item)}
+          >
             <Avatar uri={item.avatarUrl} name={item.displayName} uid={item.uid} role={item.role} size={40} />
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>
