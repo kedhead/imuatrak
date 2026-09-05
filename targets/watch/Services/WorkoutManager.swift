@@ -54,6 +54,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var durationTimer: Timer?
     private var sessionStartEpoch = 0.0
     private var authRequestInFlight = false
+    private var lastSnapshotAt = 0.0
 
     // Pause bookkeeping: track timestamps use ACTIVE time (wall time minus
     // paused time) so paused stretches don't inflate duration, pace, or splits.
@@ -135,11 +136,8 @@ final class WorkoutManager: NSObject, ObservableObject {
         locationManager.startUpdatingLocation()
         startAccelerometer()
 
-        // Duration ticker (active time only — frozen while paused)
-        durationTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self, !self.isPaused else { return }
-            self.durationSec = self.activeElapsedSec
-        }
+        startDurationTimer()
+        persistSnapshot(force: true)
 
         // Fetch weather at session start (best-effort, non-blocking)
         Task {
@@ -193,6 +191,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         workoutSession?.pause()
         locationManager.stopUpdatingLocation()
         motionManager.stopAccelerometerUpdates()
+        persistSnapshot(force: true)
     }
 
     func resume() {
@@ -206,6 +205,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         workoutSession?.resume()
         locationManager.startUpdatingLocation()
         startAccelerometer()
+        persistSnapshot(force: true)
     }
 
     private func startAccelerometer() {
@@ -236,6 +236,8 @@ final class WorkoutManager: NSObject, ObservableObject {
         durationTimer = nil
         locationManager.stopUpdatingLocation()
         motionManager.stopAccelerometerUpdates()
+        // The run is over — nothing left to recover.
+        clearSnapshot()
 
         let endDate = Date()
 
@@ -296,6 +298,154 @@ final class WorkoutManager: NSObject, ObservableObject {
         workoutSession = nil
         builder = nil
         track = []
+        clearSnapshot()
+    }
+
+    // ── Crash / relaunch recovery ─────────────────────────────────────────────
+    //
+    // watchOS can suspend and TERMINATE this app mid-paddle (an arriving
+    // message, the wrist dropping, memory pressure). HealthKit keeps the
+    // HKWorkoutSession alive across that, but WorkoutManager is rebuilt from
+    // scratch, so isRecording came back false: the relaunched app landed on the
+    // craft picker with a live workout stranded in HealthKit. That also blocked
+    // starting a new one — HealthKit refuses a second session — which is what
+    // made the watch app appear to lock up. Re-attach instead of orphaning it.
+
+    private struct RecoverySnapshot: Codable {
+        var sessionId: String
+        var startEpoch: Double
+        var craft: String
+        var pausedAccumSec: Double
+        var pauseStartedAtEpoch: Double?
+        var strokeCount: Int
+        var distanceM: Double
+        var track: [WatchTrackPoint]
+    }
+
+    private static let snapshotURL: URL = {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory,
+                                           in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("active-session.json")
+    }()
+
+    /// Mirror live state to disk so a relaunch restores the TRACK too, not just
+    /// the session. Throttled: points arrive at 1 Hz and rewriting the whole
+    /// track every second is pointless I/O on a watch.
+    private func persistSnapshot(force: Bool = false) {
+        guard isRecording else { return }
+        let now = Date().timeIntervalSince1970
+        guard force || now - lastSnapshotAt >= 10 else { return }
+        lastSnapshotAt = now
+        let snap = RecoverySnapshot(
+            sessionId: sessionId,
+            startEpoch: sessionStartEpoch,
+            craft: currentCraft,
+            pausedAccumSec: pausedAccumSec,
+            pauseStartedAtEpoch: pauseStartedAt?.timeIntervalSince1970,
+            strokeCount: strokeCount,
+            distanceM: distanceM,
+            track: track
+        )
+        if let data = try? JSONEncoder().encode(snap) {
+            try? data.write(to: Self.snapshotURL, options: .atomic)
+        }
+    }
+
+    private func clearSnapshot() {
+        lastSnapshotAt = 0
+        try? FileManager.default.removeItem(at: Self.snapshotURL)
+    }
+
+    private func loadSnapshot() -> RecoverySnapshot? {
+        guard let data = try? Data(contentsOf: Self.snapshotURL) else { return nil }
+        return try? JSONDecoder().decode(RecoverySnapshot.self, from: data)
+    }
+
+    /// Call at launch. Re-attaches to a workout that outlived the app so the
+    /// UI returns to the live screen and tracking simply carries on.
+    func recoverIfNeeded() async {
+        guard !isRecording else { return }
+        guard let session = await activeSession() else {
+            // Nothing live in HealthKit, so any snapshot belongs to a run that
+            // already finished — don't resurrect it.
+            clearSnapshot()
+            return
+        }
+        guard session.state == .running || session.state == .paused else {
+            // Recovered a session that has already stopped: close it out so it
+            // can't block the next start.
+            session.end()
+            clearSnapshot()
+            return
+        }
+        attach(to: session)
+    }
+
+    private func activeSession() async -> HKWorkoutSession? {
+        await withCheckedContinuation { cont in
+            healthStore.recoverActiveWorkoutSession { session, _ in
+                cont.resume(returning: session)
+            }
+        }
+    }
+
+    private func attach(to session: HKWorkoutSession) {
+        let bldr = session.associatedWorkoutBuilder()
+        bldr.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore,
+                                                   workoutConfiguration: session.workoutConfiguration)
+        bldr.delegate = self
+        session.delegate = self
+        workoutSession = session
+        builder = bldr
+        // Collection began before the app died; calling beginCollection again
+        // would throw, so it is deliberately not repeated here.
+
+        let snap = loadSnapshot()
+        let start = session.startDate
+            ?? Date(timeIntervalSince1970: snap?.startEpoch ?? Date().timeIntervalSince1970)
+        sessionId = snap?.sessionId ?? generateId()
+        sessionStartDate = start
+        sessionStartEpoch = start.timeIntervalSince1970
+        pausedAccumSec = snap?.pausedAccumSec ?? 0
+        track = snap?.track ?? []
+        coordinates = track.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+        strokeCount = snap?.strokeCount ?? 0
+        distanceM = snap?.distanceM ?? 0
+        if let craft = snap?.craft { currentCraft = craft }
+        // The detector's filter state can't be recovered; the COUNT is restored
+        // above, so cadence simply re-converges over the next few strokes.
+        strokeDetector.reset()
+
+        // Reconcile a pause that was in progress when the app died.
+        isPaused = (session.state == .paused)
+        if let startedAt = snap?.pauseStartedAtEpoch {
+            if isPaused {
+                pauseStartedAt = Date(timeIntervalSince1970: startedAt)
+            } else {
+                pausedAccumSec += Date().timeIntervalSince1970 - startedAt
+                pauseStartedAt = nil
+            }
+        } else {
+            pauseStartedAt = isPaused ? Date() : nil
+        }
+
+        isRecording = true
+        durationSec = activeElapsedSec
+        startDurationTimer()
+        if !isPaused {
+            locationManager.startUpdatingLocation()
+            startAccelerometer()
+        }
+        persistSnapshot(force: true)
+    }
+
+    private func startDurationTimer() {
+        durationTimer?.invalidate()
+        durationTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, !self.isPaused else { return }
+            self.durationSec = self.activeElapsedSec
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -345,6 +495,8 @@ extension WorkoutManager: CLLocationManagerDelegate {
                                        lat2: pt.lat, lon2: pt.lon)
                 self.distanceM += d
             }
+            // Mirror to disk (throttled) so a relaunch keeps the track.
+            self.persistSnapshot()
         }
     }
 

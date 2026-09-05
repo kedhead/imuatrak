@@ -36,5 +36,12 @@ struct ContentView: View {
                 path = NavigationPath(["recording"])
             }
         }
+        // watchOS can terminate the app mid-paddle; HealthKit keeps the workout
+        // alive but this process comes back empty. Re-attach to it, which flips
+        // isRecording and sends the onChange above straight to the live screen
+        // instead of stranding the user on the craft picker.
+        .task {
+            await workoutManager.recoverIfNeeded()
+        }
     }
 }
