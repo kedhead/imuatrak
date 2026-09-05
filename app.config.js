@@ -52,10 +52,12 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // no device has, and an update would reach nobody — the #62 outage again.
 // (1.0.3 users keep the JS they already have; they get the rest by updating.)
 const IOS_RUNTIME_VERSION = "1.0.4";
-// Kept in step with iOS: both platforms are built and submitted from this
-// commit. If only ONE platform ships this round, put the other back to 1.0.3 so
-// its live build keeps receiving OTAs.
-const ANDROID_RUNTIME_VERSION = "1.0.4";
+// Android is deliberately NOT moving to 1.0.4: only iOS is built and submitted
+// from this commit (the watchOS fix is iOS-only). Android's live build is still
+// 1.0.3, so its runtime stays there and Android users keep receiving OTAs —
+// which is how the Android keyboard fix in this commit reaches them without a
+// Play submission. Bump this to match whenever an Android build actually ships.
+const ANDROID_RUNTIME_VERSION = "1.0.3";
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {

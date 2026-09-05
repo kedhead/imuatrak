@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Linking,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -586,7 +585,7 @@ function PostCard({
       <Modal visible={editing} animationType="slide" transparent onRequestClose={() => setEditing(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setEditing(false)} />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior="padding"
           style={styles.sheet}
         >
           <View style={styles.sheetHandle} />
@@ -662,7 +661,7 @@ function CommentsSheet({
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
         style={styles.sheet}
       >
         <View style={styles.sheetHandle} />
@@ -773,7 +772,7 @@ function PollComposer({
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.sheet}>
+      <KeyboardAvoidingView behavior="padding" style={styles.sheet}>
         <View style={styles.sheetHandle} />
         <View style={styles.sheetHeader}>
           <Text style={styles.sheetTitle}>New Poll</Text>

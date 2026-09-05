@@ -6,7 +6,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -197,7 +196,7 @@ export default function JoinClubScreen() {
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <View style={styles.content}>
           <Text style={styles.title}>Join a club</Text>

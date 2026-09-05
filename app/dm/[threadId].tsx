@@ -130,7 +130,7 @@ export default function DmThreadScreen() {
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
         <FlatList

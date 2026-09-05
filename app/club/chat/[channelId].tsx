@@ -471,7 +471,7 @@ export default function ChannelChatScreen() {
         // Expo's default softwareKeyboardLayoutMode), so KeyboardAvoidingView
         // must NOT also adjust — "height" double-shifted the composer and hid
         // the text being typed. Let the window resize handle it (undefined).
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
         // Header = status bar (safe-area top inset, varies by device) + 44pt
         // nav bar. The old hardcoded 88 was wrong on notched iPhones, so the
         // keyboard overlapped the newest chat bubbles.
@@ -781,7 +781,7 @@ export default function ChannelChatScreen() {
         <Modal visible transparent animationType="slide" onRequestClose={() => setPendingMedia(null)}>
           <KeyboardAvoidingView
             style={styles.previewFill}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior="padding"
           >
             <Pressable style={styles.previewBackdrop} onPress={() => setPendingMedia(null)}>
               <Pressable style={styles.previewSheet} onPress={(e) => e.stopPropagation()}>
@@ -832,7 +832,7 @@ export default function ChannelChatScreen() {
         <Modal visible transparent animationType="slide" onRequestClose={() => setEditTarget(null)}>
           <KeyboardAvoidingView
             style={styles.previewFill}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior="padding"
           >
             <Pressable style={styles.previewBackdrop} onPress={() => setEditTarget(null)}>
               <Pressable style={styles.previewSheet} onPress={(e) => e.stopPropagation()}>

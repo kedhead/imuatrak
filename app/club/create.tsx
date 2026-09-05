@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -67,7 +66,7 @@ export default function CreateClubScreen() {
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.sectionLabel}>CLUB NAME *</Text>

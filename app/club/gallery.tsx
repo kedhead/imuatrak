@@ -11,7 +11,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -620,7 +619,7 @@ function ComposeSheet({
       >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
         >
           <View style={styles.composeHeader}>
             <Pressable onPress={onCancel} hitSlop={16} style={styles.headerBtn}>
@@ -824,7 +823,7 @@ function PhotoViewer({
       >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
         >
           <View style={styles.viewerHeader}>
             <Pressable onPress={onClose} hitSlop={16} style={styles.headerBtn}>
