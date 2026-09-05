@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -20,7 +21,7 @@ import {
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
-import { getPosts, createPost, deletePost, updatePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment } from "@/services/clubService";
+import { getPosts, createPost, deletePost, updatePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment, uploadPostMedia } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
 import { useClubUnreadCount, useDmUnreadCount } from "@/services/unread";
 import { isBirthdayToday } from "@/models/club";
@@ -149,6 +150,8 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const [posts, setPosts] = useState<ClubPost[]>([]);
   const [events, setEvents] = useState<ClubEvent[]>([]);
   const [postText, setPostText] = useState("");
+  // Images attached to the post being composed (flyers, notices, photos).
+  const [postImages, setPostImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [posting, setPosting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showPollComposer, setShowPollComposer] = useState(false);
@@ -171,9 +174,28 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
     void load();
   }, [clubId]);
 
+  const onPickPostImages = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Allow photo library access to attach images.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: 4,
+      // Keeps each upload inside the ~7 MB the Cloud Function accepts.
+      quality: 0.8,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+    setPostImages((prev) => [...prev, ...result.assets].slice(0, 4));
+  };
+
   const handlePost = async () => {
     const content = postText.trim();
-    if (!content) return;
+    const images = postImages;
+    // An image on its own is a valid post — a flyer often needs no caption.
+    if (!content && images.length === 0) return;
     const user = currentUser();
     if (!user) return;
     setPosting(true);
@@ -182,8 +204,24 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
         type: "post",
         content,
       });
-      setPosts((prev) => [post, ...prev]);
+      // Upload after the post exists (the function keys media by post id), then
+      // attach the URLs to the optimistic copy so the flyer shows immediately.
+      const urls: string[] = [];
+      for (let i = 0; i < images.length; i++) {
+        const asset = images[i]!;
+        urls.push(
+          await uploadPostMedia(
+            clubId,
+            post.id,
+            asset.uri,
+            asset.mimeType ?? "image/jpeg",
+            images.length === 1 ? "media" : `media-${i}`,
+          ),
+        );
+      }
+      setPosts((prev) => [{ ...post, ...(urls.length ? { mediaUrls: urls } : {}) }, ...prev]);
       setPostText("");
+      setPostImages([]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert("Error", msg);
@@ -337,6 +375,28 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             {canPost && (
               <View style={styles.composerWrap}>
                 <GradientCard padded>
+                  {postImages.length > 0 && (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.draftThumbs}
+                    >
+                      {postImages.map((a, i) => (
+                        <View key={`${a.uri}-${i}`} style={styles.draftThumbWrap}>
+                          <Image source={{ uri: a.uri }} style={styles.draftThumb} />
+                          <Pressable
+                            style={styles.draftRemove}
+                            hitSlop={8}
+                            onPress={() =>
+                              setPostImages((prev) => prev.filter((_, idx) => idx !== i))
+                            }
+                          >
+                            <Ionicons name="close-circle" size={20} color={colors.white} />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  )}
                   <View style={styles.composerRow}>
                     <TextInput
                       style={styles.composerInput}
@@ -347,7 +407,14 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
                       multiline
                       maxLength={2000}
                     />
-                    {postText.trim().length > 0 ? (
+                    <AnimatedPressable
+                      onPress={() => void onPickPostImages()}
+                      haptic
+                      style={styles.pollIconBtn}
+                    >
+                      <Ionicons name="image-outline" size={20} color={colors.ocean} />
+                    </AnimatedPressable>
+                    {postText.trim().length > 0 || postImages.length > 0 ? (
                       <AnimatedPressable
                         onPress={() => void handlePost()}
                         disabled={posting}
@@ -474,6 +541,8 @@ function PostCard({
   const liked = currentUserId ? (post.likedBy ?? []).includes(currentUserId) : false;
   const [liking, setLiking] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  // Attached image opened full-screen, so a flyer can actually be read.
+  const [photo, setPhoto] = useState<string | null>(null);
   // Only text posts are editable here; polls and photos have their own flows.
   const canEdit = post.type === "post" || post.type === "announcement";
   const isOwnerOrAdmin = currentUserId === post.authorId || !!isAdmin;
@@ -548,11 +617,20 @@ function PostCard({
             </Pressable>
           )}
         </View>
-        <LinkifiedText
-          text={post.content}
-          style={styles.postContent}
-          linkStyle={styles.postLink}
-        />
+        {post.content.length > 0 && (
+          <LinkifiedText
+            text={post.content}
+            style={styles.postContent}
+            linkStyle={styles.postLink}
+          />
+        )}
+        {/* Attached images (flyers, notices). Tap to read one full-screen —
+            a flyer cropped to a card is usually unreadable. */}
+        {(post.mediaUrls ?? []).map((url) => (
+          <Pressable key={url} onPress={() => setPhoto(url)} style={styles.postImageWrap}>
+            <Image source={{ uri: url }} style={styles.postImage} resizeMode="cover" />
+          </Pressable>
+        ))}
         {post.type === "poll" && (
           <PollCard post={post} clubId={clubId} currentUserId={currentUserId} />
         )}
@@ -581,6 +659,16 @@ function PostCard({
           onClose={() => setShowComments(false)}
           onCommentAdded={() => onCommentAdded(post.id)}
         />
+      )}
+      {!!photo && (
+        <Modal visible animationType="fade" onRequestClose={() => setPhoto(null)} statusBarTranslucent>
+          <Pressable style={styles.photoBg} onPress={() => setPhoto(null)}>
+            <Image source={{ uri: photo }} style={styles.photoFull} resizeMode="contain" />
+          </Pressable>
+          <Pressable style={styles.photoClose} onPress={() => setPhoto(null)} hitSlop={16}>
+            <Ionicons name="close" size={28} color={colors.white} />
+          </Pressable>
+        </Modal>
       )}
       <Modal visible={editing} animationType="slide" transparent onRequestClose={() => setEditing(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setEditing(false)} />
@@ -1014,6 +1102,31 @@ const styles = StyleSheet.create({
   },
   composerWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.sm },
   composerRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
+  draftThumbs: { gap: spacing.sm, paddingBottom: spacing.sm },
+  draftThumbWrap: { position: "relative" },
+  draftThumb: { width: 72, height: 72, borderRadius: radii.md, backgroundColor: colors.bgSoft },
+  draftRemove: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: colors.ink,
+    borderRadius: 10,
+  },
+  postImageWrap: { marginTop: spacing.sm },
+  postImage: { width: "100%", height: 220, borderRadius: radii.md, backgroundColor: colors.bgSoft },
+  photoBg: { flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
+  photoFull: { width: "100%", height: "100%" },
+  photoClose: {
+    position: "absolute",
+    top: 52,
+    right: spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   composerInput: { flex: 1, fontSize: type.size.md, color: colors.ink, minHeight: 56 },
   postSendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.ocean, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   postWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.md },

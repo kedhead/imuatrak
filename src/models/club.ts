@@ -397,7 +397,8 @@ export interface ClubPost {
   commentCount: number;
   createdAt: string;
   updatedAt: string;
-  /** Download URLs in upload order — present only when type === "photo". */
+  /** Download URLs in upload order. Gallery posts (type "photo") always have
+   *  them; feed posts may too, since announcements can carry a flyer. */
   mediaUrls?: string[];
   /**
    * Hashtags from the caption, normalised by `parseHashtags` — lower-cased and
