@@ -76,6 +76,114 @@ async function legacyExpoTokens(
     .filter((t): t is string => typeof t === "string" && t.startsWith("ExponentPushToken"));
 }
 
+/** One push as the Expo Push Service takes it. `to` may hold several tokens. */
+interface ExpoPushMessage {
+  to: string[];
+  title: string;
+  body: string;
+  sound: string;
+  badge: number;
+  priority: string;
+  data: Record<string, string>;
+}
+
+/** One entry of the Expo send response — one per RECIPIENT, in send order. */
+interface ExpoTicket {
+  status?: string;
+  message?: string;
+  details?: { error?: string };
+}
+
+/**
+ * Deliver pushes through the Expo Push Service and act on the reply.
+ *
+ * `owners[i]` is the uid that `messages[i]` is addressed to, which is what
+ * makes pruning possible below.
+ *
+ * The important part is that a 200 from Expo does NOT mean delivered. Expo
+ * answers with one ticket per recipient and reports every real failure —
+ * DeviceNotRegistered, MismatchSenderId, InvalidCredentials — inside the body
+ * with a 200 status. The old code only checked `res.ok`, so none of that ever
+ * reached the logs: a platform could be failing 100% of its pushes and look
+ * perfectly healthy from here. Read the tickets.
+ */
+async function sendExpoPush(
+  db: FirebaseFirestore.Firestore,
+  messages: ExpoPushMessage[],
+  owners: string[],
+): Promise<void> {
+  // Tokens Expo says will never deliver again, grouped by user.
+  const dead = new Map<string, Set<string>>();
+
+  for (let i = 0; i < messages.length; i += 100) {
+    const chunk = messages.slice(i, i + 100);
+    const chunkOwners = owners.slice(i, i + 100);
+    try {
+      const res = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          // Only needed if "Enhanced Security for Push Notifications" is turned
+          // on for the Expo account, in which case unauthenticated sends are
+          // rejected outright. A plain env var, deliberately not a
+          // defineSecret: declaring a secret that doesn't exist in Secret
+          // Manager fails the entire functions deploy.
+          ...(process.env.EXPO_ACCESS_TOKEN
+            ? { Authorization: `Bearer ${process.env.EXPO_ACCESS_TOKEN}` }
+            : {}),
+        },
+        body: JSON.stringify(chunk),
+      });
+      if (!res.ok) {
+        console.error("Expo push send failed:", res.status, await res.text());
+        continue;
+      }
+
+      const body = (await res.json()) as { data?: ExpoTicket[] };
+      const tickets = body.data ?? [];
+      // Flatten to one (uid, token) per ticket, in the same order Expo used.
+      const sent: { uid: string; token: string }[] = [];
+      chunk.forEach((m, j) => {
+        for (const token of m.to) sent.push({ uid: chunkOwners[j] ?? "", token });
+      });
+
+      tickets.forEach((ticket, k) => {
+        if (ticket?.status !== "error") return;
+        const code = ticket.details?.error ?? "Unknown";
+        console.error(`Expo push ticket error [${code}]: ${ticket.message ?? ""}`);
+        const target = sent[k];
+        if (!target?.uid) return;
+        // The only one that means "stop trying this token". The rest
+        // (MismatchSenderId, InvalidCredentials) are configuration problems —
+        // logged above, but the token is still good once they're fixed.
+        if (code === "DeviceNotRegistered") {
+          const set = dead.get(target.uid) ?? new Set<string>();
+          set.add(target.token);
+          dead.set(target.uid, set);
+        }
+      });
+    } catch (e) {
+      console.error("Expo push send error:", e);
+    }
+  }
+
+  // registerFcmToken only ever arrayUnions, so without this a user who
+  // reinstalls or switches device accumulates dead tokens forever and every
+  // message pays to push to all of them.
+  for (const [uid, tokens] of dead) {
+    const list = [...tokens];
+    try {
+      await db.doc(`users/${uid}`).update({ expoTokens: FieldValue.arrayRemove(...list) });
+      await Promise.all(
+        list.map((t) => db.doc(`users/${uid}/fcmTokens/${t}`).delete().catch(() => undefined)),
+      );
+    } catch (e) {
+      console.error("Expo push token prune failed for", uid, e);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // renderSessionCard — produces a PNG share card (map snapshot + stats overlay)
 // for a finished session and stores it at users/{uid}/cards/{sessionId}.png.
@@ -1222,16 +1330,10 @@ export const onChannelMessageCreate = onDocumentCreated(
     // The one exception is being @-mentioned: a direct tag is addressed to
     // you personally, so it cuts through a muted channel the way it does in
     // every other chat app.
-    interface ExpoPushMessage {
-      to: string[];
-      title: string;
-      body: string;
-      sound: string;
-      badge: number;
-      priority: string;
-      data: Record<string, string>;
-    }
     const pushMessages: ExpoPushMessage[] = [];
+    // pushOwners[i] is the uid pushMessages[i] is for, so sendExpoPush can
+    // attribute a failed ticket back to the account whose token died.
+    const pushOwners: string[] = [];
 
     // Fan-out, batched.
     //
@@ -1299,6 +1401,7 @@ export const onChannelMessageCreate = onDocumentCreated(
             ...(isMention ? { mention: "1" } : {}),
           },
         });
+        pushOwners.push(userId);
       });
 
       await batch.commit();
@@ -1323,29 +1426,13 @@ export const onChannelMessageCreate = onDocumentCreated(
             ...(isMention ? { mention: "1" } : {}),
           },
         });
+        pushOwners.push(userId);
       }
     }
 
-    // Deliver via the Expo Push Service (handles APNs + FCM routing). Max 100
-    // messages per request.
-    for (let i = 0; i < pushMessages.length; i += 100) {
-      const chunk = pushMessages.slice(i, i + 100);
-      try {
-        const res = await fetch("https://exp.host/--/api/v2/push/send", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify(chunk),
-        });
-        if (!res.ok) {
-          console.error("Expo push send failed:", res.status, await res.text());
-        }
-      } catch (e) {
-        console.error("Expo push send error:", e);
-      }
-    }
+    // Deliver via the Expo Push Service (handles APNs + FCM routing), and act
+    // on the per-recipient tickets it replies with.
+    await sendExpoPush(db, pushMessages, pushOwners);
 
     await db.doc(`clubs/${clubId}/channels/${channelId}`).update({
       lastMessageAt: event.data?.createTime?.toDate().toISOString() ?? new Date().toISOString(),
@@ -1531,29 +1618,22 @@ export const onDmMessageCreate = onDocumentCreated(
       const tokens = denormalized ?? (await legacyExpoTokens(db, userId));
       if (tokens.length === 0) continue;
 
-      try {
-        const res = await fetch("https://exp.host/--/api/v2/push/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify([
-            {
-              to: tokens,
-              // A DM is from a person, not a room — no channel name to qualify it.
-              title: message.authorName,
-              body,
-              sound: "default",
-              badge: newTotal,
-              priority: "high",
-              data: { threadId, screen: "dm" },
-            },
-          ]),
-        });
-        if (!res.ok) {
-          console.error("DM push send failed:", res.status, await res.text());
-        }
-      } catch (e) {
-        console.error("DM push send error:", e);
-      }
+      await sendExpoPush(
+        db,
+        [
+          {
+            to: tokens,
+            // A DM is from a person, not a room — no channel name to qualify it.
+            title: message.authorName,
+            body,
+            sound: "default",
+            badge: newTotal,
+            priority: "high",
+            data: { threadId, screen: "dm" },
+          },
+        ],
+        [userId],
+      );
     }
   },
 );

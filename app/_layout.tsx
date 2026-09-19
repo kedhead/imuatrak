@@ -107,8 +107,15 @@ export default function RootLayout() {
                 Platform.OS === "ios" ? "ios" : "android",
               );
             }
-          } catch {
-            // Notification permission is optional — never block sign-in
+          } catch (e) {
+            // Still non-fatal — never block sign-in on notifications. But it
+            // must not be SILENT: this bare catch is why Android going without
+            // push notifications for its whole life went unnoticed. Android
+            // cannot get an FCM token without google-services.json compiled in,
+            // so getExpoPushTokenAsync throws here, and swallowing it left no
+            // token, no log, and nothing for a user to report beyond "I don't
+            // get notifications".
+            console.warn("[push] token registration failed:", e);
           }
         })();
       } else {

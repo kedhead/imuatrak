@@ -7,6 +7,25 @@
 // local prebuilds); when unset the plugin is skipped and the app simply hides
 // the Google button on iOS (Android is unaffected — its client is resolved by
 // Play Services, no scheme needed).
+// Android push notifications need the app's OWN Firebase/FCM configuration
+// compiled into the binary. Without google-services.json the app cannot
+// register with FCM at all, so getExpoPushTokenAsync() throws and no token is
+// ever stored — which is why Android has never received a chat notification.
+//
+// The file is gitignored (it is per-project config, not a secret, but there is
+// no reason to commit it). EAS supplies it as a FILE-type secret named
+// GOOGLE_SERVICES_JSON, which lands on the builder as a path. Locally, drop the
+// file at the repo root and it is picked up automatically.
+//
+// Left undefined when neither is available, which is exactly the old behaviour:
+// the build still succeeds, Android just gets no push. iOS does NOT need this —
+// Expo talks to APNs directly.
+const googleServicesFile =
+  process.env.GOOGLE_SERVICES_JSON ??
+  (require("fs").existsSync(`${__dirname}/google-services.json`)
+    ? "./google-services.json"
+    : undefined);
+
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
   ? `com.googleusercontent.apps.${GOOGLE_IOS_CLIENT_ID.replace(".apps.googleusercontent.com", "")}`
@@ -167,6 +186,9 @@ const config = {
 
   android: {
     package: "app.imuatrak",
+    // See the googleServicesFile comment at the top of this file. Required for
+    // FCM registration; undefined here means Android push is dead.
+    googleServicesFile,
     // OTA runtime for Android — matches the live Play Store build (1.0.1),
     // which is a version behind iOS. Do not "fix" this by aligning it with
     // the iOS number: it describes what is installed, not what is desired.
