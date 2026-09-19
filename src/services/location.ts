@@ -17,6 +17,35 @@ const TASK_NAME = "imuatrak-background-location";
 const listeners = new Set<GpsListener>();
 
 /**
+ * Junk-fix rejection, mirroring what the watch already does in
+ * WorkoutManager.swift.
+ *
+ * The OS emits wildly inaccurate fixes while it reacquires — Android's fused
+ * provider especially, which falls back to cell/wifi trilateration with
+ * hundreds of metres of error and happily reports it — plus cached fixes from
+ * before the session started. Nothing downstream filtered any of it:
+ * accuracyM was written onto the track point and then never read by anything,
+ * so every junk fix contributed its full jitter to the distance. That is how
+ * one paddle came back as 19 miles when it was under 7.
+ *
+ * Dropping a fix is safe: the clock keeps running and the track simply resumes
+ * when a good one arrives.
+ */
+const MAX_ACCURACY_M = 100;
+const MAX_SAMPLE_AGE_MS = 5000;
+
+function isUsableFix(loc: Location.LocationObject): boolean {
+  const acc = loc.coords.accuracy;
+  // Null means the platform didn't report accuracy — can't judge it, so let it
+  // through rather than risk recording nothing at all. A NEGATIVE value is not
+  // "perfect", it means the fix is invalid.
+  if (acc != null && (acc < 0 || acc > MAX_ACCURACY_M)) return false;
+  // A stale cached fix at session start produces one enormous opening jump.
+  if (Date.now() - loc.timestamp > MAX_SAMPLE_AGE_MS) return false;
+  return true;
+}
+
+/**
  * Subscribe to GPS samples. The first subscriber starts the background
  * location task; the last unsubscribe stops it.
  */
@@ -66,6 +95,7 @@ TaskManager.defineTask(
     if (error) return;
     const locations = data?.locations ?? [];
     for (const loc of locations) {
+      if (!isUsableFix(loc)) continue;
       const sample: GpsSample = {
         tEpochMs: loc.timestamp,
         lat: loc.coords.latitude,

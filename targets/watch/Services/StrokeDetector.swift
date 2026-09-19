@@ -53,14 +53,22 @@ final class StrokeDetector {
         if lastSampleT > 0 {
             let nowRising = v > lastValue
             if rising && !nowRising && lastValue > peakThreshold {
+                // The refractory window is the only thing that rejects a peak.
+                // A peak past it IS a stroke; the rate band decides whether the
+                // INTERVAL is a believable cadence, not whether the stroke
+                // happened. Gating the stroke on the band jammed the detector
+                // permanently: one gap longer than 60/minSpm left lastStrokeT
+                // frozen, so every later peak measured from that same point and
+                // was rejected too. See the TypeScript twin for the full note.
                 if lastStrokeT < 0 || tSec - lastStrokeT >= refractorySec {
-                    let rate = lastStrokeT < 0 ? 0.0 : 60.0 / (tSec - lastStrokeT)
-                    if rate == 0 || (rate >= minSpm && rate <= maxSpm) {
-                        let prom = lastValue - peakThreshold
-                        let conf = max(0, min(1, prom / (prom + 0.5)))
-                        stroke = Stroke(tSec: lastSampleT, rateSpm: rate, confidence: conf)
-                        lastStrokeT = lastSampleT
-                    }
+                    let raw = lastStrokeT < 0 ? 0.0 : 60.0 / (tSec - lastStrokeT)
+                    // 0 means "unknown cadence" and is excluded downstream.
+                    let rate = (raw >= minSpm && raw <= maxSpm) ? raw : 0.0
+                    let prom = lastValue - peakThreshold
+                    let conf = max(0, min(1, prom / (prom + 0.5)))
+                    stroke = Stroke(tSec: lastSampleT, rateSpm: rate, confidence: conf)
+                    // ALWAYS advance, so cadence re-anchors after any gap.
+                    lastStrokeT = lastSampleT
                 }
             }
             rising = nowRising

@@ -10,6 +10,27 @@ import { haversineMeters } from "./geo";
 
 const DEFAULT_ZONE_BOUNDS = [0, 120, 140, 160, 175, 1000];
 
+/**
+ * Distance between two consecutive fixes, or 0 if the pair implies a speed no
+ * boat produces.
+ *
+ * Second line of defence behind the accuracy gate in services/location.ts: a
+ * fix can report good accuracy and still land hundreds of metres out, and every
+ * such jump used to be added to the total at face value. A surfski on a downwind
+ * run tops out near 7 m/s, so the ceiling here is generous enough that no real
+ * paddling is ever discarded — it only catches the GPS teleporting.
+ */
+const MAX_PLAUSIBLE_SPEED_MPS = 12;
+
+function segmentMeters(a: TrackPoint, b: TrackPoint): number {
+  const seg = haversineMeters(a.lat, a.lon, b.lat, b.lon);
+  const dt = b.t - a.t;
+  // Non-advancing timestamps can't be validated, and a jump with no time
+  // between the two points is a teleport by definition.
+  if (dt <= 0) return 0;
+  return seg / dt > MAX_PLAUSIBLE_SPEED_MPS ? 0 : seg;
+}
+
 export function totals(points: TrackPoint[], strokeCount: number, weightKg = 75): Totals {
   if (points.length < 2) return { ...emptyTotals(), strokeCount };
 
@@ -19,8 +40,11 @@ export function totals(points: TrackPoint[], strokeCount: number, weightKg = 75)
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!;
     const b = points[i]!;
-    dist += haversineMeters(a.lat, a.lon, b.lat, b.lon);
-    if (b.speedMps > maxSpeed) maxSpeed = b.speedMps;
+    dist += segmentMeters(a, b);
+    // maxSpeed comes from the GPS's own Doppler speed, which does not suffer
+    // the jump problem, but cap it against the same ceiling so one bad reading
+    // can't report an impossible top speed either.
+    if (b.speedMps > maxSpeed && b.speedMps <= MAX_PLAUSIBLE_SPEED_MPS) maxSpeed = b.speedMps;
     const rise = b.altM - a.altM;
     if (rise > 0) elevGain += rise;
   }
@@ -30,7 +54,7 @@ export function totals(points: TrackPoint[], strokeCount: number, weightKg = 75)
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!;
     const b = points[i]!;
-    if (b.speedMps > 0.5 || haversineMeters(a.lat, a.lon, b.lat, b.lon) > 0.5) {
+    if (b.speedMps > 0.5 || segmentMeters(a, b) > 0.5) {
       movingSec += b.t - a.t;
     }
   }
@@ -67,7 +91,7 @@ export function splits(points: TrackPoint[], imperial = false): Split[] {
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!;
     const b = points[i]!;
-    splitDist += haversineMeters(a.lat, a.lon, b.lat, b.lon);
+    splitDist += segmentMeters(a, b);
     if (b.hr != null) {
       splitHrSum += b.hr;
       splitHrSamples += 1;

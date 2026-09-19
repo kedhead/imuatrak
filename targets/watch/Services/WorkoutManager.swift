@@ -248,9 +248,20 @@ final class WorkoutManager: NSObject, ObservableObject {
             guard let self, let data else { return }
             let a = data.acceleration
             let t = Date().timeIntervalSince1970 - epoch
+            // CMAccelerometerData.acceleration is in G, INCLUDING gravity. The
+            // phone (services/motion.ts) converts the same signal to m/s² and
+            // subtracts 1 G off z before feeding the detector, so the watch was
+            // handing it numbers 9.8x smaller while both used the identical
+            // peakThreshold of 0.6. On the watch that asked for 0.6 G of
+            // filtered swing — a violent knock, not a paddle stroke — so almost
+            // nothing was ever counted. Match the phone exactly; the point of
+            // sharing the DSP coefficients is that the INPUTS match too.
+            let ax = a.x * 9.80665
+            let ay = a.y * 9.80665
+            let az = (a.z - 1) * 9.80665
             // Serial queue, so the detector's filter state is only ever touched
             // from one thread.
-            guard let stroke = detector.onSample(tSec: t, ax: a.x, ay: a.y, az: a.z) else { return }
+            guard let stroke = detector.onSample(tSec: t, ax: ax, ay: ay, az: az) else { return }
             Task { @MainActor in
                 // A sample can still be in flight when the session ends; don't
                 // let it land on the next one's counters.

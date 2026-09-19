@@ -7,6 +7,21 @@ import CoreLocation
 
 enum Aggregator {
 
+    /// Ceiling on believable boat speed. A surfski on a downwind run tops out
+    /// near 7 m/s, so nothing real is ever discarded — this only catches the
+    /// GPS teleporting. Mirrors MAX_PLAUSIBLE_SPEED_MPS in aggregator.ts.
+    private static let maxPlausibleSpeedMps = 12.0
+
+    /// Distance between two consecutive fixes, or 0 if the pair implies a speed
+    /// no boat produces. Second line of defence behind the accuracy gate in
+    /// WorkoutManager's location delegate.
+    private static func segmentMeters(_ prev: WatchTrackPoint, _ cur: WatchTrackPoint) -> Double {
+        let d = haversine(lat1: prev.lat, lon1: prev.lon, lat2: cur.lat, lon2: cur.lon)
+        let dt = cur.t - prev.t
+        guard dt > 0 else { return 0 }
+        return d / dt > maxPlausibleSpeedMps ? 0 : d
+    }
+
     static func totals(_ track: [WatchTrackPoint], strokeCount: Int) -> WatchTotals {
         guard track.count >= 2 else { return .empty() }
 
@@ -17,11 +32,11 @@ enum Aggregator {
 
         for i in 1..<track.count {
             let prev = track[i-1], cur = track[i]
-            let d = haversine(lat1: prev.lat, lon1: prev.lon, lat2: cur.lat, lon2: cur.lon)
+            let d = segmentMeters(prev, cur)
             distanceM += d
             let dt = cur.t - prev.t
             if cur.speedMps > 0.5 || d > 0.5 { movingDurationSec += dt }
-            maxSpeedMps = max(maxSpeedMps, cur.speedMps)
+            if cur.speedMps <= maxPlausibleSpeedMps { maxSpeedMps = max(maxSpeedMps, cur.speedMps) }
             let dAlt = cur.altM - prev.altM
             if dAlt > 0 { elevGain += dAlt }
         }
@@ -83,8 +98,7 @@ enum Aggregator {
         var index = 0
 
         for i in 1..<track.count {
-            let d = haversine(lat1: track[i-1].lat, lon1: track[i-1].lon,
-                              lat2: track[i].lat, lon2: track[i].lon)
+            let d = segmentMeters(track[i-1], track[i])
             accumulated += d
             if let hr = track[i].hr { splitHrs.append(Double(hr)) }
             if let sr = track[i].strokeRate { splitStrokes.append(sr) }
