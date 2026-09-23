@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
+  Dimensions,
   Modal,
   Pressable,
   ScrollView,
@@ -12,6 +12,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   clubGrantsAdFree,
@@ -26,6 +27,11 @@ import { openDmThread } from "@/services/dmService";
 import { useSubscription } from "@/services/subscriptionStore";
 import { Avatar } from "@/ui/Avatar";
 import { colors, radii, spacing, type } from "@/ui/theme";
+import { ZoomableImage } from "@/ui/ZoomableImage";
+
+const SCREEN_W = Dimensions.get("window").width;
+const SCREEN_H = Dimensions.get("window").height;
+
 
 const ROLE_LABEL: Record<MemberRole, string> = {
   owner: "Owner",
@@ -148,13 +154,14 @@ export default function MemberProfileScreen() {
       {/* Full-size profile photo */}
       {photoOpen && !!member.avatarUrl && (
         <Modal visible animationType="fade" onRequestClose={() => setPhotoOpen(false)} statusBarTranslucent>
-          <Pressable style={styles.photoBg} onPress={() => setPhotoOpen(false)}>
-            <Image
-              source={{ uri: member.avatarUrl }}
-              style={styles.photoFull}
-              resizeMode="contain"
+          <GestureHandlerRootView style={styles.photoBg}>
+            <ZoomableImage
+              uri={member.avatarUrl}
+              width={SCREEN_W}
+              height={SCREEN_H}
+              onPress={() => setPhotoOpen(false)}
             />
-          </Pressable>
+          </GestureHandlerRootView>
           <Pressable
             style={[styles.photoClose, { top: Math.max(insets.top, spacing.sm) }]}
             onPress={() => setPhotoOpen(false)}

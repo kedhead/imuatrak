@@ -22,6 +22,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
 import {
@@ -38,8 +39,10 @@ import type { DmMessage, DmThread } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
 import { LinkifiedText } from "@/ui/LinkifiedText";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
+import { ZoomableImage } from "@/ui/ZoomableImage";
 
 const SCREEN_W = Dimensions.get("window").width;
+const SCREEN_H = Dimensions.get("window").height;
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
 /** The photos on a message: the multi-image grid, or the single legacy field. */
@@ -70,6 +73,9 @@ export default function DmThreadScreen() {
   const [viewerPage, setViewerPage] = useState(0);
   const [viewerMenu, setViewerMenu] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
+  // Paging is turned off while a photo is pinched in, so the drag pans the
+  // photo instead of flicking to the next one.
+  const [viewerZoomed, setViewerZoomed] = useState(false);
 
   useEffect(() => {
     if (!threadId) return;
@@ -415,10 +421,11 @@ export default function DmThreadScreen() {
       {/* Full-screen photo viewer with horizontal paging */}
       {viewer && (
         <Modal visible animationType="fade" onRequestClose={() => setViewer(null)} statusBarTranslucent>
-          <View style={styles.viewerBg}>
+          <GestureHandlerRootView style={styles.viewerBg}>
             <FlatList
               horizontal
               pagingEnabled
+              scrollEnabled={!viewerZoomed}
               data={viewer.urls}
               initialScrollIndex={viewer.index}
               getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
@@ -427,14 +434,14 @@ export default function DmThreadScreen() {
                 setViewerPage(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))
               }
               renderItem={({ item }) => (
-                <Pressable
-                  style={styles.viewerPage}
+                <ZoomableImage
+                  uri={item}
+                  width={SCREEN_W}
+                  height={SCREEN_H}
                   onPress={() => setViewer(null)}
                   onLongPress={() => setViewerMenu(true)}
-                  delayLongPress={300}
-                >
-                  <Image source={{ uri: item }} style={styles.viewerImage} resizeMode="contain" />
-                </Pressable>
+                  onZoomChange={setViewerZoomed}
+                />
               )}
             />
             <Pressable
@@ -475,7 +482,7 @@ export default function DmThreadScreen() {
                 </Pressable>
               </Pressable>
             )}
-          </View>
+          </GestureHandlerRootView>
         </Modal>
       )}
 
@@ -763,8 +770,6 @@ const styles = StyleSheet.create({
   sheetRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md },
   sheetRowText: { fontSize: type.size.md, color: colors.ink },
   viewerBg: { flex: 1, backgroundColor: "#000" },
-  viewerPage: { width: SCREEN_W, height: "100%", justifyContent: "center" },
-  viewerImage: { width: "100%", height: "100%" },
   // `top` is set inline from the safe-area inset — a Modal is its own native
   // window, so SafeAreaView measures nothing inside it.
   viewerClose: {

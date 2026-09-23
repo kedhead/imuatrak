@@ -22,6 +22,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
 import {
@@ -50,6 +51,7 @@ import { useClub } from "@/services/clubStore";
 import type { ClubChannel, ClubMember, ClubMessage, MemberRole } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
+import { ZoomableImage } from "@/ui/ZoomableImage";
 import { ChannelIcon } from "../channels";
 
 export default function ChannelChatScreen() {
@@ -86,6 +88,9 @@ export default function ChannelChatScreen() {
   const [viewerPage, setViewerPage] = useState(0);
   const [viewerMenu, setViewerMenu] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
+  // Paging is turned off while a photo is pinched in, so the drag pans the
+  // photo instead of flicking to the next one.
+  const [viewerZoomed, setViewerZoomed] = useState(false);
   // Roster fallback for @-mentions. The club store's copy is filled by the
   // club loader; if that hasn't run for this club the picker would have
   // nobody to offer and could never open, with no visible reason why.
@@ -711,10 +716,11 @@ export default function ChannelChatScreen() {
       {/* Full-screen image viewer with horizontal paging */}
       {viewer && (
         <Modal visible animationType="fade" onRequestClose={() => setViewer(null)} statusBarTranslucent>
-          <View style={styles.viewerBg}>
+          <GestureHandlerRootView style={styles.viewerBg}>
             <FlatList
               horizontal
               pagingEnabled
+              scrollEnabled={!viewerZoomed}
               data={viewer.urls}
               initialScrollIndex={viewer.index}
               getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
@@ -723,14 +729,14 @@ export default function ChannelChatScreen() {
                 setViewerPage(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))
               }
               renderItem={({ item }) => (
-                <Pressable
-                  style={styles.viewerPage}
+                <ZoomableImage
+                  uri={item}
+                  width={SCREEN_W}
+                  height={SCREEN_H}
                   onPress={() => setViewer(null)}
                   onLongPress={() => setViewerMenu(true)}
-                  delayLongPress={300}
-                >
-                  <Image source={{ uri: item }} style={styles.viewerImage} resizeMode="contain" />
-                </Pressable>
+                  onZoomChange={setViewerZoomed}
+                />
               )}
             />
             <Pressable
@@ -772,7 +778,7 @@ export default function ChannelChatScreen() {
                 </Pressable>
               </Pressable>
             )}
-          </View>
+          </GestureHandlerRootView>
         </Modal>
       )}
 
@@ -862,6 +868,7 @@ export default function ChannelChatScreen() {
 }
 
 const SCREEN_W = Dimensions.get("window").width;
+const SCREEN_H = Dimensions.get("window").height;
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
 // Timestamp under each bubble — always shows the date and the time. The year
@@ -1331,8 +1338,6 @@ const styles = StyleSheet.create({
   },
   sheetRowText: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ink },
   viewerBg: { flex: 1, backgroundColor: "#000" },
-  viewerPage: { width: SCREEN_W, height: "100%", justifyContent: "center" },
-  viewerImage: { width: "100%", height: "100%" },
   // `top` is set inline from the safe-area inset — a Modal is its own native
   // window, so SafeAreaView measures nothing inside it.
   // A dark translucent chip keeps the icons legible over any photo — white

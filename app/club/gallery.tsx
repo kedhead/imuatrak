@@ -18,6 +18,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
 import {
@@ -36,8 +37,10 @@ import type { ClubComment, ClubMember, ClubPost } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
 import { Button } from "@/ui/Button";
 import { colors, radii, spacing, type } from "@/ui/theme";
+import { ZoomableImage } from "@/ui/ZoomableImage";
 
 const SCREEN_W = Dimensions.get("window").width;
+const SCREEN_H = Dimensions.get("window").height;
 const COLUMNS = 3;
 const GAP = 2;
 const TILE = (SCREEN_W - GAP * (COLUMNS - 1)) / COLUMNS;
@@ -727,6 +730,9 @@ function PhotoViewer({
   const [commentText, setCommentText] = useState("");
   const [showComments, setShowComments] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Paging is turned off while a photo is pinched in, so the drag pans the
+  // photo instead of flicking to the next one.
+  const [zoomed, setZoomed] = useState(false);
 
   useEffect(() => {
     setLiked(!!myUid && (post.likedBy ?? []).includes(myUid));
@@ -813,7 +819,10 @@ function PhotoViewer({
 
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <View
+      {/* Gesture handler needs its own root inside a Modal (a Modal renders
+          in a separate native hierarchy), or pinch-to-zoom silently does
+          nothing on Android. */}
+      <GestureHandlerRootView
         style={[
           styles.viewerSafe,
           // Insets come from the parent screen, applied once by hand. A
@@ -844,6 +853,7 @@ function PhotoViewer({
           <FlatList
             horizontal
             pagingEnabled
+            scrollEnabled={!zoomed}
             data={tiles}
             initialScrollIndex={index}
             getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
@@ -853,9 +863,12 @@ function PhotoViewer({
               onChangeIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))
             }
             renderItem={({ item }) => (
-              <View style={styles.viewerPage}>
-                <Image source={{ uri: item.url }} style={styles.viewerImage} resizeMode="contain" />
-              </View>
+              <ZoomableImage
+                uri={item.url}
+                width={SCREEN_W}
+                height={SCREEN_H}
+                onZoomChange={setZoomed}
+              />
             )}
           />
 
@@ -943,7 +956,7 @@ function PhotoViewer({
             )}
           </View>
         </KeyboardAvoidingView>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -1095,8 +1108,6 @@ const styles = StyleSheet.create({
   // 44pt minimum touch target, per the platform guidelines.
   headerBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   viewerCount: { color: colors.white, fontSize: type.size.sm },
-  viewerPage: { width: SCREEN_W, flex: 1, alignItems: "center", justifyContent: "center" },
-  viewerImage: { width: SCREEN_W, height: "100%" },
   viewerFooter: { padding: spacing.lg, gap: spacing.sm },
   authorRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   authorName: { color: colors.white, fontWeight: type.weight.bold, fontSize: type.size.md },

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -19,6 +20,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
 import { getPosts, createPost, deletePost, updatePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment, uploadPostMedia } from "@/services/clubService";
@@ -38,6 +40,11 @@ import { RsvpBadge } from "@/ui/RsvpBadge";
 import { Logo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
+import { ZoomableImage } from "@/ui/ZoomableImage";
+
+const SCREEN_W = Dimensions.get("window").width;
+const SCREEN_H = Dimensions.get("window").height;
+
 
 const EVENT_COLORS: Record<string, string> = {
   practice: colors.ocean,
@@ -662,9 +669,14 @@ function PostCard({
       )}
       {!!photo && (
         <Modal visible animationType="fade" onRequestClose={() => setPhoto(null)} statusBarTranslucent>
-          <Pressable style={styles.photoBg} onPress={() => setPhoto(null)}>
-            <Image source={{ uri: photo }} style={styles.photoFull} resizeMode="contain" />
-          </Pressable>
+          <GestureHandlerRootView style={styles.photoBg}>
+            <ZoomableImage
+              uri={photo}
+              width={SCREEN_W}
+              height={SCREEN_H}
+              onPress={() => setPhoto(null)}
+            />
+          </GestureHandlerRootView>
           <Pressable style={styles.photoClose} onPress={() => setPhoto(null)} hitSlop={16}>
             <Ionicons name="close" size={28} color={colors.white} />
           </Pressable>
