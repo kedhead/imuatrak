@@ -69,10 +69,14 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // navigation route, the 50 Hz accelerometer and the snapshot write moved off
 // the main actor) is Swift. None of it can travel over OTA.
 //
-// ⚠️ Do NOT push an OTA (`eas update --channel production`) until 1.0.5 is
-// LIVE and installed on each store: until then these runtimes point at a build
-// no device has, and an update would reach nobody — the #62 outage again.
-// (1.0.4 users keep the JS they already have; they get the rest by updating.)
+// 1.0.5 is LIVE on both stores (2026-09-24), so these runtimes point at builds
+// that real devices are running and OTA is unlocked: `eas update --channel
+// production` now reaches people. The lock goes back on the moment the next
+// native build is in flight — see the rule above.
+//
+// Note for that next cycle: 1.0.5 added react-native-keyboard-controller, so
+// its JS can never run on a 1.0.4 binary. Nothing can target 1.0.4 while these
+// say 1.0.5, which is the point; do not hand-edit them to make an update land.
 const IOS_RUNTIME_VERSION = "1.0.5";
 // Both platforms are built and submitted from this commit, so Android moves in
 // step with iOS. Android has no native change of its own this cycle — it is

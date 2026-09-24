@@ -6,13 +6,16 @@ right build/deploy window comes up.
 
 ---
 
-## Enable R8 (Android code shrinking) — first change of the 1.0.5 cycle
+## Enable R8 (Android code shrinking) — first change of the 1.0.6 cycle
 
-**Status:** deferred from 1.0.4 (2026-09). Play Console flags the app as not
-optimized: https://developer.android.com/topic/performance/app-optimization/enable-app-optimization
+**Status:** deferred from 1.0.4, then from 1.0.5 (both shipped without it).
+Play Console flags the app as not optimized:
+https://developer.android.com/topic/performance/app-optimization/enable-app-optimization
 
-Advisory, not a submission blocker — 1.0.4 shipped without it deliberately, so
-an already-tested binary wasn't invalidated hours before submission.
+Advisory, not a submission blocker, which is why it keeps sliding: each time,
+the release it was queued for had urgent fixes in it and R8 is the one change
+that can invalidate an already-tested binary. It needs a cycle where it can go
+in FIRST and be smoke-tested, not one it gets appended to.
 
 ### The change
 
