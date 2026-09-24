@@ -9,7 +9,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  KeyboardAvoidingView,
   Linking,
   Modal,
   Pressable,
@@ -20,6 +19,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";

@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -16,6 +15,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { deleteField } from "firebase/firestore";
 import { currentUser } from "@/services/auth";

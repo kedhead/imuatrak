@@ -12,7 +12,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -22,6 +21,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
@@ -294,6 +294,7 @@ export default function DmThreadScreen() {
         behavior="padding"
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
+        <View style={styles.listWrap}>
         <FlatList
           data={reversed}
           keyExtractor={(m) => m.id}
@@ -317,14 +318,22 @@ export default function DmThreadScreen() {
               }}
             />
           )}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>
-                No messages yet. Say hi to {otherName || "them"}.
-              </Text>
-            </View>
-          }
         />
+        {/* Rendered beside the list, not as ListEmptyComponent.
+            An inverted FlatList is implemented as a flip transform, and
+            ListEmptyComponent is not one of the cells that gets flipped back,
+            so it inherits the flip — which is why Android users saw this text
+            mirrored. Counter-transforming it worked on iOS and did not on
+            Android, because the two platforms do not flip on the same axis.
+            Keeping it out of the list avoids the question entirely. */}
+        {messages.length === 0 && (
+          <View style={styles.emptyOverlay} pointerEvents="none">
+            <Text style={styles.emptyText}>
+              No messages yet. Say hi to {otherName || "them"}.
+            </Text>
+          </View>
+        )}
+        </View>
 
         <View style={styles.composer}>
           <Pressable onPress={onPickMedia} hitSlop={8} style={styles.mediaBtn}>
@@ -755,7 +764,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendBtnDisabled: { backgroundColor: colors.line },
-  emptyWrap: { padding: spacing.xl, alignItems: "center", transform: [{ scaleY: -1 }] },
+  listWrap: { flex: 1 },
+  emptyOverlay: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
   emptyText: { color: colors.muted, fontSize: type.size.sm, textAlign: "center" },
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   sheetCard: {

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AppState, Platform } from "react-native";
 import MobileAds from "react-native-google-mobile-ads";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 import * as Notifications from "expo-notifications";
@@ -149,6 +150,20 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* Android enforces edge-to-edge at targetSdk 35+, so adjustResize no
+          longer resizes the window for the keyboard — the app has to read the
+          IME inset itself. React Native's own KeyboardAvoidingView cannot,
+          which is why inputs kept ending up behind the keyboard on Android
+          whichever `behavior` was set. This provider reads the real inset, and
+          the KeyboardAvoidingView from the same package (used in place of RN's
+          everywhere) acts on it. */}
+      {/* All three flags are about Android's edge-to-edge, which this app is
+          in permanently at targetSdk 36: the status and navigation bars are
+          translucent and the app draws behind them, so the provider has to
+          subtract them when it works out how far the keyboard actually
+          intrudes. preserveEdgeToEdge keeps that mode on rather than letting
+          the module turn it off underneath us. */}
+      <KeyboardProvider statusBarTranslucent navigationBarTranslucent preserveEdgeToEdge>
       <SafeAreaProvider>
         <StatusBar style="auto" />
         <Stack
@@ -190,6 +205,7 @@ export default function RootLayout() {
         </Stack>
         {!splashHidden && <AnimatedSplash hidden={loaded} />}
       </SafeAreaProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

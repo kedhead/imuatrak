@@ -12,7 +12,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -22,6 +21,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
@@ -482,6 +482,7 @@ export default function ChannelChatScreen() {
         // keyboard overlapped the newest chat bubbles.
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
+        <View style={styles.listWrap}>
         <FlatList
           data={reversed}
           keyExtractor={(m) => m.id}
@@ -505,12 +506,16 @@ export default function ChannelChatScreen() {
               }}
             />
           )}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>No messages yet. Say hi!</Text>
-            </View>
-          }
         />
+        {/* Beside the list, not ListEmptyComponent — see the DM screen for
+            why: an inverted list flips its container, and this is not one of
+            the cells flipped back, so it rendered mirrored on Android. */}
+        {messages.length === 0 && (
+          <View style={styles.emptyOverlay} pointerEvents="none">
+            <Text style={styles.emptyText}>No messages yet. Say hi!</Text>
+          </View>
+        )}
+        </View>
 
         {replyTarget && (
           <View style={styles.replyBar}>
@@ -1445,6 +1450,12 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: { opacity: 0.4 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  emptyWrap: { flex: 1, alignItems: "center", paddingTop: spacing.xxl },
+  listWrap: { flex: 1 },
+  emptyOverlay: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
   emptyText: { color: colors.muted, fontSize: type.size.md },
 });
