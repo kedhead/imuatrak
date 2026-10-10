@@ -5,7 +5,7 @@ import * as MediaLibrary from "expo-media-library/legacy";
 import * as Sharing from "expo-sharing";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -38,6 +38,7 @@ import { db } from "@/services/firebase";
 import type { DmMessage, DmThread } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
 import { LinkifiedText } from "@/ui/LinkifiedText";
+import { formatTime } from "@/ui/format";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ZoomableImage } from "@/ui/ZoomableImage";
 
@@ -256,7 +257,9 @@ export default function DmThreadScreen() {
     }
   };
 
-  const onToggleReaction = (message: DmMessage, emoji: string) => {
+  // useCallback on the row handlers, because Bubble is memoised and a fresh
+  // function identity each render would defeat it entirely.
+  const onToggleReaction = useCallback((message: DmMessage, emoji: string) => {
     if (!threadId || !user) return;
     const uid = user.uid;
     setMessages((prev) =>
@@ -268,7 +271,14 @@ export default function DmThreadScreen() {
       }),
     );
     void toggleDmReaction(threadId, message, emoji, uid).catch(() => undefined);
-  };
+  }, [threadId, user]);
+
+  const onRowLongPress = useCallback((m: DmMessage) => setActionTarget(m), []);
+  const onRowPressImage = useCallback((urls: string[], index: number) => {
+    setViewerPage(index);
+    setViewerMenu(false);
+    setViewer({ urls, index });
+  }, []);
 
   const onDelete = (message: DmMessage) => {
     if (!threadId) return;
@@ -309,13 +319,9 @@ export default function DmThreadScreen() {
               avatarUrl={
                 item.authorId === otherUid ? thread?.participantAvatars?.[item.authorId] : undefined
               }
-              onLongPress={() => setActionTarget(item)}
-              onToggleReaction={(e) => onToggleReaction(item, e)}
-              onPressImage={(urls, index) => {
-                setViewerPage(index);
-                setViewerMenu(false);
-                setViewer({ urls, index });
-              }}
+              onLongPress={onRowLongPress}
+              onToggleReaction={onToggleReaction}
+              onPressImage={onRowPressImage}
             />
           )}
         />
@@ -539,7 +545,13 @@ export default function DmThreadScreen() {
   );
 }
 
-function Bubble({
+/**
+ * Memoised for the same reason as club chat's MessageBubble: the composer's
+ * text lives on the screen component, so every keystroke re-rendered every
+ * visible bubble — each one rebuilding its photo list, reaction list and
+ * timestamp for props that had not changed.
+ */
+const Bubble = memo(function Bubble({
   message,
   isMe,
   myUid,
@@ -554,20 +566,19 @@ function Bubble({
   myUid?: string;
   uploading: boolean;
   avatarUrl?: string;
-  onLongPress: () => void;
-  onToggleReaction: (emoji: string) => void;
+  onLongPress: (m: DmMessage) => void;
+  onToggleReaction: (m: DmMessage, emoji: string) => void;
   onPressImage: (urls: string[], index: number) => void;
 }) {
-  const time = new Date(message.createdAt).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  // Bound once per render of THIS row, not once per render of the screen.
+  const longPress = () => onLongPress(message);
+  const time = formatTime(message.createdAt);
   const reactionEntries = Object.entries(message.reactions ?? {}).filter(([, u]) => u.length > 0);
   const photoUrls = photosOf(message);
 
   return (
     <Pressable
-      onLongPress={onLongPress}
+      onLongPress={longPress}
       delayLongPress={300}
       style={[styles.row, isMe ? styles.rowMe : styles.rowThem]}
     >
@@ -581,7 +592,7 @@ function Bubble({
               urls={photoUrls}
               uploading={uploading}
               onPressImage={(i) => onPressImage(photoUrls, i)}
-              onLongPress={onLongPress}
+              onLongPress={longPress}
             />
           )}
           {message.content.length > 0 && (
@@ -599,7 +610,7 @@ function Bubble({
             {reactionEntries.map(([emoji, uids]) => (
               <Pressable
                 key={emoji}
-                onPress={() => onToggleReaction(emoji)}
+                onPress={() => onToggleReaction(message, emoji)}
                 style={[
                   styles.reactionChip,
                   !!myUid && uids.includes(myUid) && styles.reactionChipMine,
@@ -615,7 +626,7 @@ function Bubble({
       </View>
     </Pressable>
   );
-}
+});
 
 /**
  * Same layout as club chat: one photo full width; 2+ in a 2-column grid capped

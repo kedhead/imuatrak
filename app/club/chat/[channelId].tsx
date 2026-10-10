@@ -5,7 +5,7 @@ import * as MediaLibrary from "expo-media-library/legacy";
 import * as Sharing from "expo-sharing";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -50,6 +50,7 @@ import { extractImageUrls, LinkifiedText } from "@/ui/LinkifiedText";
 import { useClub } from "@/services/clubStore";
 import type { ClubChannel, ClubMember, ClubMessage, MemberRole } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
+import { formatMessageTime } from "@/ui/format";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ZoomableImage } from "@/ui/ZoomableImage";
 import { ChannelIcon } from "../channels";
@@ -336,7 +337,9 @@ export default function ChannelChatScreen() {
         ? "Video"
         : "Photo";
 
-  const onToggleReaction = (message: ClubMessage, emoji: string) => {
+  // useCallback on all three row handlers, because MessageBubble is memoised
+  // and a fresh function identity each render would defeat it entirely.
+  const onToggleReaction = useCallback((message: ClubMessage, emoji: string) => {
     if (!club || !channelId || !user) return;
     const uid = user.uid;
     // Optimistic flip; the onSnapshot subscription reconciles with the server.
@@ -349,7 +352,14 @@ export default function ChannelChatScreen() {
       }),
     );
     void toggleMessageReaction(club.id, channelId, message, emoji, uid).catch(() => undefined);
-  };
+  }, [club, channelId, user]);
+
+  const onRowLongPress = useCallback((m: ClubMessage) => setActionTarget(m), []);
+  const onRowPressImage = useCallback((urls: string[], index: number) => {
+    setViewerPage(index);
+    setViewerMenu(false);
+    setViewer({ urls, index });
+  }, []);
 
   const onSend = async () => {
     const content = text.trim();
@@ -497,13 +507,9 @@ export default function ChannelChatScreen() {
               uploading={uploadingId === item.id}
               myUid={user?.uid}
               mentionTargets={mentionTargets}
-              onLongPress={() => setActionTarget(item)}
-              onToggleReaction={(emoji) => onToggleReaction(item, emoji)}
-              onPressImage={(urls, index) => {
-                setViewerPage(index);
-                setViewerMenu(false);
-                setViewer({ urls, index });
-              }}
+              onLongPress={onRowLongPress}
+              onToggleReaction={onToggleReaction}
+              onPressImage={onRowPressImage}
             />
           )}
         />
@@ -876,20 +882,6 @@ const SCREEN_W = Dimensions.get("window").width;
 const SCREEN_H = Dimensions.get("window").height;
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
-// Timestamp under each bubble — always shows the date and the time. The year
-// is included only when the message is from a previous year, to keep it short.
-function formatMessageTime(iso: string): string {
-  const d = new Date(iso);
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const date = d.toLocaleDateString(
-    [],
-    d.getFullYear() === new Date().getFullYear()
-      ? { month: "short", day: "numeric" }
-      : { year: "numeric", month: "short", day: "numeric" },
-  );
-  return `${date}, ${time}`;
-}
-
 // Per-role accents for chat. Members get no badge and the default bubble so
 // the feed stays clean; owner/admin/coach are highlighted.
 const ROLE_META: Record<MemberRole, { label: string; color: string; bubbleBg: string } | null> = {
@@ -899,7 +891,15 @@ const ROLE_META: Record<MemberRole, { label: string; color: string; bubbleBg: st
   member: null,
 };
 
-function MessageBubble({
+/**
+ * Memoised deliberately. The composer's text lives on the screen component, so
+ * every keystroke re-renders it — and without this, every visible bubble
+ * re-rendered too, each one re-running a regex scan over its content, rebuilding
+ * its reaction list and formatting its timestamp. All of that for rows whose
+ * props had not changed. The props here are primitives plus the message object
+ * and callbacks, so a default shallow compare is the right one.
+ */
+const MessageBubble = memo(function MessageBubble({
   message,
   isMe,
   role,
@@ -919,10 +919,12 @@ function MessageBubble({
   uploading: boolean;
   myUid?: string;
   mentionTargets: MentionTarget[];
-  onLongPress: () => void;
-  onToggleReaction: (emoji: string) => void;
+  onLongPress: (m: ClubMessage) => void;
+  onToggleReaction: (m: ClubMessage, emoji: string) => void;
   onPressImage: (urls: string[], index: number) => void;
 }) {
+  // Bound once per render of THIS row, not once per render of the screen.
+  const longPress = () => onLongPress(message);
   const time = formatMessageTime(message.createdAt);
   const roleMeta = role ? ROLE_META[role] : null;
 
@@ -945,7 +947,7 @@ function MessageBubble({
 
   return (
     <Pressable
-      onLongPress={onLongPress}
+      onLongPress={longPress}
       delayLongPress={300}
       style={[styles.row, isMe ? styles.rowMe : styles.rowThem]}
     >
@@ -1003,7 +1005,7 @@ function MessageBubble({
             urls={photoUrls}
             uploading={uploading}
             onPressImage={(i) => onPressImage(photoUrls, i)}
-            onLongPress={onLongPress}
+            onLongPress={longPress}
           />
         )}
 
@@ -1016,7 +1018,7 @@ function MessageBubble({
             key={url}
             style={styles.mediaWrap}
             onPress={() => onPressImage([url], 0)}
-            onLongPress={onLongPress}
+            onLongPress={longPress}
             delayLongPress={300}
           >
             <Image source={{ uri: url }} style={styles.mediaImage} resizeMode="cover" />
@@ -1040,7 +1042,7 @@ function MessageBubble({
             {reactionEntries.map(([emoji, uids]) => (
               <Pressable
                 key={emoji}
-                onPress={() => onToggleReaction(emoji)}
+                onPress={() => onToggleReaction(message, emoji)}
                 style={[
                   styles.reactionChip,
                   !!myUid && uids.includes(myUid) && styles.reactionChipMine,
@@ -1060,7 +1062,7 @@ function MessageBubble({
       </View>
     </Pressable>
   );
-}
+});
 
 /**
  * WhatsApp-style photo layout: one image full width; 2+ in a 2-column grid
