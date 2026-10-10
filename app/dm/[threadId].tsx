@@ -60,7 +60,6 @@ export default function DmThreadScreen() {
 
   const [thread, setThread] = useState<DmThread | null>(null);
   const [messages, setMessages] = useState<DmMessage[]>([]);
-  const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [actionTarget, setActionTarget] = useState<DmMessage | null>(null);
   // Photos picked but not yet sent — staged in the caption preview sheet.
@@ -110,23 +109,25 @@ export default function DmThreadScreen() {
 
   const reversed = useMemo(() => [...messages].reverse(), [messages]);
 
-  const onSend = async () => {
-    const content = text.trim();
-    if (!content || !threadId || !user) return;
-    setText("");
+  /** Returns whether the send was accepted, so the composer knows to clear. */
+  const onSend = useCallback((content: string): boolean => {
+    if (!threadId || !user) return false;
     setSending(true);
-    try {
-      await sendDmMessage(threadId, user.uid, user.displayName ?? "Member", content);
-    } catch (e) {
-      // Surface the real error rather than a generic string: the failure that
-      // matters here is a rules denial (permission-denied), and hiding its
-      // code makes an undeployed firestore.rules look like a code bug.
-      const msg = e instanceof Error ? e.message : String(e);
-      Alert.alert("Couldn't send", msg);
-    } finally {
-      setSending(false);
-    }
-  };
+    void (async () => {
+      try {
+        await sendDmMessage(threadId, user.uid, user.displayName ?? "Member", content);
+      } catch (e) {
+        // Surface the real error rather than a generic string: the failure that
+        // matters here is a rules denial (permission-denied), and hiding its
+        // code makes an undeployed firestore.rules look like a code bug.
+        const msg = e instanceof Error ? e.message : String(e);
+        Alert.alert("Couldn't send", msg);
+      } finally {
+        setSending(false);
+      }
+    })();
+    return true;
+  }, [threadId, user]);
 
   // Pick photos, then stage them in a preview so the sender can add a caption
   // before anything posts. Any text already in the composer pre-fills it.
@@ -134,12 +135,13 @@ export default function DmThreadScreen() {
   // Images only: DM media goes up as base64 through a callable, and a video
   // would blow past that payload cap. Club chat has the signed-URL path for
   // video; a private thread doesn't need it.
-  const onPickMedia = async () => {
-    if (!threadId || !user) return;
+  /** Resolves true when photos were staged, so the composer knows to clear. */
+  const onPickMedia = useCallback(async (draft: string): Promise<boolean> => {
+    if (!threadId || !user) return false;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission needed", "Allow photo library access to share photos.");
-      return;
+      return false;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
@@ -147,10 +149,10 @@ export default function DmThreadScreen() {
       allowsMultipleSelection: true,
       selectionLimit: 8,
     });
-    if (result.canceled || result.assets.length === 0) return;
-    setPendingMedia({ assets: result.assets, caption: text.trim() });
-    if (text.trim()) setText("");
-  };
+    if (result.canceled || result.assets.length === 0) return false;
+    setPendingMedia({ assets: result.assets, caption: draft });
+    return true;
+  }, [threadId, user]);
 
   const sendPendingMedia = async () => {
     if (!threadId || !user || !pendingMedia) return;
@@ -341,32 +343,7 @@ export default function DmThreadScreen() {
         )}
         </View>
 
-        <View style={styles.composer}>
-          <Pressable onPress={onPickMedia} hitSlop={8} style={styles.mediaBtn}>
-            <Ionicons name="image-outline" size={26} color={colors.ocean} />
-          </Pressable>
-          <TextInput
-            style={styles.input}
-            value={text}
-            onChangeText={setText}
-            placeholder="Message..."
-            placeholderTextColor={colors.muted}
-            multiline
-            maxLength={1000}
-          />
-          <Pressable
-            onPress={onSend}
-            disabled={sending || !text.trim()}
-            hitSlop={8}
-            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color={colors.white} />
-            ) : (
-              <Ionicons name="send" size={18} color={colors.white} />
-            )}
-          </Pressable>
-        </View>
+        <DmComposer sending={sending} onSend={onSend} onPickMedia={onPickMedia} />
       </KeyboardAvoidingView>
 
       {actionTarget && (
@@ -544,6 +521,64 @@ export default function DmThreadScreen() {
     </SafeAreaView>
   );
 }
+
+/**
+ * The message box and its buttons, holding its own draft so that a keystroke
+ * re-renders only this rather than the whole conversation screen. See
+ * ChatComposer in the club chat screen for the full reasoning.
+ */
+const DmComposer = memo(function DmComposer({
+  sending,
+  onSend,
+  onPickMedia,
+}: {
+  sending: boolean;
+  /** Returns whether the send was accepted; the draft is cleared only then. */
+  onSend: (content: string) => boolean;
+  /** Receives the draft as the caption; resolves whether photos were staged. */
+  onPickMedia: (draft: string) => Promise<boolean>;
+}) {
+  const [text, setText] = useState("");
+
+  const send = () => {
+    const content = text.trim();
+    if (content && onSend(content)) setText("");
+  };
+
+  const pickMedia = async () => {
+    const draft = text.trim();
+    if ((await onPickMedia(draft)) && draft) setText("");
+  };
+
+  return (
+    <View style={styles.composer}>
+      <Pressable onPress={pickMedia} hitSlop={8} style={styles.mediaBtn}>
+        <Ionicons name="image-outline" size={26} color={colors.ocean} />
+      </Pressable>
+      <TextInput
+        style={styles.input}
+        value={text}
+        onChangeText={setText}
+        placeholder="Message..."
+        placeholderTextColor={colors.muted}
+        multiline
+        maxLength={1000}
+      />
+      <Pressable
+        onPress={send}
+        disabled={sending || !text.trim()}
+        hitSlop={8}
+        style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
+      >
+        {sending ? (
+          <ActivityIndicator size="small" color={colors.white} />
+        ) : (
+          <Ionicons name="send" size={18} color={colors.white} />
+        )}
+      </Pressable>
+    </View>
+  );
+});
 
 /**
  * Memoised for the same reason as club chat's MessageBubble: the composer's

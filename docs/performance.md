@@ -52,6 +52,16 @@ does nothing unless the props are stable, so the row callbacks moved to
 `useCallback` and the rows now receive the message as an argument
 (`onLongPress(message)`) instead of closing over it in an inline arrow.
 
+**Follow-up (same day): the composer now owns its own draft.** Memoising the
+rows stopped them re-rendering, but the 1,400-line screen still re-rendered on
+every keystroke because that is where the draft lived. `ChatComposer` and
+`DmComposer` hold the text (and, in club chat, the caret and the @-mention
+picker) themselves, so a keystroke re-renders the composer and nothing else.
+They are memoised too, so messages arriving don't re-render the composer either.
+The parent hands them `onSend(content) => accepted` and
+`onPickMedia(draft) => staged`; the draft is cleared only on acceptance. The
+mention caret logic moved across unchanged.
+
 ---
 
 ## 3. Images use React Native's `Image` — needs a build
@@ -86,7 +96,7 @@ props can be, and `removeClippedSubviews` is a real win on Android.
 Worth doing with a profiler open rather than blind — mis-tuned windowing shows
 up as blank rows while scrolling fast, which is worse than the problem.
 
-## 5. Mention matching runs on every render
+## 5. Mention matching runs on every render — FIXED
 
 `app/club/chat/[channelId].tsx`:
 
@@ -95,9 +105,8 @@ const mentionQuery = mentionQueryAt(text, Math.min(cursor, text.length));
 const mentionCandidates = mentionQuery ? matchMentionCandidates(...roster) : [];
 ```
 
-Not memoised, so it scans the whole roster twice per keystroke (two render
-passes). Small next to items 1–2 and it only bites on large clubs, but a
-`useMemo` keyed on `[text, cursor, mentionTargets]` costs nothing.
+Was unmemoised, scanning the whole roster twice per keystroke. Now a `useMemo`
+inside `ChatComposer`, keyed on the draft, caret and roster.
 
 ## 6. Cold starts on the push trigger
 

@@ -65,12 +65,9 @@ export default function ChannelChatScreen() {
 
   const [channel, setChannel] = useState<ClubChannel | null>(null);
   const [messages, setMessages] = useState<ClubMessage[]>([]);
-  const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   // Caret position, tracked so the @-autocomplete knows which token is being
   // typed rather than always looking at the end of the message.
-  const [cursor, setCursor] = useState(0);
-  const inputRef = useRef<TextInput>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   // Media picked but not yet sent — staged in the caption preview sheet.
   const [pendingMedia, setPendingMedia] = useState<
@@ -161,34 +158,6 @@ export default function ChannelChatScreen() {
       .map((m) => ({ uid: m.uid, name: m.displayName.trim() }));
   }, [roster, channel?.isPrivate, channel?.memberIds]);
 
-  // Candidates for the mention picker, or null when no @query is being typed.
-  const mentionQuery = mentionQueryAt(text, Math.min(cursor, text.length));
-  const mentionCandidates = mentionQuery
-    ? matchMentionCandidates(
-        mentionQuery.query,
-        mentionTargets.filter((t) => t.uid !== user?.uid),
-      )
-    : [];
-
-  /**
-   * Open the picker explicitly. Typing "@" should do this on its own, but that
-   * relies on inferring the caret from keyboard events; this button is the
-   * deterministic path and makes the feature discoverable besides.
-   */
-  const onOpenMentions = () => {
-    const next = `${text}${text.length > 0 && !/\s$/.test(text) ? " " : ""}@`;
-    setText(next);
-    setCursor(next.length);
-    inputRef.current?.focus();
-  };
-
-  const onPickMention = (target: MentionTarget) => {
-    if (!mentionQuery) return;
-    const next = applyMention(text, mentionQuery.start, cursor, target.name);
-    setText(next.text);
-    setCursor(next.cursor);
-    inputRef.current?.focus();
-  };
 
   const onDeleteMessage = (message: ClubMessage) => {
     if (!club || !channelId) return;
@@ -361,38 +330,40 @@ export default function ChannelChatScreen() {
     setViewer({ urls, index });
   }, []);
 
-  const onSend = async () => {
-    const content = text.trim();
-    if (!content || !club || !channelId || !user) return;
+  /** Returns whether the send was accepted, so the composer knows to clear. */
+  const onSend = useCallback((content: string): boolean => {
+    if (!club || !channelId || !user) return false;
     const replyTo = replyTarget ?? undefined;
     // Resolve against the final text, so a mention the author typed and then
     // deleted never fires a notification.
     const mentions = resolveMentions(content, mentionTargets);
-    setText("");
-    setCursor(0);
     setReplyTarget(null);
     setSending(true);
-    try {
-      await sendMessage(
-        club.id, channelId, user.uid, user.displayName ?? "Member", content,
-        { replyTo, mentions },
-      );
-    } catch {
-      Alert.alert("Error", "Failed to send message.");
-    } finally {
-      setSending(false);
-    }
-  };
+    void (async () => {
+      try {
+        await sendMessage(
+          club.id, channelId, user.uid, user.displayName ?? "Member", content,
+          { replyTo, mentions },
+        );
+      } catch {
+        Alert.alert("Error", "Failed to send message.");
+      } finally {
+        setSending(false);
+      }
+    })();
+    return true;
+  }, [club, channelId, user, replyTarget, mentionTargets]);
 
   // Pick media, then stage it in a preview so the sender can add a caption
   // before it posts (rather than posting immediately with no chance to). Any
   // text already in the composer pre-fills the caption.
-  const onPickMedia = async () => {
-    if (!club || !channelId || !user) return;
+  /** Resolves true when media was staged, so the composer knows to clear. */
+  const onPickMedia = useCallback(async (draft: string): Promise<boolean> => {
+    if (!club || !channelId || !user) return false;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission needed", "Allow photo library access to share photos and videos.");
-      return;
+      return false;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
@@ -400,10 +371,10 @@ export default function ChannelChatScreen() {
       allowsMultipleSelection: true,
       selectionLimit: 8,
     });
-    if (result.canceled || result.assets.length === 0) return;
-    setPendingMedia({ assets: result.assets, caption: text.trim() });
-    if (text.trim()) setText("");
-  };
+    if (result.canceled || result.assets.length === 0) return false;
+    setPendingMedia({ assets: result.assets, caption: draft });
+    return true;
+  }, [club, channelId, user]);
 
   const sendPendingMedia = async () => {
     if (!club || !channelId || !user || !pendingMedia) return;
@@ -535,79 +506,13 @@ export default function ChannelChatScreen() {
           </View>
         )}
 
-        {/* @-mention picker — sits directly above the composer, like the
-            reply bar, and only while an @query is being typed. */}
-        {mentionQuery && (
-          <View style={styles.mentionBar}>
-            {mentionCandidates.length === 0 ? (
-              <Text style={styles.mentionEmpty}>
-                {mentionTargets.length <= 1
-                  ? "No one else in this channel to mention yet."
-                  : `No one matching "${mentionQuery.query}".`}
-              </Text>
-            ) : (
-              <FlatList
-                horizontal
-                keyboardShouldPersistTaps="always"
-                showsHorizontalScrollIndicator={false}
-                data={mentionCandidates}
-                keyExtractor={(m) => m.uid}
-                contentContainerStyle={styles.mentionList}
-                renderItem={({ item }) => (
-                  <Pressable style={styles.mentionChip} onPress={() => onPickMention(item)}>
-                    <Ionicons name="at" size={14} color={colors.ocean} />
-                    <Text style={styles.mentionChipText} numberOfLines={1}>{item.name}</Text>
-                  </Pressable>
-                )}
-              />
-            )}
-          </View>
-        )}
-
-        <View style={styles.composer}>
-          <Pressable onPress={onPickMedia} hitSlop={8} style={styles.mediaBtn}>
-            <Ionicons name="image-outline" size={26} color={colors.ocean} />
-          </Pressable>
-          <Pressable onPress={onOpenMentions} hitSlop={8} style={styles.mediaBtn}>
-            <Ionicons name="at" size={24} color={colors.ocean} />
-          </Pressable>
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            value={text}
-            onChangeText={(next) => {
-              // Derive the caret from the edit itself wherever possible, so
-              // the mention picker still works if onSelectionChange never
-              // fires — relying on that event alone left the caret at 0 and
-              // the picker could never open.
-              const caret = caretAfterEdit(text, next);
-              setText(next);
-              if (caret !== null) setCursor(caret);
-            }}
-            // Authoritative when it fires, and the only way to know the caret
-            // after a tap or a mid-text edit. iOS and Android disagree on
-            // whether it arrives before or after onChangeText, so the two
-            // states can be one render out of step; the query is clamped
-            // below and the next render settles it.
-            onSelectionChange={(e) => setCursor(e.nativeEvent.selection.end)}
-            placeholder="Message..."
-            placeholderTextColor={colors.muted}
-            multiline
-            maxLength={1000}
-            returnKeyType="default"
-          />
-          <Pressable
-            onPress={onSend}
-            disabled={sending || !text.trim()}
-            hitSlop={8}
-            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
-          >
-            {sending
-              ? <ActivityIndicator size="small" color={colors.white} />
-              : <Ionicons name="send" size={18} color={colors.white} />
-            }
-          </Pressable>
-        </View>
+        <ChatComposer
+          mentionTargets={mentionTargets}
+          myUid={user?.uid}
+          sending={sending}
+          onSend={onSend}
+          onPickMedia={onPickMedia}
+        />
       </KeyboardAvoidingView>
 
       {/* Long-press action sheet: react / reply / delete */}
@@ -881,6 +786,168 @@ export default function ChannelChatScreen() {
 const SCREEN_W = Dimensions.get("window").width;
 const SCREEN_H = Dimensions.get("window").height;
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
+
+/**
+ * The message box, @-mention picker and send/photo/mention buttons.
+ *
+ * Its own component, holding its own draft, for one reason: typing speed. When
+ * the draft lived on the screen, every keystroke re-rendered the entire chat
+ * screen — header, list, reply bar, every modal's props — and twice over,
+ * because onChangeText and onSelectionChange arrive as separate events. Now a
+ * keystroke re-renders this and nothing else. memo() keeps it from re-rendering
+ * the other way too, when messages arrive and the screen updates.
+ *
+ * The caret handling is moved here unchanged; see the comments on the input.
+ */
+const ChatComposer = memo(function ChatComposer({
+  mentionTargets,
+  myUid,
+  sending,
+  onSend,
+  onPickMedia,
+}: {
+  mentionTargets: MentionTarget[];
+  myUid?: string;
+  sending: boolean;
+  /** Returns whether the send was accepted; the draft is cleared only then. */
+  onSend: (content: string) => boolean;
+  /** Receives the draft as the caption; resolves whether media was staged. */
+  onPickMedia: (draft: string) => Promise<boolean>;
+}) {
+  const [text, setText] = useState("");
+  // Caret position, tracked so the @-autocomplete knows which token is being
+  // typed rather than always looking at the end of the message.
+  const [cursor, setCursor] = useState(0);
+  const inputRef = useRef<TextInput>(null);
+
+  // Candidates for the mention picker, or null when no @query is being typed.
+  const mentionQuery = useMemo(
+    () => mentionQueryAt(text, Math.min(cursor, text.length)),
+    [text, cursor],
+  );
+  const mentionCandidates = useMemo(
+    () =>
+      mentionQuery
+        ? matchMentionCandidates(
+            mentionQuery.query,
+            mentionTargets.filter((t) => t.uid !== myUid),
+          )
+        : [],
+    [mentionQuery, mentionTargets, myUid],
+  );
+
+  /**
+   * Open the picker explicitly. Typing "@" should do this on its own, but that
+   * relies on inferring the caret from keyboard events; this button is the
+   * deterministic path and makes the feature discoverable besides.
+   */
+  const onOpenMentions = () => {
+    const next = `${text}${text.length > 0 && !/\s$/.test(text) ? " " : ""}@`;
+    setText(next);
+    setCursor(next.length);
+    inputRef.current?.focus();
+  };
+
+  const onPickMention = (target: MentionTarget) => {
+    if (!mentionQuery) return;
+    const next = applyMention(text, mentionQuery.start, cursor, target.name);
+    setText(next.text);
+    setCursor(next.cursor);
+    inputRef.current?.focus();
+  };
+
+  const send = () => {
+    const content = text.trim();
+    if (!content) return;
+    if (onSend(content)) {
+      setText("");
+      setCursor(0);
+    }
+  };
+
+  const pickMedia = async () => {
+    const draft = text.trim();
+    if ((await onPickMedia(draft)) && draft) setText("");
+  };
+
+  return (
+    <>
+      {/* @-mention picker — sits directly above the composer, like the
+          reply bar, and only while an @query is being typed. */}
+      {mentionQuery && (
+        <View style={styles.mentionBar}>
+          {mentionCandidates.length === 0 ? (
+            <Text style={styles.mentionEmpty}>
+              {mentionTargets.length <= 1
+                ? "No one else in this channel to mention yet."
+                : `No one matching "${mentionQuery.query}".`}
+            </Text>
+          ) : (
+            <FlatList
+              horizontal
+              keyboardShouldPersistTaps="always"
+              showsHorizontalScrollIndicator={false}
+              data={mentionCandidates}
+              keyExtractor={(m) => m.uid}
+              contentContainerStyle={styles.mentionList}
+              renderItem={({ item }) => (
+                <Pressable style={styles.mentionChip} onPress={() => onPickMention(item)}>
+                  <Ionicons name="at" size={14} color={colors.ocean} />
+                  <Text style={styles.mentionChipText} numberOfLines={1}>{item.name}</Text>
+                </Pressable>
+              )}
+            />
+          )}
+        </View>
+      )}
+
+      <View style={styles.composer}>
+        <Pressable onPress={pickMedia} hitSlop={8} style={styles.mediaBtn}>
+          <Ionicons name="image-outline" size={26} color={colors.ocean} />
+        </Pressable>
+        <Pressable onPress={onOpenMentions} hitSlop={8} style={styles.mediaBtn}>
+          <Ionicons name="at" size={24} color={colors.ocean} />
+        </Pressable>
+        <TextInput
+          ref={inputRef}
+          style={styles.input}
+          value={text}
+          onChangeText={(next) => {
+            // Derive the caret from the edit itself wherever possible, so
+            // the mention picker still works if onSelectionChange never
+            // fires — relying on that event alone left the caret at 0 and
+            // the picker could never open.
+            const caret = caretAfterEdit(text, next);
+            setText(next);
+            if (caret !== null) setCursor(caret);
+          }}
+          // Authoritative when it fires, and the only way to know the caret
+          // after a tap or a mid-text edit. iOS and Android disagree on
+          // whether it arrives before or after onChangeText, so the two
+          // states can be one render out of step; the query is clamped
+          // above and the next render settles it.
+          onSelectionChange={(e) => setCursor(e.nativeEvent.selection.end)}
+          placeholder="Message..."
+          placeholderTextColor={colors.muted}
+          multiline
+          maxLength={1000}
+          returnKeyType="default"
+        />
+        <Pressable
+          onPress={send}
+          disabled={sending || !text.trim()}
+          hitSlop={8}
+          style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
+        >
+          {sending
+            ? <ActivityIndicator size="small" color={colors.white} />
+            : <Ionicons name="send" size={18} color={colors.white} />
+          }
+        </Pressable>
+      </View>
+    </>
+  );
+});
 
 // Per-role accents for chat. Members get no badge and the default bubble so
 // the feed stays clean; owner/admin/coach are highlighted.
