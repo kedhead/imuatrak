@@ -59,29 +59,30 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // to the version of that build, in the same commit that produces it. Run
 // `npm run check:ota` to verify these against the builds EAS actually has.
 //
-// Both constants are set to 1.0.5 for the build produced from this commit.
-// Its headline native change is the watch app: 1.0.4's recovery fix was not
-// enough on its own, because the watch app had no `workout-processing` entry in
-// WKBackgroundModes at all — an HKWorkoutSession does not grant background
-// runtime by itself, so watchOS suspended the app whenever it left the
-// foreground and killed it under pressure. That is an Info.plist change, and
-// the rest of the watch work (the live screen no longer being a poppable
-// navigation route, the 50 Hz accelerometer and the snapshot write moved off
-// the main actor) is Swift. None of it can travel over OTA.
+// Both constants are set to 1.0.6 for the build produced from this commit.
 //
-// 1.0.5 is LIVE on both stores (2026-09-24), so these runtimes point at builds
-// that real devices are running and OTA is unlocked: `eas update --channel
-// production` now reaches people. The lock goes back on the moment the next
-// native build is in flight — see the rule above.
+// Its native reason is react-native-keyboard-controller, the fix for inputs
+// sitting behind the keyboard on Android under enforced edge-to-edge. That
+// module was added AFTER the 1.0.5 binary was built: 1.0.5 was cut from a
+// commit no later than bb27b23 (it was already taking OTA #61 on 2026-09-23)
+// and the module arrived in 1022a47 on 09-24. An earlier version of this comment
+// said 1.0.5 contained it. It does not, and OTA #62 (b29292d, 09-24) shipped
+// JS that requires it to the 1.0.5 runtime. The lesson for next time: before
+// declaring OTA unlocked, confirm the live binary was built from a commit that
+// contains every native module the current JS imports — "the version is live"
+// is not the same as "the live build has this code".
 //
-// Note for that next cycle: 1.0.5 added react-native-keyboard-controller, so
-// its JS can never run on a 1.0.4 binary. Nothing can target 1.0.4 while these
-// say 1.0.5, which is the point; do not hand-edit them to make an update land.
-const IOS_RUNTIME_VERSION = "1.0.5";
-// Both platforms are built and submitted from this commit, so Android moves in
-// step with iOS. Android has no native change of its own this cycle — it is
-// here to stay in line, and to carry the JS below in its binary.
-const ANDROID_RUNTIME_VERSION = "1.0.5";
+// The 1.0.6 build also carries everything JS-only since 1.0.5: the mirrored
+// empty-state fix and the chat performance work.
+//
+// ⚠️ Do NOT push an OTA (`eas update --channel production`) until 1.0.6 is
+// LIVE and installed on each store: until then these runtimes point at a build
+// no device has, and an update would reach nobody. And do not retarget an
+// update at 1.0.5 from this code — it imports a native module 1.0.5 lacks.
+const IOS_RUNTIME_VERSION = "1.0.6";
+// Both platforms ship from this commit. Android is the platform that needs the
+// keyboard module; iOS moves in step so the two stay on one runtime.
+const ANDROID_RUNTIME_VERSION = "1.0.6";
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
@@ -101,17 +102,14 @@ const config = {
   // harmless; bumping it is in fact required before any store submission.
   //
   // Because it is shared, every native build needs a number no store has seen:
-  // 1.0.4 shipped to both stores, so the next one starts at 1.0.5. Set that
-  // platform's runtime constant above to whatever number you land on, in the
-  // same commit.
+  // 1.0.5 shipped to both stores, so the next one starts at 1.0.6 — App Store
+  // Connect closes a version's train once it is approved and rejects any
+  // further build under the same number (ITMS-90186 / ITMS-90062). Set the
+  // runtime constants above to whatever number you land on, in the same commit.
   //
-  // 1.0.5 is the number for the build produced from this commit. The native
-  // reason for it is the watch app — the missing workout-processing background
-  // mode, the recording screen no longer being a poppable navigation route, and
-  // the main-thread work that was getting the app watchdog-killed partway
-  // through a paddle. It also carries the JS accumulated since 1.0.4 (photo
-  // attachments in direct messages).
-  version: "1.0.5",
+  // 1.0.6 is the number for the build produced from this commit; see the
+  // runtime comment above for what it carries and why.
+  version: "1.0.6",
   orientation: "portrait",
   icon: "./assets/icon.png",
   // Every screen is styled with hardcoded light colors — there is no dark
