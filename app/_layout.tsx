@@ -185,6 +185,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerBackTitle: "", headerBackButtonDisplayMode: "minimal" }} />
           <Stack.Screen name="record" options={{ presentation: "modal" }} />
           <Stack.Screen name="session/[id]" options={{ headerShown: true, title: "Session" }} />
+          <Stack.Screen name="heart-rate-strap" options={{ headerShown: true, title: "Heart-rate strap" }} />
           <Stack.Screen name="club/create" options={{ headerShown: true, title: "Create Club" }} />
           <Stack.Screen name="club/join" options={{ headerShown: true, title: "Join Club" }} />
           <Stack.Screen name="club/members" options={{ headerShown: true, title: "Members" }} />

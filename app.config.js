@@ -59,30 +59,31 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // to the version of that build, in the same commit that produces it. Run
 // `npm run check:ota` to verify these against the builds EAS actually has.
 //
-// Both constants are set to 1.0.6 for the build produced from this commit.
+// Both constants are set to 1.0.7 for the build produced from this commit.
 //
-// Its native reason is react-native-keyboard-controller, the fix for inputs
-// sitting behind the keyboard on Android under enforced edge-to-edge. That
-// module was added AFTER the 1.0.5 binary was built: 1.0.5 was cut from a
-// commit no later than bb27b23 (it was already taking OTA #61 on 2026-09-23)
-// and the module arrived in 1022a47 on 09-24. An earlier version of this comment
-// said 1.0.5 contained it. It does not, and OTA #62 (b29292d, 09-24) shipped
-// JS that requires it to the 1.0.5 runtime. The lesson for next time: before
-// declaring OTA unlocked, confirm the live binary was built from a commit that
-// contains every native module the current JS imports — "the version is live"
-// is not the same as "the live build has this code".
+// Its native reason is react-native-ble-manager, for Bluetooth heart-rate chest
+// straps on phone recordings (src/services/heartRateStrap.ts), along with the
+// iOS `bluetooth-central` background mode and the Android Bluetooth
+// permissions it needs. None of that can travel over OTA, and the JS that uses
+// it must never reach a 1.0.6 binary, which has no such module — that is the
+// whole reason these move in the same commit as the dependency.
 //
-// The 1.0.6 build also carries everything JS-only since 1.0.5: the mirrored
-// empty-state fix and the chat performance work.
+// History worth keeping: 1.0.6 exists because react-native-keyboard-controller
+// was added after the 1.0.5 binary had been built, and an OTA (#62) then sent
+// JS requiring it to 1.0.5 phones. Before declaring OTA unlocked for any
+// version, confirm the live binary was built from a commit containing every
+// native module the current JS imports — "the version is live" is not the
+// same as "the live build has this code".
 //
-// ⚠️ Do NOT push an OTA (`eas update --channel production`) until 1.0.6 is
+// ⚠️ Do NOT push an OTA (`eas update --channel production`) until 1.0.7 is
 // LIVE and installed on each store: until then these runtimes point at a build
 // no device has, and an update would reach nobody. And do not retarget an
-// update at 1.0.5 from this code — it imports a native module 1.0.5 lacks.
-const IOS_RUNTIME_VERSION = "1.0.6";
-// Both platforms ship from this commit. Android is the platform that needs the
-// keyboard module; iOS moves in step so the two stay on one runtime.
-const ANDROID_RUNTIME_VERSION = "1.0.6";
+// update at 1.0.6 or earlier from this code — it imports a native module
+// those builds lack.
+const IOS_RUNTIME_VERSION = "1.0.7";
+// Both platforms ship from this commit; heart-rate straps are a feature of
+// both phone apps.
+const ANDROID_RUNTIME_VERSION = "1.0.7";
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
@@ -102,14 +103,14 @@ const config = {
   // harmless; bumping it is in fact required before any store submission.
   //
   // Because it is shared, every native build needs a number no store has seen:
-  // 1.0.5 shipped to both stores, so the next one starts at 1.0.6 — App Store
-  // Connect closes a version's train once it is approved and rejects any
-  // further build under the same number (ITMS-90186 / ITMS-90062). Set the
-  // runtime constants above to whatever number you land on, in the same commit.
+  // Every store build needs a number no store has seen — App Store Connect
+  // closes a version's train once it is approved and rejects any further build
+  // under the same number (ITMS-90186 / ITMS-90062). 1.0.6 is the build before
+  // this one, so this is 1.0.7. Set the runtime constants above to whatever
+  // number you land on, in the same commit.
   //
-  // 1.0.6 is the number for the build produced from this commit; see the
-  // runtime comment above for what it carries and why.
-  version: "1.0.6",
+  // See the runtime comment above for what 1.0.7 carries and why.
+  version: "1.0.7",
   orientation: "portrait",
   icon: "./assets/icon.png",
   // Every screen is styled with hardcoded light colors — there is no dark
@@ -171,11 +172,16 @@ const config = {
       // detection feature (Phase 3) is not implemented yet, so declaring the
       // microphone permission would request access for an absent feature
       // (App Store Guideline 5.1.1 / 2.5.1). Restore it when Phase 3 ships.
-      // Only "location" is declared — the app records GPS in the background
-      // while a session is active. "fetch" was removed: no Background Fetch /
-      // BGTaskScheduler feature exists, and declaring it triggered the
-      // "no feature requires this background mode" rejection (Guideline 2.1).
-      UIBackgroundModes: ["location"],
+      // "location" — the app records GPS in the background while a session
+      // is active. "bluetooth-central" — a paired heart-rate chest strap keeps
+      // delivering readings with the screen locked; without it iOS stops BLE
+      // notifications to a backgrounded app and heart rate would cut out the
+      // moment the phone went in a dry bag. Both are tied to a feature that
+      // exists, which is what review checks (Guideline 2.1). "fetch" was
+      // removed: no Background Fetch / BGTaskScheduler feature exists, and
+      // declaring it triggered the "no feature requires this background mode"
+      // rejection.
+      UIBackgroundModes: ["location", "bluetooth-central"],
     },
     entitlements: {
       "com.apple.developer.applesignin": ["Default"],
@@ -249,6 +255,23 @@ const config = {
   plugins: [
     "expo-router",
     "expo-notifications",
+    // Bluetooth heart-rate straps (src/services/heartRateStrap.ts). Adds the
+    // iOS Bluetooth usage string and the Android 12+ BLUETOOTH_SCAN /
+    // BLUETOOTH_CONNECT permissions.
+    //
+    // neverForLocation is deliberately left OFF. With it on, the plugin adds
+    // ACCESS_FINE/COARSE_LOCATION entries capped at maxSdkVersion 30 — and if
+    // those merge with ours, GPS recording silently loses location permission
+    // on Android 12+. Off, scanning just requires location permission, which
+    // the app already holds for recording.
+    [
+      "react-native-ble-manager",
+      {
+        bluetoothAlwaysPermission:
+          "ImuaTrak connects to your Bluetooth heart-rate chest strap to record your heart rate while you paddle.",
+        neverForLocation: false,
+      },
+    ],
     [
       "expo-camera",
       {

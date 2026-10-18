@@ -20,6 +20,7 @@ import { auth, functions } from "./firebase";
 import { useSettings } from "./settings";
 import { downsample } from "./geo";
 import * as health from "./health";
+import * as hrStrap from "./heartRateStrap";
 import * as location from "./location";
 import * as motion from "./motion";
 import * as storage from "./storage";
@@ -72,6 +73,9 @@ let lastStrokeRate = 0;
 let sessionId: string | null = null;
 let unsubLocation: (() => void) | null = null;
 let unsubMotion: (() => void) | null = null;
+// Holds the heart-rate strap connection for the length of the recording.
+// A no-op when no strap has been paired.
+let releaseStrap: (() => void) | null = null;
 let tickHandle: ReturnType<typeof setInterval> | null = null;
 // Paused-time bookkeeping so the timer and track timeline exclude pauses.
 // pausedAccumMs is the total already-elapsed pause time; pauseStartedMs marks
@@ -256,6 +260,13 @@ function subscribeAndStart(
       speedMps: s.speedMps,
       ...(lastStrokeRate > 0 ? { strokeRate: lastStrokeRate } : {}),
     };
+    // Heart rate from a paired chest strap, stamped onto the GPS point the
+    // same way the watch apps do, so hrSummary and per-split heart rate work
+    // unchanged. currentBpm() is null when the reading is stale or the strap
+    // reports no skin contact — those points carry no hr rather than a wrong
+    // one, which keeps the average and zone times honest across a drop-out.
+    const bpm = hrStrap.currentBpm();
+    if (bpm != null) point.hr = bpm;
     track.push(point);
     const totals = aggregator.totals(track, strokeCount);
     set({
@@ -266,6 +277,8 @@ function subscribeAndStart(
       gpsAccuracyM: s.accuracyM,
     });
   });
+
+  releaseStrap = hrStrap.holdConnection();
 
   unsubMotion = motion.subscribe((stroke) => {
     if (get().isPaused) return;
@@ -281,7 +294,9 @@ function subscribeAndStart(
     if (!startedAtMs) return;
     const inPause = get().isPaused && pauseStartedMs > 0 ? Date.now() - pauseStartedMs : 0;
     const effMs = Date.now() - startedAtMs - pausedAccumMs - inPause;
-    set({ durationSec: Math.max(0, effMs) / 1000 });
+    // Heart rate rides the 1 s tick rather than GPS fixes, so the live number
+    // keeps moving even when the phone is between fixes.
+    set({ durationSec: Math.max(0, effMs) / 1000, currentHr: hrStrap.currentBpm() ?? undefined });
   }, 1000);
 }
 
@@ -290,6 +305,8 @@ function cleanup(): void {
   unsubMotion?.();
   unsubLocation = null;
   unsubMotion = null;
+  releaseStrap?.();
+  releaseStrap = null;
   if (tickHandle) clearInterval(tickHandle);
   tickHandle = null;
   void location.stopBackgroundUpdates();

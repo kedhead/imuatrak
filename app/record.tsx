@@ -12,6 +12,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CRAFT_TYPES } from "@/models";
+import { loadSavedStrap, useHeartRateStrap, type StrapStatus } from "@/services/heartRateStrap";
 import { useRecorder } from "@/services/recorder";
 import { useSettings } from "@/services/settings";
 import { Button } from "@/ui/Button";
@@ -31,6 +32,14 @@ export default function Record() {
   const units = useSettings((s) => s.units);
   const [busy, setBusy] = useState(false);
   const [showDisclosure, setShowDisclosure] = useState(false);
+  // Heart-rate strap. Everything below is hidden for anyone who hasn't paired
+  // one, so the screen is unchanged for them.
+  const strap = useHeartRateStrap((s) => s.saved);
+  const strapStatus = useHeartRateStrap((s) => s.status);
+  const strapContact = useHeartRateStrap((s) => s.contact);
+  useEffect(() => {
+    void loadSavedStrap();
+  }, []);
 
   const beginRecording = async () => {
     try {
@@ -144,6 +153,12 @@ export default function Record() {
             </Text>
           )}
 
+          {!!strap && (
+            <Text style={styles.gpsStatus}>
+              {strapLine(strap.name, strapStatus, strapContact, recorder.isRecording)}
+            </Text>
+          )}
+
           {/* Hero metric */}
           <View style={styles.heroMetric}>
             <Text style={styles.heroValue}>{formatDistance(recorder.distanceMeters, units)}</Text>
@@ -155,6 +170,14 @@ export default function Record() {
             <Tile label="PACE" value={pace} accent={colors.aqua} />
             <Tile label="STROKE RATE" value={strokeRate} unit="spm" accent={colors.seafoam} />
             <Tile label="STROKES" value={recorder.strokeCount.toString()} accent={colors.gold} />
+            {!!strap && (
+              <Tile
+                label="HEART RATE"
+                value={recorder.currentHr != null ? `${recorder.currentHr}` : "—"}
+                unit="bpm"
+                accent={colors.coral}
+              />
+            )}
           </View>
 
           <Text style={styles.backgroundHint}>
@@ -239,6 +262,32 @@ function StatusPill({ recording, paused }: { recording: boolean; paused: boolean
       <Text style={styles.statusText}>{label}</Text>
     </View>
   );
+}
+
+/** One line saying what the paired strap is doing, in paddler terms. */
+function strapLine(
+  name: string,
+  status: StrapStatus,
+  contact: boolean | null,
+  recording: boolean,
+): string {
+  if (!recording) return `♥ ${name} · connects when you start`;
+  switch (status) {
+    case "connected":
+      return contact === false
+        ? `♥ ${name} · no skin contact — wet the strap pads`
+        : `♥ ${name} · connected`;
+    case "connecting":
+      return `♥ Connecting to ${name}…`;
+    case "reconnecting":
+      return `♥ ${name} out of range — reconnecting`;
+    case "bluetoothOff":
+      return "♥ Bluetooth is off — turn it on for heart rate";
+    case "noPermission":
+      return "♥ Bluetooth permission needed for heart rate";
+    default:
+      return `♥ ${name}`;
+  }
 }
 
 function Tile({

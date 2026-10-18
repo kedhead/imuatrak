@@ -9,6 +9,7 @@ import { formatBirthday, paddleSideLabel, type PaddleSide } from "@/models/club"
 import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
 import { leaveClub, syncMemberDisplayName, syncMemberProfile, uploadAvatar } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
+import { loadSavedStrap, useHeartRateStrap } from "@/services/heartRateStrap";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
 import { useDmUnreadCount } from "@/services/unread";
@@ -48,6 +49,10 @@ export default function Settings() {
   const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const dmUnread = useDmUnreadCount(user?.uid);
+  const strapName = useHeartRateStrap((s) => s.saved?.name ?? null);
+  useEffect(() => {
+    void loadSavedStrap();
+  }, []);
   const [savingName, setSavingName] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -586,6 +591,21 @@ export default function Settings() {
                 }}
               />
               <Text style={[styles.body, { color: colors.muted }]}>{imperial ? "lbs" : "kg"}</Text>
+            </View>
+          </GradientCard>
+        </Section>
+
+        <Section title="Heart rate">
+          <GradientCard onPress={() => router.push("/heart-rate-strap")}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <Ionicons name="heart" size={22} color={colors.coral} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.body, { fontWeight: type.weight.bold }]}>Heart-rate strap</Text>
+                <Text style={[styles.body, { color: colors.muted, fontSize: type.size.xs }]}>
+                  {strapName ?? "Pair a Garmin, Polar or other Bluetooth chest strap"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
             </View>
           </GradientCard>
         </Section>
