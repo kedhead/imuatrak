@@ -14,7 +14,8 @@ The catch is that each Expo SDK is built and tested against a particular Xcode.
 An app that falls behind on SDKs eventually meets a toolchain its SDK predates,
 and the build fails. That is exactly what happened in October 2026: the app was
 on SDK 56, Expo was on 58, EAS moved to Xcode 27, and the first 1.0.7 build
-failed. (Pinning the image to the SDK isn't available — EAS deprecated the
+failed — Xcode 27 rejects any target below iOS 15, and several libraries' pods
+still declared iOS 9–13. (Pinning the image to the SDK isn't available — EAS deprecated the
 `default` and `stable` aliases.)
 
 So the rule is simply: **stay on the current Expo SDK.**
@@ -101,9 +102,16 @@ React Native 0.85 → 0.88, React 19.2 → 19.3, TypeScript 5.6 → 6.0.
   that were just better written were fixed. `import/namespace` is off — it gave
   a false positive on `Notifications.AndroidImportance`, which TypeScript
   already checks correctly.
-- **Xcode 27 warning flood:** dozens of "deployment target 12.0, supported range
-  15.0 to 27.1" warnings from pods hid the real error in the failed build log.
-  `plugins/withPodDeploymentTarget.js` raises pods to the app's own minimum.
+- **The actual build failure: pod deployment targets.** Xcode 27 supports iOS
+  15+ and treats anything lower as an **error**. Fourteen resource-bundle targets
+  from third-party pods (Google Sign-In, GoogleUtilities, AppAuth,
+  GTMSessionFetcher, Promises, AdMob, UserMessagingPlatform, RevenueCat,
+  async-storage, react-native-svg, ReachabilitySwift) declare iOS 9–13; those 14
+  errors were the whole of the failed 1.0.7 log. They come from the libraries, so
+  the SDK upgrade doesn't remove them. `plugins/withPodDeploymentTarget.js` raises
+  pods below the app's minimum (16.4) up to it. Its Podfile hook was run against
+  those exact targets and values with a Ruby harness, since `pod install` isn't
+  available here.
 - **CI** moved to Node 22 (SDK 58 requires ≥ 22.13).
 
 Validated by typecheck, lint, the test suite, and a full local prebuild of both

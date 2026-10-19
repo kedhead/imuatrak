@@ -70,7 +70,9 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 //
 // 1.0.7 is also the first build on Expo SDK 58 (React Native 0.88). The first
 // 1.0.7 attempt, still on SDK 56, failed on EAS because `"image": "latest"` had
-// moved to Xcode 27, which SDK 56 predates. No 1.0.7 binary was ever produced,
+// moved to Xcode 27, which errors on any target below iOS 15 — and 14 library
+// pods still declared iOS 9–13 (fixed by plugins/withPodDeploymentTarget.js).
+// No 1.0.7 binary was ever produced,
 // so the runtime number did not need to move again for the SDK upgrade. See
 // docs/upgrades.md.
 //
