@@ -59,11 +59,17 @@ One SDK per upgrade, in its own commit and its own store build.
 6. Bump `node-version` in the workflows if the SDK raised its Node floor (the
    `engines` field of the `expo` package).
 7. `npm run typecheck && npm run lint && npm test`.
-8. **Prebuild locally** to prove every config plugin still runs:
+8. **Don't pin what the SDK should own.** compileSdk, build tools and Kotlin
+   track React Native; pinning one left the Android build compiling against
+   an SDK older than RN's own libraries require (see the SDK 58 record).
+9. **Prebuild locally** to prove every config plugin still runs:
    `APPLE_TEAM_ID=X npx expo prebuild --no-install --platform all`. Then check
    the generated `android/gradle.properties` for new defaults (see R8 below),
    delete `ios/` and `android/`.
-9. Bump the version and both OTA runtimes in the same commit (see app.config.js)
+10. **Bundle JS locally**, exactly as EAS does: `npx expo export:embed --eager
+   --platform ios --dev false --bundle-output /tmp/b.js --assets-dest /tmp`
+   (and `--platform android`). This catches resolution failures before a build.
+11. Bump the version and both OTA runtimes in the same commit (see app.config.js)
    unless the current version has never produced a binary.
 
 ## Record
@@ -113,6 +119,13 @@ React Native 0.85 → 0.88, React 19.2 → 19.3, TypeScript 5.6 → 6.0.
   those exact targets and values with a Ruby harness, since `pod install` isn't
   available here.
 - **CI** moved to Node 22 (SDK 58 requires ≥ 22.13).
+- **Android compileSdk now follows React Native (37).** app.config.js pinned
+  `compileSdkVersion: 36`; RN 0.88's libraries require compiling against 37, and
+  Gradle's AAR metadata check failed the first SDK 58 Android build. The pin is
+  removed, so the value comes from RN's version catalog (Expo's settings plugin
+  only overrides it when `android.compileSdkVersion` is in gradle.properties).
+  `targetSdkVersion` (runtime behaviour, Play policy) and `minSdkVersion` (which
+  devices can install) stay pinned — those are decisions, compileSdk isn't.
 - **Metro package exports turned back on.** metro.config.js had
   `unstable_enablePackageExports = false`, an old workaround for Firebase Auth
   resolving to its browser build. SDK 58 can't bundle without exports: RN 0.88

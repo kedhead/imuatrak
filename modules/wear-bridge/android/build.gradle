@@ -7,7 +7,7 @@ def safeExtGet(prop, fallback) {
 
 android {
     namespace 'app.imuatrak.wearbridge'
-    compileSdkVersion safeExtGet('compileSdkVersion', 36)
+    compileSdkVersion safeExtGet('compileSdkVersion', 37)
 
     defaultConfig {
         minSdkVersion safeExtGet('minSdkVersion', 26)

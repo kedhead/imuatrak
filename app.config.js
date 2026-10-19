@@ -369,7 +369,14 @@ const config = {
         // targetSdkVersion 36 (Android 16): Google Play requires targets within
         // one year of the latest Android release from Aug 30, 2026.
         android: {
-          compileSdkVersion: 36,
+          // compileSdkVersion is deliberately NOT set: it follows React
+          // Native's own default (37 as of RN 0.88). Pinning it to 36 failed
+          // the first SDK 58 Android build — RN 0.88's libraries require
+          // compiling against 37, and Gradle's AAR metadata check refuses a
+          // lower one. compileSdk only decides which APIs the code can see; it
+          // does not change runtime behaviour (that is targetSdk) or which
+          // devices can install the app (minSdk), so tracking RN is safe and
+          // stops this from recurring on every RN upgrade.
           targetSdkVersion: 36,
           minSdkVersion: 26,
           // R8 shrinking is held OFF on purpose. Expo SDK 58's template turns
