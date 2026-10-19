@@ -113,9 +113,20 @@ React Native 0.85 → 0.88, React 19.2 → 19.3, TypeScript 5.6 → 6.0.
   those exact targets and values with a Ruby harness, since `pod install` isn't
   available here.
 - **CI** moved to Node 22 (SDK 58 requires ≥ 22.13).
+- **Metro package exports turned back on.** metro.config.js had
+  `unstable_enablePackageExports = false`, an old workaround for Firebase Auth
+  resolving to its browser build. SDK 58 can't bundle without exports: RN 0.88
+  provides `react-native/setup-env` only through its `exports` map, and
+  expo-router imports `expo/dom/global` the same way. Both platforms failed at
+  `expo export:embed` until it was removed. The Firebase concern no longer
+  applies — `@firebase/auth` declares a `react-native` export condition — and
+  that was checked in the built bundles, not assumed: both contain
+  `getReactNativePersistence` and none of the browser-only auth code, and
+  Firestore resolves to `index.rn.js`.
 
-Validated by typecheck, lint, the test suite, and a full local prebuild of both
-platforms (watch target, entitlements, Podfile, Gradle properties, Android
+Validated by typecheck, lint, the test suite, a production JS bundle for each
+platform (`expo export:embed`, exactly what EAS runs), and a full local prebuild
+of both platforms (watch target, entitlements, Podfile, Gradle properties, Android
 permissions all inspected). **Not compiled** — there is no Xcode or Android SDK
 in the environment that made the change, so the first EAS build is the compile
 test.
