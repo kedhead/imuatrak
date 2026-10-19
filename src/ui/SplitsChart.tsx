@@ -34,7 +34,12 @@ export function SplitsChart({ splits, imperial = false }: Props) {
 
   const slowest = splits.reduce((m, s) => (s.durationSec > m ? s.durationSec : m), 0);
   const fastest = splits.reduce((m, s) => (s.durationSec < m ? s.durationSec : m), Infinity);
-  let elapsed = 0;
+  // Running total per split, worked out up front rather than accumulated
+  // inside the render loop, so rendering stays a pure read of `splits`.
+  const totals = splits.reduce<number[]>(
+    (acc, s) => [...acc, (acc[acc.length - 1] ?? 0) + s.durationSec],
+    [],
+  );
   const unit = imperial ? "mi" : "km";
 
   return (
@@ -45,7 +50,6 @@ export function SplitsChart({ splits, imperial = false }: Props) {
         <Text style={styles.headerCellRight}>Total</Text>
       </View>
       {splits.map((s, i) => {
-        elapsed += s.durationSec;
         const pct = slowest > 0 ? (s.durationSec / slowest) * 100 : 0;
         const isFastest = s.durationSec === fastest;
         return (
@@ -55,7 +59,7 @@ export function SplitsChart({ splits, imperial = false }: Props) {
               <Bar pct={pct} delay={i * 60} fastest={isFastest} />
               <Text style={styles.barLabel}>{formatPace(s.durationSec)}</Text>
             </View>
-            <Text style={styles.totalCell}>{formatHms(elapsed)}</Text>
+            <Text style={styles.totalCell}>{formatHms(totals[i] ?? 0)}</Text>
           </View>
         );
       })}

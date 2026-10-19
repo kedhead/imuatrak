@@ -14,7 +14,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: "20.19"
+          # Expo SDK 58 requires Node ^22.13 (`expo` engines).
+          node-version: "22"
           cache: "npm"
       - name: Install
         run: npm ci

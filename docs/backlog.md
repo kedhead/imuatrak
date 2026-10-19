@@ -6,16 +6,21 @@ right build/deploy window comes up.
 
 ---
 
-## Enable R8 (Android code shrinking) — first change of the 1.0.6 cycle
+## Enable R8 (Android code shrinking) — first change of the 1.0.8 cycle
 
-**Status:** deferred from 1.0.4, then from 1.0.5 (both shipped without it).
-Play Console flags the app as not optimized:
+**Status:** deferred from 1.0.4, 1.0.5, 1.0.6 and 1.0.7. Play Console flags the
+app as not optimized:
 https://developer.android.com/topic/performance/app-optimization/enable-app-optimization
 
 Advisory, not a submission blocker, which is why it keeps sliding: each time,
 the release it was queued for had urgent fixes in it and R8 is the one change
 that can invalidate an already-tested binary. It needs a cycle where it can go
 in FIRST and be smoke-tested, not one it gets appended to.
+
+**Since the SDK 58 upgrade, R8 is ON by default** in Expo's template and is held
+off explicitly in app.config.js — so enabling it is now removing a hold, not
+adding a feature. 1.0.7 skipped it for the same reason as before: it already
+carries an SDK jump and a new Bluetooth module.
 
 ### The change
 
@@ -24,8 +29,8 @@ In the `expo-build-properties` android block in `app.config.js`:
 ```js
 android: {
   compileSdkVersion: 36, targetSdkVersion: 36, minSdkVersion: 26,
-  enableProguardInReleaseBuilds: true,
-  enableShrinkResourcesInReleaseBuilds: true,  // requires proguard enabled
+  enableMinifyInReleaseBuilds: true,             // was false — the hold
+  enableShrinkResourcesInReleaseBuilds: true,    // requires minify enabled
 }
 ```
 

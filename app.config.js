@@ -68,6 +68,12 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // it must never reach a 1.0.6 binary, which has no such module — that is the
 // whole reason these move in the same commit as the dependency.
 //
+// 1.0.7 is also the first build on Expo SDK 58 (React Native 0.88). The first
+// 1.0.7 attempt, still on SDK 56, failed on EAS because `"image": "latest"` had
+// moved to Xcode 27, which SDK 56 predates. No 1.0.7 binary was ever produced,
+// so the runtime number did not need to move again for the SDK upgrade. See
+// docs/upgrades.md.
+//
 // History worth keeping: 1.0.6 exists because react-native-keyboard-controller
 // was added after the 1.0.5 binary had been built, and an OTA (#62) then sent
 // JS requiring it to 1.0.5 phones. Before declaring OTA unlocked for any
@@ -327,6 +333,9 @@ const config = {
     ],
     "./plugins/withFixGradle",
     "./plugins/withWatchBridge",
+    // Lifts pods below the app's minimum iOS to it — removes the Xcode 27
+    // deployment-target warning flood (see the plugin header).
+    "./plugins/withPodDeploymentTarget",
     // Must stay BEFORE @bacons/apple-targets: mods run in reverse registration
     // order, and the targets plugin registers the pbxproj provider last.
     "./plugins/withWatchVersionSync",
@@ -357,7 +366,20 @@ const config = {
         },
         // targetSdkVersion 36 (Android 16): Google Play requires targets within
         // one year of the latest Android release from Aug 30, 2026.
-        android: { compileSdkVersion: 36, targetSdkVersion: 36, minSdkVersion: 26 },
+        android: {
+          compileSdkVersion: 36,
+          targetSdkVersion: 36,
+          minSdkVersion: 26,
+          // R8 shrinking is held OFF on purpose. Expo SDK 58's template turns
+          // it ON by default (SDK 56's had it off), so without this line the
+          // SDK upgrade would silently ship R8 too. R8 strips and renames
+          // native code and breaks reflection-based libraries that lack keep
+          // rules (Firebase, RevenueCat, AdMob, Google Sign-In, Maps, BLE), and
+          // the only proof it's safe is an internal-testing build exercised by
+          // hand — see "Enable R8" in docs/backlog.md. Flip to true as the
+          // first change of a cycle, not as a side effect of something else.
+          enableMinifyInReleaseBuilds: false,
+        },
       },
     ],
   ],

@@ -31,7 +31,7 @@ export default function HeartRateStrapScreen() {
   const scanning = useHeartRateStrap((s) => s.scanning);
   const found = useHeartRateStrap((s) => s.found);
   // Ticks once a second so a reading that has gone stale stops showing.
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     void loadSavedStrap();

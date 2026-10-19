@@ -18,7 +18,11 @@ export const WatchBridge = {
   /** Subscribe to watch session arrivals. Returns an object with a remove() method. */
   addListener(event: "sessionReceived", handler: Listener) {
     if (!emitter) return { remove: () => {} };
-    const sub = emitter.addListener(event, handler);
+    // RN 0.88 types native-event payloads as Object; the native side always
+    // sends { id }, so narrow it here rather than loosen Listener.
+    const sub = emitter.addListener(event, (payload) =>
+      handler(payload as unknown as SessionReceivedPayload),
+    );
     return { remove: () => sub.remove() };
   },
 

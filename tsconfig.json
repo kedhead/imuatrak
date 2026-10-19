@@ -6,6 +6,9 @@
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": false,
     "moduleResolution": "bundler",
+    // TypeScript 6 stopped auto-including every installed @types package
+    // (`types` now defaults to []), so the test globals must be named.
+    "types": ["jest"],
     "paths": {
       "@/*": ["./src/*"]
     }

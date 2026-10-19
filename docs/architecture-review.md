@@ -14,7 +14,7 @@ deployables sharing one Firebase backend:
 
 | Surface | Tech | Lives in | Role |
 |---|---|---|---|
-| Phone app | Expo SDK 56 / RN 0.85 / expo-router | `app/`, `src/` | Source of truth: record, store, sync, export |
+| Phone app | Expo SDK 58 / RN 0.88 / expo-router | `app/`, `src/` | Source of truth: record, store, sync, export |
 | Cloud Functions | Firebase Functions v2 | `firebase/functions/` | Weather proxy, Apple sign-in, FCM, counters, session↔event linking, account deletion |
 | Web | Next.js (App Router) on Vercel | `web/` | Marketing + public session viewer + club dashboard |
 | Watch companions | Swift / Kotlin (native, Phase 2) | `apple-watch/`, `wear/`, `modules/*-bridge` | Ship finished sessions to the phone |

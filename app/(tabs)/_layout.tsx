@@ -14,6 +14,15 @@ import { colors, shadow, type } from "@/ui/theme";
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
+/**
+ * The tab bar hands over RN's ColorValue, which since RN 0.88 can also be a
+ * processed number or null; Ionicons only takes a string or a platform colour.
+ * This app's tab colours are all hex strings, so nothing real is lost.
+ */
+function iconColor(c: ColorValue): string | Exclude<ColorValue, string | number | null> | undefined {
+  return c == null || typeof c === "number" ? undefined : c;
+}
+
 function TabIcon({
   name,
   color,
@@ -36,7 +45,7 @@ function TabIcon({
 
   return (
     <Animated.View style={[styles.icon, style]}>
-      <Ionicons name={name} color={showAlert ? colors.coral : color} size={24} />
+      <Ionicons name={name} color={showAlert ? colors.coral : iconColor(color)} size={24} />
       {focused && <View style={[styles.dot, { backgroundColor: color }]} />}
       {showAlert && <View style={styles.unreadDot} />}
     </Animated.View>

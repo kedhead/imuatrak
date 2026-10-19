@@ -130,7 +130,7 @@ export default function ChannelsScreen() {
                 </Text>
                 <Ionicons name="chevron-forward" size={14} color={colors.muted} />
               </Pressable>
-            ) : null
+            ) : undefined
           }
         />
       )}

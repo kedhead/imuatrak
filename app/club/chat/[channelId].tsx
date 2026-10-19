@@ -818,7 +818,9 @@ const ChatComposer = memo(function ChatComposer({
   // Caret position, tracked so the @-autocomplete knows which token is being
   // typed rather than always looking at the end of the message.
   const [cursor, setCursor] = useState(0);
-  const inputRef = useRef<TextInput>(null);
+  // ComponentRef rather than `TextInput` itself: RN 0.88 separated the
+  // component type from its instance type, which is what a ref holds.
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   // Candidates for the mention picker, or null when no @query is being typed.
   const mentionQuery = useMemo(

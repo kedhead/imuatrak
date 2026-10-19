@@ -32,7 +32,7 @@ pairing screen tells iOS users this.
 
 Library: `react-native-ble-manager`, pinned exactly at **12.5.3**. Chosen over
 `react-native-ble-plx` because it ships a codegen spec (New Architecture, which
-RN 0.85 requires); ble-plx has none. It is not in Expo's SDK compatibility
+RN 0.85+ requires — the app is on 0.88 since the SDK 58 upgrade); ble-plx has none. It is not in Expo's SDK compatibility
 matrix — no BLE library is — so the first 1.0.7 build is also its first
 compile against this toolchain.
 

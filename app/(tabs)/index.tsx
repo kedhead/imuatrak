@@ -116,7 +116,7 @@ export default function HomeTab() {
                 goalDurMin={weeklyGoalDurationMin}
                 units={units}
               />
-            ) : null
+            ) : undefined
           }
           renderItem={({ item, index }) => <SessionRow stored={item} units={units} index={index} />}
         />

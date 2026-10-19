@@ -67,7 +67,7 @@ export default function DmListScreen() {
                 conversation.
               </Text>
             </View>
-          ) : null
+          ) : undefined
         }
       />
     </ScreenBackground>
