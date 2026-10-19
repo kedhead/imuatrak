@@ -1,0 +1,72 @@
+name: Dependency watch
+
+# Weekly check that the app hasn't fallen behind Expo — see
+# scripts/check-updates.mjs for what it looks at and why.
+#
+# When something needs doing it opens a GitHub issue labelled `dependencies`,
+# or updates the one already open, so there is a single running item rather
+# than a new issue every week. When everything is current it closes that issue.
+# It never changes code: upgrades are deliberate, done in their own commit and
+# their own store build.
+
+on:
+  schedule:
+    # Mondays 17:00 UTC (7am in Hawaiʻi).
+    - cron: "0 17 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - name: Install
+        run: npm ci
+
+      - name: Check for updates
+        id: check
+        run: |
+          set +e
+          node scripts/check-updates.mjs > report.md
+          code=$?
+          set -e
+          cat report.md
+          if [ "$code" -eq 0 ]; then echo "status=current" >> "$GITHUB_OUTPUT";
+          elif [ "$code" -eq 10 ]; then echo "status=behind" >> "$GITHUB_OUTPUT";
+          else echo "The check itself failed (exit $code)"; exit "$code"; fi
+
+      - name: Open or update the tracking issue
+        if: steps.check.outputs.status == 'behind'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create dependencies --color 0E5FA5 --description "Keeping up with Expo and native libraries" --force
+          existing=$(gh issue list --label dependencies --state open --json number --jq '.[0].number')
+          {
+            cat report.md
+            echo
+            echo "_Checked $(date -u '+%Y-%m-%d %H:%M UTC') by the Dependency watch workflow._"
+          } > body.md
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file body.md
+          else
+            gh issue create --title "Dependencies need attention" --label dependencies --body-file body.md
+          fi
+
+      - name: Close the tracking issue when everything is current
+        if: steps.check.outputs.status == 'current'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing=$(gh issue list --label dependencies --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "Everything is current as of $(date -u '+%Y-%m-%d')."
+          fi
