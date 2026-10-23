@@ -14,6 +14,12 @@ export const UNIT_ID = Platform.select({
 
 const IS_DEV = __DEV__;
 
+// The tab bar floats over the bottom of every tab screen (styles.bar in
+// app/(tabs)/_layout.tsx: 68pt tall, 24pt up on iOS, 16pt on Android). The
+// banner sits at the bottom of Home and Stats, so without this clearance a
+// loaded ad renders entirely behind the tab bar and is never seen.
+const TAB_BAR_CLEARANCE = (Platform.OS === "ios" ? 24 : 16) + 68 + 8;
+
 export function AdBanner() {
   const isAdFree = useSubscription((s) => s.isAdFree);
   const club = useClub((s) => s.club);
@@ -25,7 +31,7 @@ export function AdBanner() {
   if (isAdFree || clubAdFree) return null;
 
   return (
-    <View style={{ alignItems: "center" }}>
+    <View style={{ alignItems: "center", marginBottom: TAB_BAR_CLEARANCE }}>
       {IS_DEV && error && (
         <Text style={{ color: "red", fontSize: 10, padding: 4 }}>
           Ad error: {error}
