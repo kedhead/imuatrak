@@ -7,6 +7,93 @@ the setup reference this plan builds on.
 
 ---
 
+## 0. Status and handoff (read this first)
+
+The latest state, for a new session picking this up. Sections 1–5 below are the
+original analysis.
+
+### What we found (2026-10-23)
+
+- **The live paywall shows Monthly $4.99 / month and Yearly $4.99 / year**, from
+  the personal (`default`) offering. Both differ from the plan (personal $1.99,
+  no personal yearly). The card prices are the store products' own prices, so
+  this is dashboard configuration, not code. Two possible causes, not yet told
+  apart:
+  1. the yearly product (`app.imuatrak.plus.annual`) really is $4.99/year; or
+  2. RevenueCat's Annual package is attached to the **monthly** product, so the
+     card said "/ year" while the store bills monthly.
+- **Fixed in code (947d585):** the paywall now titles each card and its
+  "/ month" or "/ year" from the product's own `subscriptionPeriod`, not the
+  RevenueCat package type. After that ships, a "Yearly" card that turns into
+  "Monthly" confirms cause 2.
+- **RevenueCat overview: 0 active subscriptions, 0 trials, $0 revenue.** Nobody
+  has paid, so prices and products can change freely; no customer is affected.
+- **The RevenueCat account has three projects** ("2 more projects" beside
+  app.imuatrak). It's unconfirmed which one the app's public keys belong to.
+- **No club section shows on the paywall** — expected: owner/admin only, and the
+  club plan must not be sold before phase 2 (§2.1).
+- **Why nobody subscribes, even once it works:** the only entry point for a solo
+  paddler is Settings → "Remove Ads"; ads show on two screens only; $4.99 to
+  remove two banners is steep; the paywall never mentions DMs.
+
+### Prices — recommended, waiting for Kendall's confirmation
+
+Running costs are about $10–55/month (Apple $99/yr, Firebase $0–25, Expo $0–19,
+RevenueCat free under $2.5k/mo revenue). Break-even is about 4–6 clubs or 25–35
+personal subscribers.
+
+| Plan | Recommended | Store product |
+| --- | --- | --- |
+| Personal monthly | **$1.99 / month** | `app.imuatrak.plus.monthly` |
+| Personal yearly | **remove from the offering**, or $19.99 / year | `app.imuatrak.plus.annual` |
+| Club monthly | **$9.99 / month** | `app.imuatrak.club.month` |
+| Club yearly | **$99.99 / year** | `app.imuatrak.club.annual` |
+
+Prices live in App Store Connect and Play Console; Kendall sets them there.
+
+### RevenueCat API access for Claude sessions
+
+- The cloud environment allows `api.revenuecat.com`. A RevenueCat **V2 secret
+  key** is in the environment variable **`REVENUECAT_API_KEY_V2`**: Project
+  configuration **read & write**, Customer information read-only. Optionally
+  `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` hold the app's public keys,
+  for checking which project the app uses. Never print the secret key.
+- **Use the API; don't ask for dashboard screenshots of RevenueCat.** Base URL
+  `https://api.revenuecat.com/v2`, header `Authorization: Bearer
+  $REVENUECAT_API_KEY_V2`. Useful reads (confirm the exact shapes against
+  RevenueCat's API v2 reference):
+  `GET /projects`, `/projects/{id}/apps`, `/projects/{id}/products`,
+  `/projects/{id}/entitlements?expand=items.product`,
+  `/projects/{id}/offerings?expand=items.package.product`.
+- **Procedure:** read everything → report what's there against this plan →
+  propose a list of changes → **wait for Kendall's approval** → apply → read back
+  and confirm. Changes go live in the app immediately.
+- **Target RevenueCat state:**
+  - entitlement `app.imuatrak.plus.monthly` → the personal product(s);
+    entitlement `club` → both club products;
+  - offering `default`, marked Current → personal monthly only (or plus the
+    yearly, if Kendall keeps it, attached to a genuinely yearly product);
+  - offering `club` → **leave empty until phase 2 is live.** The paywall offers
+    it to owners/admins as soon as it has packages, and a club purchase doesn't
+    activate anything yet (§2.1).
+- **Not reachable by the API:** store prices and durations (App Store Connect,
+  Play Console) — Kendall checks those, or sends a screenshot of App Store
+  Connect → Subscriptions.
+- When the work is done, Kendall deletes the key in RevenueCat and removes it
+  from the environment.
+
+### Next steps
+
+1. RevenueCat check and fix through the API (above).
+2. Kendall confirms prices and sets them in the stores.
+3. Sandbox purchase from a TestFlight build; confirm it appears in RevenueCat
+   with sandbox data on.
+4. Phase 1 code (§4), adding a small "Remove ads" link under the banner ad.
+   Ships over the air only after 1.0.7 is live.
+5. Phase 2 (club billing).
+
+---
+
 ## 1. What you sell today
 
 | Plan | Intended price | What it actually unlocks (in code) |
