@@ -22,7 +22,27 @@ const BENEFITS = [
   { icon: "refresh-outline" as const, text: "Cancel anytime" },
 ];
 
+// What the store actually bills, from the product's ISO 8601 period ("P1M",
+// "P1Y"). The package type is only a label chosen in the RevenueCat dashboard,
+// so an Annual package attached to a monthly product would otherwise be shown
+// as "/ year" while the store charges every month. Null for anything that
+// isn't a plain subscription period; callers then fall back to the package type.
+const STORE_PERIODS: Record<string, { title: string; suffix: string }> = {
+  P1W: { title: "Weekly", suffix: "/ week" },
+  P7D: { title: "Weekly", suffix: "/ week" },
+  P1M: { title: "Monthly", suffix: "/ month" },
+  P2M: { title: "2 months", suffix: "/ 2 months" },
+  P3M: { title: "3 months", suffix: "/ 3 months" },
+  P6M: { title: "6 months", suffix: "/ 6 months" },
+  P1Y: { title: "Yearly", suffix: "/ year" },
+  P12M: { title: "Yearly", suffix: "/ year" },
+};
+const storePeriod = (pkg: PurchasesPackage) =>
+  (pkg.product.subscriptionPeriod && STORE_PERIODS[pkg.product.subscriptionPeriod]) || null;
+
 function periodLabel(pkg: PurchasesPackage): string {
+  const period = storePeriod(pkg);
+  if (period) return period.suffix;
   switch (pkg.packageType) {
     case PACKAGE_TYPE.WEEKLY:       return "/ week";
     case PACKAGE_TYPE.MONTHLY:      return "/ month";
@@ -39,6 +59,8 @@ function periodLabel(pkg: PurchasesPackage): string {
 // two cards look like duplicates. Title each card by its billing period
 // instead, which is the thing that actually distinguishes them.
 function planTitle(pkg: PurchasesPackage): string {
+  const period = storePeriod(pkg);
+  if (period) return period.title;
   switch (pkg.packageType) {
     case PACKAGE_TYPE.WEEKLY:       return "Weekly";
     case PACKAGE_TYPE.MONTHLY:      return "Monthly";
