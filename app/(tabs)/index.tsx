@@ -18,13 +18,13 @@ import { takePendingInvite } from "@/services/pendingInvite";
 import { useSettings } from "@/services/settings";
 import { WatchBridge } from "@imuatrak/watch-bridge";
 import { WearBridge } from "@imuatrak/wear-bridge";
-import { AdBanner } from "@/ui/AdBanner";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { Badge } from "@/ui/Badge";
 import { Gradient } from "@/ui/Gradient";
 import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { Logo } from "@/ui/Logo";
+import { NativeAdCard } from "@/ui/NativeAdCard";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { formatDate, formatDistance, formatDuration } from "@/ui/format";
 import { colors, craftColor, radii, shadow, spacing, type } from "@/ui/theme";
@@ -118,10 +118,20 @@ export default function HomeTab() {
               />
             ) : undefined
           }
-          renderItem={({ item, index }) => <SessionRow stored={item} units={units} index={index} />}
+          renderItem={({ item, index }) =>
+            // One native ad card, after the third session (or the last one, in
+            // a shorter list) so it never pushes the newest sessions down.
+            index === Math.min(NATIVE_AD_AFTER, sessions.length - 1) ? (
+              <View style={{ gap: spacing.md }}>
+                <SessionRow stored={item} units={units} index={index} />
+                <NativeAdCard />
+              </View>
+            ) : (
+              <SessionRow stored={item} units={units} index={index} />
+            )
+          }
         />
       )}
-      <AdBanner />
     </ScreenBackground>
   );
 }
@@ -208,6 +218,9 @@ function RecordButton() {
     </Animated.View>
   );
 }
+
+// Zero-based index of the session the native ad card follows.
+const NATIVE_AD_AFTER = 2;
 
 function SessionRow({
   stored,

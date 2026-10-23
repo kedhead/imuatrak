@@ -19,7 +19,13 @@ ADMOB_IOS_APP_ID=ca-app-pub-...~...
 ADMOB_ANDROID_APP_ID=ca-app-pub-...~...
 EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS=ca-app-pub-.../...
 EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_ANDROID=ca-app-pub-.../...
+EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID_IOS=ca-app-pub-.../...
+EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID_ANDROID=ca-app-pub-.../...
 ```
+
+Each ad unit serves one format. The banner variables must point at **Banner**
+units and the native ones at **Native advanced** units; a mismatch fails every
+request with "Ad unit doesn't match format".
 
 > **Testing without real IDs:** The app falls back to Google's official test IDs automatically when the env vars are missing, so banners will show in development builds even before you fill these in.
 
@@ -102,5 +108,7 @@ eas build --profile development --platform android
 | `ADMOB_ANDROID_APP_ID` | AdMob → Apps → Android app → App ID |
 | `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS` | AdMob → iOS app → Ad units → Banner |
 | `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_ANDROID` | AdMob → Android app → Ad units → Banner |
+| `EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID_IOS` | AdMob → iOS app → Ad units → **Native advanced** (Sessions list card) |
+| `EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID_ANDROID` | AdMob → Android app → Ad units → **Native advanced** (Sessions list card) |
 | `EXPO_PUBLIC_REVENUECAT_IOS_KEY` | RevenueCat → Project → iOS app → API keys |
 | `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` | RevenueCat → Project → Android app → API keys |
