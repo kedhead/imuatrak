@@ -38,6 +38,7 @@ import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { RsvpBadge } from "@/ui/RsvpBadge";
 import { Logo } from "@/ui/Logo";
+import { NativeAdCard } from "@/ui/NativeAdCard";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ZoomableImage } from "@/ui/ZoomableImage";
@@ -463,29 +464,36 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
           </>
         }
         renderItem={({ item, index }) => (
-          <PostCard
-            post={item}
-            index={index}
-            clubId={clubId}
-            currentUserId={user?.uid}
-            isAdmin={isAdmin}
-            onDelete={handleDelete}
-            onEdited={handleEdited}
-            onLikeChange={(id, delta, liked) =>
-              setPosts((prev) =>
-                prev.map((p) =>
-                  p.id === id
-                    ? { ...p, likeCount: p.likeCount + delta, likedBy: liked ? [...(p.likedBy ?? []), user!.uid] : (p.likedBy ?? []).filter((u) => u !== user!.uid) }
-                    : p,
-                ),
-              )
-            }
-            onCommentAdded={(id) =>
-              setPosts((prev) =>
-                prev.map((p) => p.id === id ? { ...p, commentCount: p.commentCount + 1 } : p),
-              )
-            }
-          />
+          <>
+            <PostCard
+              post={item}
+              index={index}
+              clubId={clubId}
+              currentUserId={user?.uid}
+              isAdmin={isAdmin}
+              onDelete={handleDelete}
+              onEdited={handleEdited}
+              onLikeChange={(id, delta, liked) =>
+                setPosts((prev) =>
+                  prev.map((p) =>
+                    p.id === id
+                      ? { ...p, likeCount: p.likeCount + delta, likedBy: liked ? [...(p.likedBy ?? []), user!.uid] : (p.likedBy ?? []).filter((u) => u !== user!.uid) }
+                      : p,
+                  ),
+                )
+              }
+              onCommentAdded={(id) =>
+                setPosts((prev) =>
+                  prev.map((p) => p.id === id ? { ...p, commentCount: p.commentCount + 1 } : p),
+                )
+              }
+            />
+            {/* One native ad, after the third post (or the last, in a shorter
+                feed). Members of a club on a paid plan or trial never see it. */}
+            {index === Math.min(NATIVE_AD_AFTER, posts.length - 1) && (
+              <NativeAdCard style={styles.postWrap} />
+            )}
+          </>
         )}
         ListEmptyComponent={
           <Text style={styles.emptyFeed}>No posts yet. Be the first to share something!</Text>
@@ -1063,6 +1071,9 @@ function PollCard({
     </View>
   );
 }
+
+// Zero-based index of the post the native ad card follows.
+const NATIVE_AD_AFTER = 2;
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md, padding: spacing.xl },

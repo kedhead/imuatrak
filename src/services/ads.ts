@@ -28,7 +28,7 @@ interface AdsState {
    */
   lastAdResult: string | null;
   recordAdResult: (result: string) => void;
-  /** Same as lastAdResult, for the native ad card in the Sessions list. */
+  /** Same as lastAdResult, for the native ad cards (Sessions list, club feed). */
   lastNativeAdResult: string | null;
   recordNativeAdResult: (result: string) => void;
 }

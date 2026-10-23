@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { Image, Platform, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import {
   NativeAdChoicesPlacement,
   NativeAdView,
@@ -33,9 +33,11 @@ export const NATIVE_UNIT_ID = Platform.select({
  * advertiser's headline, body and button text are shown as delivered.
  *
  * Renders nothing for ad-free users, and until an ad has loaded, so an empty
- * or failed request never leaves a blank card in the list.
+ * or failed request never leaves a blank card in the list. `style` lets a
+ * list give the card the same margins as its rows; it applies only when the
+ * card renders.
  */
-export function NativeAdCard() {
+export function NativeAdCard({ style }: { style?: StyleProp<ViewStyle> }) {
   const isAdFree = useSubscription((s) => s.isAdFree);
   const club = useClub((s) => s.club);
   const adFree = isAdFree || clubGrantsAdFree(club);
@@ -73,7 +75,7 @@ export function NativeAdCard() {
   const nativeAd = ad.nativeAd;
 
   return (
-    <NativeAdView nativeAd={nativeAd}>
+    <NativeAdView nativeAd={nativeAd} style={style}>
       <GradientCard>
         <View style={styles.top}>
           {nativeAd.icon && (

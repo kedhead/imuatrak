@@ -244,7 +244,7 @@ function SessionRow({
             </View>
             <Text style={styles.distance}>{formatDistance(s.totals.distanceMeters, units)}</Text>
             <Text style={styles.cardSub}>
-              {formatDuration(s.totals.durationSec)} · {s.totals.strokeCount} strokes
+              {formatDuration(s.totals.durationSec)} · {s.totals.strokeCount} {s.totals.strokeCount === 1 ? "stroke" : "strokes"}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={22} color={colors.muted} />
