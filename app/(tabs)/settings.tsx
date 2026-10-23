@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Application from "expo-application";
 import * as ImagePicker from "expo-image-picker";
 import { router, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CRAFT_TYPES, type CraftType } from "@/models";
-import { formatBirthday, paddleSideLabel, type PaddleSide } from "@/models/club";
+import { clubGrantsAdFree, formatBirthday, paddleSideLabel, type PaddleSide } from "@/models/club";
+import { useAds } from "@/services/ads";
 import { signOut, watchAuth, updateDisplayName, deleteAccount, type AuthUser } from "@/services/auth";
 import { leaveClub, syncMemberDisplayName, syncMemberProfile, uploadAvatar } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
@@ -13,6 +15,7 @@ import { loadSavedStrap, useHeartRateStrap } from "@/services/heartRateStrap";
 import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
 import { useDmUnreadCount } from "@/services/unread";
+import { UNIT_ID } from "@/ui/AdBanner";
 import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
@@ -694,9 +697,32 @@ export default function Settings() {
             <Text style={styles.legalLink}>Privacy Policy</Text>
           </Pressable>
         </View>
+        {/* Long-press shows ad diagnostics: production builds hide AdMob's
+            errors, and they're the only way to tell no-fill from bad IDs. */}
+        <Pressable onLongPress={showAdDiagnostics} delayLongPress={600}>
+          <Text style={styles.versionText}>
+            Version {Application.nativeApplicationVersion} ({Application.nativeBuildVersion})
+          </Text>
+        </Pressable>
       </ScrollView>
       <ClubSwitcher visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
     </ScreenBackground>
+  );
+}
+
+function showAdDiagnostics() {
+  const ads = useAds.getState();
+  const sub = useSubscription.getState();
+  const club = useClub.getState().club;
+  Alert.alert(
+    "Ad diagnostics",
+    [
+      `Last ad request: ${ads.lastAdResult ?? "none this session (open Home or Stats first)"}`,
+      `Banner unit: ${UNIT_ID ?? "none"}`,
+      `Ad-free (own plan): ${sub.isAdFree ? "yes" : "no"}`,
+      `Ad-free (club): ${clubGrantsAdFree(club) ? "yes" : "no"}`,
+      `Personalized ads: ${ads.personalizedAds ? "yes" : "no"}`,
+    ].join("\n\n"),
   );
 }
 
@@ -749,6 +775,7 @@ const styles = StyleSheet.create({
   legalRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md },
   legalLink: { color: colors.ocean, fontSize: type.size.xs, fontWeight: type.weight.bold },
   legalDot: { color: colors.muted, fontSize: type.size.xs },
+  versionText: { color: colors.muted, fontSize: type.size.xs, textAlign: "center", paddingVertical: spacing.sm },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   clubRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   settingsRow: {
