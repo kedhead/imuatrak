@@ -16,8 +16,9 @@ Key idea: the **personal** plan grants ad-free directly through the RevenueCat
 SDK (no server needed). The **club** plans grant the buyer the `club`
 entitlement, and a Cloud Function projects that onto the club document
 (`subscriptionStatus: "active"`), which is what makes every member ad-free and
-unlocks Pro features. **That Cloud Function is currently not deployed — see
-"Club backend" below. Until it is, plans #2 and #3 do nothing for members.**
+unlocks Pro features. **Those Cloud Functions must be deployed before the
+`club` offering gets any packages — see "Club backend" below. Until they are,
+plans #2 and #3 do nothing for members.**
 
 ## Store products
 
@@ -61,27 +62,35 @@ product IDs, matching prices.
 ## Club backend (MUST be deployed for plans #2 and #3)
 
 `firebase/functions/src/revenuecat.ts` holds `syncClubPlan` (called by the app
-right after a club purchase) and `revenuecatWebhook` (RevenueCat → server, for
-renewals/cancellations). Both are **parked**: not exported from `index.ts`, so
-not deployed. Without them, a club purchase charges the card but the club is
-never flipped to active, so members get nothing.
+right after a club purchase, with the club it was bought for) and
+`revenuecatWebhook` (RevenueCat → server, for renewals, cancellations, expiry,
+transfers). Both read the payer from RevenueCat and make the club document
+match, so RevenueCat stays the source of truth.
 
-It is parked because both functions declare secrets via `defineSecret()`, and
-the Firebase CLI fails the **entire** deploy if a declared secret is missing
-from Secret Manager. So the order matters:
+Which club a plan pays for is stored on the RevenueCat customer as the
+`clubId` subscriber attribute (set by the app before paying, and again by
+`syncClubPlan`). The server only activates a club whose owner or admin is the
+payer.
+
+Both functions are exported from `index.ts` and declare secrets with
+`defineSecret()`. The Firebase CLI fails the **entire** deploy if a declared
+secret is missing from Secret Manager, so the order matters:
 
 1. **Create both secrets** in Secret Manager (project `imuatrak`):
-   - `REVENUECAT_WEBHOOK_AUTH` — the exact `Authorization` header value you will
-     configure RevenueCat's webhook to send.
-   - `REVENUECAT_SECRET_API_KEY` — a RevenueCat **secret** API key (`sk_...`).
+   - `REVENUECAT_WEBHOOK_AUTH` — a long random string; the exact
+     `Authorization` header value RevenueCat's webhook will send.
+   - `REVENUECAT_SECRET_API_KEY` — a RevenueCat **V1** secret API key
+     (`sk_...`). The functions call RevenueCat's V1 REST API.
 
    `firebase functions:secrets:set <NAME>` or the Cloud Console.
-2. **Re-export** from `index.ts`:
-   `export { revenuecatWebhook, syncClubPlan } from "./revenuecat";`
-   (Do this only after step 1, or every function deploy fails.)
-3. **Deploy**: `npm run deploy:functions`.
-4. **Point the RevenueCat webhook** at the deployed `revenuecatWebhook` URL, with
-   the same `Authorization` value stored in `REVENUECAT_WEBHOOK_AUTH`.
+2. **Deploy** functions and rules: `npm run deploy:functions` and
+   `npm run deploy:rules`.
+3. **Point the RevenueCat webhook** (Project settings → Integrations →
+   Webhooks) at the deployed `revenuecatWebhook` URL, with the same
+   `Authorization` value stored in `REVENUECAT_WEBHOOK_AUTH`.
+4. **Only then** add the club monthly and annual packages to the `club`
+   offering in RevenueCat. The paywall shows the club plan to owners/admins as
+   soon as that offering has packages.
 
 ## Testing
 
