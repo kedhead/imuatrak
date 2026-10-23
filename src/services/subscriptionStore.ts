@@ -29,21 +29,36 @@ function hasClubPlan(info: CustomerInfo): boolean {
   return CLUB_ENTITLEMENT in info.entitlements.active;
 }
 
+// Subscriber attribute naming the club a club plan pays for. The server reads
+// it to resolve webhook events (renewals, expiry) to the right club.
+const CLUB_ID_ATTRIBUTE = "clubId";
+
 /**
  * After a purchase/restore that includes the club entitlement, ask the
- * backend to verify it with RevenueCat and flip the payer's club to "active",
- * then reload club state so the app reflects it immediately. Best-effort:
- * the RevenueCat webhook performs the same sync server-side regardless.
+ * backend to verify it with RevenueCat and flip the club to "active", then
+ * reload club state so the app reflects it immediately. clubId is the club the
+ * purchase was made for; without it the server uses the one it has on record.
+ * Returns whether the server confirmed activation. Best-effort: the RevenueCat
+ * webhook performs the same sync server-side regardless.
  */
-async function syncClubPlanWithBackend(): Promise<void> {
+async function syncClubPlanWithBackend(clubId?: string): Promise<boolean> {
+  let activated = false;
   try {
-    await httpsCallable(functions, "syncClubPlan")({});
+    const res = await httpsCallable<{ clubId?: string }, { status?: string }>(
+      functions,
+      "syncClubPlan",
+    )(clubId ? { clubId } : {});
+    activated = res.data.status === "activated";
   } catch {
-    return; // Webhook will catch up.
+    return false; // Webhook will catch up.
   }
   const uid = auth.currentUser?.uid;
   if (uid) await useClub.getState().load(uid).catch(() => undefined);
+  return activated;
 }
+
+/** What a purchase did: personal plan, club plan confirmed active, or club plan still activating. */
+export type PurchaseOutcome = "personal" | "club_active" | "club_pending";
 
 /**
  * Drives the paywall UI so it never shows a silently-disabled button:
@@ -77,7 +92,8 @@ interface SubscriptionState {
   offeringsDiag: string | null;
   initialize: (userId: string) => Promise<void>;
   loadOfferings: () => Promise<void>;
-  purchase: (pkg: PurchasesPackage) => Promise<void>;
+  /** clubId: the club a club-plan purchase pays for. */
+  purchase: (pkg: PurchasesPackage, clubId?: string) => Promise<PurchaseOutcome>;
   restore: () => Promise<void>;
   refreshStatus: () => Promise<void>;
 }
@@ -138,17 +154,27 @@ export const useSubscription = create<SubscriptionState>((set, get) => ({
     }
   },
 
-  async purchase(pkg: PurchasesPackage) {
+  async purchase(pkg: PurchasesPackage, clubId?: string) {
     set({ isLoading: true });
+    let customerInfo: CustomerInfo;
     try {
-      const { customerInfo } = await Purchases.purchasePackage(pkg);
-      const clubPlan = hasClubPlan(customerInfo);
-      set({ isAdFree: hasAdFree(customerInfo), hasClubPlan: clubPlan, isLoading: false });
-      if (clubPlan) await syncClubPlanWithBackend();
+      // Recorded before paying so the webhook can find the club even if the
+      // app never reaches syncClubPlan below. The SDK sends it with the purchase.
+      if (clubId) Purchases.setAttributes({ [CLUB_ID_ATTRIBUTE]: clubId });
+      ({ customerInfo } = await Purchases.purchasePackage(pkg));
     } catch {
       set({ isLoading: false });
       throw new Error("Purchase cancelled or failed");
     }
+    const clubPlan = hasClubPlan(customerInfo);
+    set({ isAdFree: hasAdFree(customerInfo), hasClubPlan: clubPlan });
+    if (!clubPlan) {
+      set({ isLoading: false });
+      return "personal";
+    }
+    const activated = await syncClubPlanWithBackend(clubId);
+    set({ isLoading: false });
+    return activated ? "club_active" : "club_pending";
   },
 
   async restore() {

@@ -175,10 +175,15 @@ service cloud.firestore {
       // and any future billing webhook, both via the Admin SDK.
       allow update: if hasClubRole(clubId, ["owner", "admin"])
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-          ["subscriptionStatus", "subscriptionTier", "trialEndsAt", "subscriptionRenewsAt"]
+          ["subscriptionStatus", "subscriptionTier", "trialEndsAt", "subscriptionRenewsAt", "clubPlan"]
         );
+      // A new club starts free: without this, a client could create its club
+      // already "active" and get every paid feature without paying.
       allow create: if isSignedIn()
-        && request.resource.data.ownerId == request.auth.uid;
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.subscriptionStatus == "free"
+        && request.resource.data.subscriptionTier == "basic"
+        && !request.resource.data.keys().hasAny(["trialEndsAt", "subscriptionRenewsAt", "clubPlan"]);
       allow delete: if hasClubRole(clubId, ["owner"]);
 
       // ── Members ────────────────────────────────────────────────────────────

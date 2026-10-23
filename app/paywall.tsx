@@ -129,12 +129,21 @@ export default function Paywall() {
     if (!selectedPkg) return;
     const clubPurchase = isClubPkg(selectedPkg);
     try {
-      await purchase(selectedPkg);
-      if (clubPurchase) {
+      const outcome = await purchase(selectedPkg, clubPurchase ? club?.id : undefined);
+      if (outcome === "club_active") {
         Alert.alert(
           "Club plan active",
           `Mahalo! ${club?.name ?? "Your club"} is now ad-free for every member, with unlimited channels.`,
           [{ text: "Great!", onPress: () => router.back() }],
+        );
+      } else if (outcome === "club_pending") {
+        // Paid, but the server hasn't confirmed yet (offline, or slow). The
+        // webhook finishes the job; never claim the club is active before then.
+        Alert.alert(
+          "Payment received",
+          `Mahalo! ${club?.name ?? "Your club"}'s plan is being switched on — this can take a minute. ` +
+            "If it isn't active soon, tap Restore purchases.",
+          [{ text: "OK", onPress: () => router.back() }],
         );
       } else {
         Alert.alert("Welcome to ImuaTrak+", "Ads removed. Thank you for your support!", [

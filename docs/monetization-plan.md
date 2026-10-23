@@ -82,15 +82,42 @@ Prices live in App Store Connect and Play Console; Kendall sets them there.
 - When the work is done, Kendall deletes the key in RevenueCat and removes it
   from the environment.
 
+### Done since (2026-10-23, later)
+
+- **Cause 2 confirmed:** the `default` offering's Annual package was attached to
+  the monthly products. RevenueCat is now cleaned up through the API:
+  - `default` (Current) → one Monthly package: iOS `app.imuatrak.plus.month`,
+    Play `ad_free:adfree`.
+  - Entitlement `app.imuatrak.plus.monthly` → exactly those two products.
+  - Entitlement `club` created → iOS `app.imuatrak.club.month` and
+    `app.imuatrak.club.annual` (new in App Store Connect, review screenshot still
+    to add).
+  - The `Club` offering (capital C, selling personal products), a stray
+    `$rc_annual` offering and the unused entitlements `app.imuatrak.plus.annual`
+    and `no_club` are deleted. **No club offering exists yet**, on purpose.
+  - Note: the personal *store* product is `app.imuatrak.plus.month` (iOS) and
+    `ad_free:adfree` (Play); `app.imuatrak.plus.monthly` is the entitlement.
+- **Phase 2 code written** (branch `claude/club-billing`): the server activates
+  the club the owner paid from (fixes §2.2), the webhook reconciles every event
+  against RevenueCat, the paywall only says "active" once the server confirms,
+  and the rules stop clients creating a club already "active" or forging
+  `clubPlan`.
+
 ### Next steps
 
-1. RevenueCat check and fix through the API (above).
-2. Kendall confirms prices and sets them in the stores.
-3. Sandbox purchase from a TestFlight build; confirm it appears in RevenueCat
-   with sandbox data on.
-4. Phase 1 code (§4), adding a small "Remove ads" link under the banner ad.
-   Ships over the air only after 1.0.7 is live.
-5. Phase 2 (club billing).
+1. **Kendall:** set prices in App Store Connect and Play Console ($1.99 personal;
+   club $9.99 / $99.99 pending confirmation). Decide on `app.imuatrak.plus.annual`
+   (remove from sale, or keep at $19.99/year and re-add a Yearly package).
+2. **Kendall:** create the Play `club` subscription (base plans `monthly`,
+   `annual`); then Claude adds `club:monthly` / `club:annual` to RevenueCat and
+   the `club` entitlement.
+3. **Kendall:** create the two Secret Manager secrets (`docs/subscriptions.md`
+   → Club backend). Then deploy functions and rules, and set the RevenueCat
+   webhook.
+4. Ship the app change (OTA, after 1.0.7 is live), then create the `club`
+   offering and sandbox-test: buy, renew, cancel, restore; the club's status
+   must flip to `active` and back.
+5. Phase 1 copy work (§4), adding a small "Remove ads" link under the banner ad.
 
 ---
 

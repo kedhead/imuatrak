@@ -1651,7 +1651,7 @@ export const onDmMessageCreate = onDocumentCreated(
 //
 // NOTE ON THE PAYWALL: starting a DM is meant to be a paid feature, but there
 // is currently no server-side record of a personal entitlement to check —
-// revenuecat.ts is parked and undeployed (see its header), so RevenueCat state
+// revenuecat.ts projects only the club plan, so personal RevenueCat state
 // never reaches Firestore. The gate is enforced in the client for now. When the
 // webhook is live and writes an entitlement onto users/{uid}, add the check
 // here; this is the only place thread creation can happen, so it is the right
@@ -2097,12 +2097,9 @@ export const migrateMessagesToGeneralChannel = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
-// Club plan billing (RevenueCat) lives in ./revenuecat and is deliberately NOT
-// imported here, which keeps it out of the deployed backend.
-//
-// Its two defineSecret() declarations are resolved by the Firebase CLI for the
-// whole codebase before it decides what to deploy, so with those secrets absent
-// from Secret Manager NOTHING deploys — that one gap had blocked every function
-// in this file since 2026-08-02. See the header of revenuecat.ts for what to
-// create and how to switch it back on.
+// Club plan billing (RevenueCat). Its defineSecret() declarations are resolved
+// by the Firebase CLI for the whole codebase before it decides what to deploy,
+// so if REVENUECAT_WEBHOOK_AUTH or REVENUECAT_SECRET_API_KEY is missing from
+// Secret Manager, NOTHING deploys. See the header of revenuecat.ts.
 // ---------------------------------------------------------------------------
+export { revenuecatWebhook, syncClubPlan } from "./revenuecat";
