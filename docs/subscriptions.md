@@ -9,7 +9,7 @@ Connect, Google Play, RevenueCat) — the app code already supports this shape.
 | # | Plan | What it unlocks | Price | RevenueCat offering | RevenueCat entitlement |
 |---|------|-----------------|-------|---------------------|------------------------|
 | 1 | **Personal — remove my ads** | Ad-free for the buyer only. No club features. | **$1.99 / month** | `default` (the "Current" offering) | `app.imuatrak.plus.monthly` |
-| 1b | **Personal — yearly** | Same as #1, billed yearly. | (yearly price) | `default` | `app.imuatrak.plus.monthly` |
+| 1b | **Personal — yearly** | Same as #1, billed yearly. | **$19.99 / year** | `default` | `app.imuatrak.plus.monthly` |
 | 2 | **Club — monthly** | All club features + ad-free for **every** member of the buyer's club. | **$9.99 / month** | `club` | `club` |
 | 3 | **Club — annual** | Same as #2, billed yearly. | **$99.99 / year** | `club` | `club` |
 
@@ -28,7 +28,7 @@ Use whatever product IDs you like; these are a clean scheme.
 | Plan | Suggested store product ID | Duration | Notes |
 |------|---------------------------|----------|-------|
 | 1 Personal | `app.imuatrak.plus.month` (already exists) | 1 month | Set price to **$1.99**. |
-| 1b Personal yearly | `app.imuatrak.plus.annual` (already exists) | 1 year | Your chosen yearly price. |
+| 1b Personal yearly | `app.imuatrak.plus.annual` (already exists) | 1 year | Set price to **$19.99**. |
 | 2 Club monthly | `app.imuatrak.club.month` (new) | 1 month | Set price to **$9.99**. |
 | 3 Club annual | `app.imuatrak.club.annual` (new) | 1 year | Set price to **$99.99**. |
 

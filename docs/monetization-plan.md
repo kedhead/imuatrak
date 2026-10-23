@@ -36,7 +36,7 @@ original analysis.
   paddler is Settings → "Remove Ads"; ads show on two screens only; $4.99 to
   remove two banners is steep; the paywall never mentions DMs.
 
-### Prices — confirmed by Kendall (2026-10-23) except the personal yearly
+### Prices — confirmed by Kendall (2026-10-23)
 
 Running costs are about $10–55/month (Apple $99/yr, Firebase $0–25, Expo $0–19,
 RevenueCat free under $2.5k/mo revenue). Break-even is about 4–6 clubs or 25–35
@@ -45,7 +45,7 @@ personal subscribers.
 | Plan | Price | Store product |
 | --- | --- | --- |
 | Personal monthly | **$1.99 / month** | iOS `app.imuatrak.plus.month`, Play `ad_free:adfree` |
-| Personal yearly | **kept**; price not yet set (recommended $19.99 / year) | iOS `app.imuatrak.plus.annual` |
+| Personal yearly | **$19.99 / year** | iOS `app.imuatrak.plus.annual` |
 | Club monthly | **$9.99 / month** | `app.imuatrak.club.month` |
 | Club yearly | **$99.99 / year** | `app.imuatrak.club.annual` |
 
@@ -107,7 +107,7 @@ Prices live in App Store Connect and Play Console; Kendall sets them there.
 
 ### Next steps
 
-1. **Kendall:** set prices in App Store Connect and Play Console ($1.99 personal;
+1. **Kendall:** set prices in App Store Connect and Play Console ($1.99 / $19.99 personal;
    club $9.99 / $99.99, confirmed). The personal yearly is kept and is back in
    `default` as its Annual package, attached to the ad-free entitlement.
 2. **Kendall:** create the Play `club` subscription (base plans `monthly`,
