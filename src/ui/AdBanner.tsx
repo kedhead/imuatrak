@@ -6,7 +6,7 @@ import { useAds } from "@/services/ads";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
 
-const UNIT_ID = Platform.select({
+export const UNIT_ID = Platform.select({
   ios: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS ?? TestIds.ADAPTIVE_BANNER,
   android: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_ANDROID ?? TestIds.ADAPTIVE_BANNER,
   default: TestIds.ADAPTIVE_BANNER,
@@ -19,6 +19,7 @@ export function AdBanner() {
   const club = useClub((s) => s.club);
   const clubAdFree = clubGrantsAdFree(club);
   const personalizedAds = useAds((s) => s.personalizedAds);
+  const recordAdResult = useAds((s) => s.recordAdResult);
   const [error, setError] = useState<string | null>(null);
 
   if (isAdFree || clubAdFree) return null;
@@ -34,8 +35,15 @@ export function AdBanner() {
         unitId={UNIT_ID}
         size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
         requestOptions={{ requestNonPersonalizedAdsOnly: !personalizedAds }}
-        onAdFailedToLoad={(e) => setError(e.message)}
-        onAdLoaded={() => setError(null)}
+        onAdFailedToLoad={(e) => {
+          setError(e.message);
+          const code = (e as Error & { code?: string }).code;
+          recordAdResult(`failed: ${code ? `${code} — ` : ""}${e.message}`);
+        }}
+        onAdLoaded={() => {
+          setError(null);
+          recordAdResult("loaded");
+        }}
       />
     </View>
   );

@@ -20,11 +20,21 @@ interface AdsState {
   attRequested: boolean;
   /** Show the ATT prompt if still undetermined, then record the outcome. */
   requestTracking: () => Promise<void>;
+  /**
+   * Outcome of the latest banner request ("loaded", or the SDK's error code
+   * and message), for the diagnostics readout in Settings. Production builds
+   * show no ad errors on screen, so this is the only way to see why AdMob
+   * returned nothing. Null until a banner has requested an ad.
+   */
+  lastAdResult: string | null;
+  recordAdResult: (result: string) => void;
 }
 
 export const useAds = create<AdsState>((set, get) => ({
   personalizedAds: false,
   attRequested: false,
+  lastAdResult: null,
+  recordAdResult: (result) => set({ lastAdResult: `${result} (${new Date().toLocaleTimeString()})` }),
 
   async requestTracking() {
     if (get().attRequested) return;
