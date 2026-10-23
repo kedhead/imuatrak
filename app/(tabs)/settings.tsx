@@ -16,6 +16,7 @@ import { useSettings, type Units } from "@/services/settings";
 import { useSubscription } from "@/services/subscriptionStore";
 import { useDmUnreadCount } from "@/services/unread";
 import { UNIT_ID } from "@/ui/AdBanner";
+import { NATIVE_UNIT_ID } from "@/ui/NativeAdCard";
 import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
@@ -717,8 +718,10 @@ function showAdDiagnostics() {
   Alert.alert(
     "Ad diagnostics",
     [
-      `Last ad request: ${ads.lastAdResult ?? "none this session (open Home or Stats first)"}`,
+      `Banner (Stats): ${ads.lastAdResult ?? "no request this session (open Stats first)"}`,
       `Banner unit: ${UNIT_ID ?? "none"}`,
+      `Native card (Sessions): ${ads.lastNativeAdResult ?? "no request this session (open Sessions first)"}`,
+      `Native unit: ${NATIVE_UNIT_ID ?? "none"}`,
       `Ad-free (own plan): ${sub.isAdFree ? "yes" : "no"}`,
       `Ad-free (club): ${clubGrantsAdFree(club) ? "yes" : "no"}`,
       `Personalized ads: ${ads.personalizedAds ? "yes" : "no"}`,

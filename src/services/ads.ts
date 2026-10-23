@@ -28,6 +28,9 @@ interface AdsState {
    */
   lastAdResult: string | null;
   recordAdResult: (result: string) => void;
+  /** Same as lastAdResult, for the native ad card in the Sessions list. */
+  lastNativeAdResult: string | null;
+  recordNativeAdResult: (result: string) => void;
 }
 
 export const useAds = create<AdsState>((set, get) => ({
@@ -35,6 +38,9 @@ export const useAds = create<AdsState>((set, get) => ({
   attRequested: false,
   lastAdResult: null,
   recordAdResult: (result) => set({ lastAdResult: `${result} (${new Date().toLocaleTimeString()})` }),
+  lastNativeAdResult: null,
+  recordNativeAdResult: (result) =>
+    set({ lastNativeAdResult: `${result} (${new Date().toLocaleTimeString()})` }),
 
   async requestTracking() {
     if (get().attRequested) return;
