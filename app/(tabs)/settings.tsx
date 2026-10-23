@@ -720,7 +720,7 @@ function showAdDiagnostics() {
     [
       `Banner (Stats): ${ads.lastAdResult ?? "no request this session (open Stats first)"}`,
       `Banner unit: ${UNIT_ID ?? "none"}`,
-      `Native card (Sessions): ${ads.lastNativeAdResult ?? "no request this session (open Sessions first)"}`,
+      `Native card (Sessions, Club): ${ads.lastNativeAdResult ?? "no request this session (open Sessions or Club first)"}`,
       `Native unit: ${NATIVE_UNIT_ID ?? "none"}`,
       `Ad-free (own plan): ${sub.isAdFree ? "yes" : "no"}`,
       `Ad-free (club): ${clubGrantsAdFree(club) ? "yes" : "no"}`,
