@@ -36,16 +36,16 @@ original analysis.
   paddler is Settings → "Remove Ads"; ads show on two screens only; $4.99 to
   remove two banners is steep; the paywall never mentions DMs.
 
-### Prices — recommended, waiting for Kendall's confirmation
+### Prices — confirmed by Kendall (2026-10-23) except the personal yearly
 
 Running costs are about $10–55/month (Apple $99/yr, Firebase $0–25, Expo $0–19,
 RevenueCat free under $2.5k/mo revenue). Break-even is about 4–6 clubs or 25–35
 personal subscribers.
 
-| Plan | Recommended | Store product |
+| Plan | Price | Store product |
 | --- | --- | --- |
-| Personal monthly | **$1.99 / month** | `app.imuatrak.plus.monthly` |
-| Personal yearly | **remove from the offering**, or $19.99 / year | `app.imuatrak.plus.annual` |
+| Personal monthly | **$1.99 / month** | iOS `app.imuatrak.plus.month`, Play `ad_free:adfree` |
+| Personal yearly | **kept**; price not yet set (recommended $19.99 / year) | iOS `app.imuatrak.plus.annual` |
 | Club monthly | **$9.99 / month** | `app.imuatrak.club.month` |
 | Club yearly | **$99.99 / year** | `app.imuatrak.club.annual` |
 
@@ -86,15 +86,17 @@ Prices live in App Store Connect and Play Console; Kendall sets them there.
 
 - **Cause 2 confirmed:** the `default` offering's Annual package was attached to
   the monthly products. RevenueCat is now cleaned up through the API:
-  - `default` (Current) → one Monthly package: iOS `app.imuatrak.plus.month`,
-    Play `ad_free:adfree`.
-  - Entitlement `app.imuatrak.plus.monthly` → exactly those two products.
+  - `default` (Current) → Monthly package: iOS `app.imuatrak.plus.month`,
+    Play `ad_free:adfree`; Annual package: iOS `app.imuatrak.plus.annual`.
+  - Entitlement `app.imuatrak.plus.monthly` → exactly those three products.
+  - Offering `club` → Monthly `app.imuatrak.club.month`, Annual
+    `app.imuatrak.club.annual` (iOS; Play club products not created yet).
   - Entitlement `club` created → iOS `app.imuatrak.club.month` and
     `app.imuatrak.club.annual` (new in App Store Connect, review screenshot still
     to add).
   - The `Club` offering (capital C, selling personal products), a stray
     `$rc_annual` offering and the unused entitlements `app.imuatrak.plus.annual`
-    and `no_club` are deleted. **No club offering exists yet**, on purpose.
+    and `no_club` are deleted.
   - Note: the personal *store* product is `app.imuatrak.plus.month` (iOS) and
     `ad_free:adfree` (Play); `app.imuatrak.plus.monthly` is the entitlement.
 - **Phase 2 code written** (branch `claude/club-billing`): the server activates
@@ -106,8 +108,8 @@ Prices live in App Store Connect and Play Console; Kendall sets them there.
 ### Next steps
 
 1. **Kendall:** set prices in App Store Connect and Play Console ($1.99 personal;
-   club $9.99 / $99.99 pending confirmation). Decide on `app.imuatrak.plus.annual`
-   (remove from sale, or keep at $19.99/year and re-add a Yearly package).
+   club $9.99 / $99.99, confirmed). The personal yearly is kept and is back in
+   `default` as its Annual package, attached to the ad-free entitlement.
 2. **Kendall:** create the Play `club` subscription (base plans `monthly`,
    `annual`); then Claude adds `club:monthly` / `club:annual` to RevenueCat and
    the `club` entitlement.

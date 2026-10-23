@@ -1,16 +1,17 @@
 # Subscriptions setup
 
-Three products, mapped onto the offering/entitlement architecture the app
+Four products, mapped onto the offering/entitlement architecture the app
 already ships. Most of the work here is **dashboard configuration** (App Store
 Connect, Google Play, RevenueCat) — the app code already supports this shape.
 
-## The three plans
+## The plans
 
 | # | Plan | What it unlocks | Price | RevenueCat offering | RevenueCat entitlement |
 |---|------|-----------------|-------|---------------------|------------------------|
 | 1 | **Personal — remove my ads** | Ad-free for the buyer only. No club features. | **$1.99 / month** | `default` (the "Current" offering) | `app.imuatrak.plus.monthly` |
-| 2 | **Club — monthly** | All club features + ad-free for **every** member of the buyer's club. | **$5.99 / month** | `club` | `club` |
-| 3 | **Club — annual** | Same as #2, billed yearly. | (your yearly price) | `club` | `club` |
+| 1b | **Personal — yearly** | Same as #1, billed yearly. | (yearly price) | `default` | `app.imuatrak.plus.monthly` |
+| 2 | **Club — monthly** | All club features + ad-free for **every** member of the buyer's club. | **$9.99 / month** | `club` | `club` |
+| 3 | **Club — annual** | Same as #2, billed yearly. | **$99.99 / year** | `club` | `club` |
 
 Key idea: the **personal** plan grants ad-free directly through the RevenueCat
 SDK (no server needed). The **club** plans grant the buyer the `club`
@@ -27,16 +28,14 @@ Use whatever product IDs you like; these are a clean scheme.
 | Plan | Suggested store product ID | Duration | Notes |
 |------|---------------------------|----------|-------|
 | 1 Personal | `app.imuatrak.plus.month` (already exists) | 1 month | Set price to **$1.99**. |
-| 2 Club monthly | `app.imuatrak.club.month` (new) | 1 month | Set price to **$5.99**. |
-| 3 Club annual | `app.imuatrak.club.annual` (new) | 1 year | Your chosen yearly price. |
+| 1b Personal yearly | `app.imuatrak.plus.annual` (already exists) | 1 year | Your chosen yearly price. |
+| 2 Club monthly | `app.imuatrak.club.month` (new) | 1 month | Set price to **$9.99**. |
+| 3 Club annual | `app.imuatrak.club.annual` (new) | 1 year | Set price to **$99.99**. |
 
 Do the same in **Google Play** (Play Console → Monetize → Subscriptions), same
 product IDs, matching prices.
 
 ### Cleanup of the current App Store Connect products
-- `app.imuatrak.plus.annual` ("Yearly") — there is **no personal annual** in
-  this plan. Remove it from the personal offering. Deactivate it, or just leave
-  it unattached to any offering so it is never sold.
 - `no_club` ("No Ads!") — the legacy personal no-ads product. If it has live
   subscribers, keep it **attached to the `app.imuatrak.plus.monthly`
   entitlement** so those users stay ad-free, but keep it **out of every
@@ -46,11 +45,13 @@ product IDs, matching prices.
 
 1. **Products** → import all store products above.
 2. **Entitlements**
-   - `app.imuatrak.plus.monthly` → attach the **personal monthly** ($1.99).
+   - `app.imuatrak.plus.monthly` → attach the **personal monthly** ($1.99) and
+     the **personal yearly**.
      (Also attach the legacy `no_club` here if it has subscribers.)
    - `club` → attach **both** club products (monthly + annual).
 3. **Offerings**
-   - `default` (mark **Current**) → one package: the personal monthly.
+   - `default` (mark **Current**) → two packages: personal monthly (Monthly)
+     and personal yearly (Annual).
    - `club` → two packages: club monthly + club annual.
 
 > The app reads personal plans from `offerings.current` and club plans from
