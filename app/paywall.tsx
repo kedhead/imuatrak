@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { PACKAGE_TYPE, type PurchasesPackage } from "react-native-purchases";
+import { clubGrantsAdFree } from "@/models/club";
 import { useClub } from "@/services/clubStore";
 import { CLUB_OFFERING_ID, useSubscription } from "@/services/subscriptionStore";
 import { Button } from "@/ui/Button";
@@ -100,7 +101,9 @@ export default function Paywall() {
   const club = useClub((s) => s.club);
   const role = useClub((s) => s.role);
   const clubStatus = club?.subscriptionStatus;
-  const clubAdFree = clubStatus === "active" || clubStatus === "trial";
+  // Same rule the ads use (it checks a trial's end date), so the paywall
+  // never says "ad-free via your club" while ads are showing.
+  const clubAdFree = clubGrantsAdFree(club);
 
   // The club plan is offered to owners/admins whose club isn't already on a
   // paid plan — including during the free trial, so a club can be locked in
