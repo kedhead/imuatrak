@@ -5,6 +5,7 @@ import { clubGrantsAdFree } from "@/models/club";
 import { useAds } from "@/services/ads";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
+import { RemoveAdsLink } from "./RemoveAdsLink";
 
 export const UNIT_ID = Platform.select({
   ios: process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS ?? TestIds.ADAPTIVE_BANNER,
@@ -32,6 +33,8 @@ export function AdBanner({ aboveTabBar = true }: { aboveTabBar?: boolean } = {})
   const personalizedAds = useAds((s) => s.personalizedAds);
   const recordAdResult = useAds((s) => s.recordAdResult);
   const [error, setError] = useState<string | null>(null);
+  // The "Remove ads" link only appears once there's an ad for it to refer to.
+  const [loaded, setLoaded] = useState(false);
 
   if (isAdFree || clubAdFree) return null;
 
@@ -48,14 +51,17 @@ export function AdBanner({ aboveTabBar = true }: { aboveTabBar?: boolean } = {})
         requestOptions={{ requestNonPersonalizedAdsOnly: !personalizedAds }}
         onAdFailedToLoad={(e) => {
           setError(e.message);
+          setLoaded(false);
           const code = (e as Error & { code?: string }).code;
           recordAdResult(`failed: ${code ? `${code} — ` : ""}${e.message}`);
         }}
         onAdLoaded={() => {
           setError(null);
+          setLoaded(true);
           recordAdResult("loaded");
         }}
       />
+      {loaded && <RemoveAdsLink />}
     </View>
   );
 }

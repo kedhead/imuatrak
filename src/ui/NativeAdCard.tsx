@@ -1,5 +1,13 @@
 import { useEffect, useMemo } from "react";
-import { Image, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import {
   NativeAdChoicesPlacement,
   NativeAdView,
@@ -16,6 +24,7 @@ import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
 import { Badge } from "./Badge";
 import { GradientCard } from "./GradientCard";
+import { RemoveAdsLink } from "./RemoveAdsLink";
 import { colors, radii, spacing, type } from "./theme";
 
 export const NATIVE_UNIT_ID = Platform.select({
@@ -35,7 +44,7 @@ export const NATIVE_UNIT_ID = Platform.select({
  * Renders nothing for ad-free users, and until an ad has loaded, so an empty
  * or failed request never leaves a blank card in the list. `style` lets a
  * list give the card the same margins as its rows; it applies only when the
- * card renders.
+ * card renders. A "Remove ads" link sits under the card, outside the ad view.
  */
 export function NativeAdCard({ style }: { style?: StyleProp<ViewStyle> }) {
   const isAdFree = useSubscription((s) => s.isAdFree);
@@ -75,47 +84,50 @@ export function NativeAdCard({ style }: { style?: StyleProp<ViewStyle> }) {
   const nativeAd = ad.nativeAd;
 
   return (
-    <NativeAdView nativeAd={nativeAd} style={style}>
-      <GradientCard>
-        <View style={styles.top}>
-          {nativeAd.icon && (
-            <NativeAsset assetType={NativeAssetType.ICON}>
-              <Image source={{ uri: nativeAd.icon.url }} style={styles.icon} />
-            </NativeAsset>
-          )}
-          <View style={styles.titles}>
-            <NativeAsset assetType={NativeAssetType.HEADLINE}>
-              <Text style={styles.headline} numberOfLines={2}>
-                {nativeAd.headline}
-              </Text>
-            </NativeAsset>
-            {nativeAd.advertiser && (
-              <NativeAsset assetType={NativeAssetType.ADVERTISER}>
-                <Text style={styles.advertiser} numberOfLines={1}>
-                  {nativeAd.advertiser}
-                </Text>
+    <View style={style}>
+      <NativeAdView nativeAd={nativeAd}>
+        <GradientCard>
+          <View style={styles.top}>
+            {nativeAd.icon && (
+              <NativeAsset assetType={NativeAssetType.ICON}>
+                <Image source={{ uri: nativeAd.icon.url }} style={styles.icon} />
               </NativeAsset>
             )}
+            <View style={styles.titles}>
+              <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                <Text style={styles.headline} numberOfLines={2}>
+                  {nativeAd.headline}
+                </Text>
+              </NativeAsset>
+              {nativeAd.advertiser && (
+                <NativeAsset assetType={NativeAssetType.ADVERTISER}>
+                  <Text style={styles.advertiser} numberOfLines={1}>
+                    {nativeAd.advertiser}
+                  </Text>
+                </NativeAsset>
+              )}
+            </View>
+            {/* Sits left of the AdChoices icon the SDK draws in the top-right corner. */}
+            <Badge label="Ad" color={colors.gold} style={styles.adBadge} />
           </View>
-          {/* Sits left of the AdChoices icon the SDK draws in the top-right corner. */}
-          <Badge label="Ad" color={colors.gold} style={styles.adBadge} />
-        </View>
 
-        <NativeMediaView style={styles.media} resizeMode="cover" />
+          <NativeMediaView style={styles.media} resizeMode="cover" />
 
-        <NativeAsset assetType={NativeAssetType.BODY}>
-          <Text style={styles.body} numberOfLines={3}>
-            {nativeAd.body}
-          </Text>
-        </NativeAsset>
-
-        {nativeAd.callToAction ? (
-          <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-            <Text style={styles.cta}>{nativeAd.callToAction}</Text>
+          <NativeAsset assetType={NativeAssetType.BODY}>
+            <Text style={styles.body} numberOfLines={3}>
+              {nativeAd.body}
+            </Text>
           </NativeAsset>
-        ) : null}
-      </GradientCard>
-    </NativeAdView>
+
+          {nativeAd.callToAction ? (
+            <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
+              <Text style={styles.cta}>{nativeAd.callToAction}</Text>
+            </NativeAsset>
+          ) : null}
+        </GradientCard>
+      </NativeAdView>
+      <RemoveAdsLink align="flex-end" />
+    </View>
   );
 }
 
@@ -127,7 +139,13 @@ const styles = StyleSheet.create({
   advertiser: { fontSize: type.size.xs, color: colors.muted },
   adBadge: { alignSelf: "flex-start" },
   // Full card width at 16:9 is well over AdMob's 120×120 minimum on any phone.
-  media: { width: "100%", aspectRatio: 16 / 9, marginTop: spacing.sm, borderRadius: radii.sm, overflow: "hidden" },
+  media: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    marginTop: spacing.sm,
+    borderRadius: radii.sm,
+    overflow: "hidden",
+  },
   body: { fontSize: type.size.sm, color: colors.inkSoft, marginTop: spacing.sm, lineHeight: 18 },
   cta: {
     alignSelf: "flex-start",
