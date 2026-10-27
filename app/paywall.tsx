@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { PACKAGE_TYPE, type PurchasesPackage } from "react-native-purchases";
 import { clubGrantsAdFree } from "@/models/club";
 import { useClub } from "@/services/clubStore";
@@ -17,10 +17,20 @@ import { colors, spacing, type } from "@/ui/theme";
 const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 const PRIVACY_URL = "https://imuatrak.app/privacy";
 
-const BENEFITS = [
-  { icon: "eye-off-outline" as const, text: "No ads, ever" },
-  { icon: "heart-outline" as const, text: "Support independent development" },
-  { icon: "refresh-outline" as const, text: "Cancel anytime" },
+// What each plan actually unlocks. Keep these in step with the gates in code:
+// ads (AdBanner/NativeAdCard), DMs (club/members, club/member/[uid]), the
+// gallery and extra channels (clubIsPro / canAddChannel). Apple guideline
+// 3.1.2 requires a subscription to say clearly what the buyer gets.
+const PERSONAL_BENEFITS = [
+  { icon: "eye-off-outline" as const, text: "No ads anywhere in the app" },
+  { icon: "paper-plane-outline" as const, text: "Message any paddler in your club directly" },
+  { icon: "heart-outline" as const, text: "Support an independent paddling app" },
+];
+const CLUB_BENEFITS = [
+  { icon: "eye-off-outline" as const, text: "No ads for every member" },
+  { icon: "paper-plane-outline" as const, text: "Everyone can message each other directly" },
+  { icon: "images-outline" as const, text: "Club photo gallery" },
+  { icon: "chatbubbles-outline" as const, text: "Unlimited chat channels" },
 ];
 
 // What the store actually bills, from the product's ISO 8601 period ("P1M",
@@ -74,13 +84,20 @@ function planTitle(pkg: PurchasesPackage): string {
   }
 }
 
-const FEATURES = [
-  { icon: "water-outline" as const, text: "GPS session tracking with pace, stroke rate & distance" },
-  { icon: "map-outline" as const, text: "Route maps, splits & session history" },
-  { icon: "chatbubbles-outline" as const, text: "Club channels & team chat" },
-  { icon: "calendar-outline" as const, text: "Club events, lineups & RSVP" },
-  { icon: "people-outline" as const, text: "Club feed, polls & announcements" },
-];
+/**
+ * "Save N%" for a yearly plan, against the monthly plan in the same list, from
+ * the store prices the user will actually pay. Null when there's no monthly
+ * to compare with or the saving is too small to be worth a badge.
+ */
+function yearlySavings(pkg: PurchasesPackage, list: PurchasesPackage[]): string | null {
+  if (storePeriod(pkg)?.suffix !== "/ year") return null;
+  const monthly = list.find((p) => storePeriod(p)?.suffix === "/ month");
+  if (!monthly || monthly.product.price <= 0) return null;
+  const pct = Math.round((1 - pkg.product.price / (monthly.product.price * 12)) * 100);
+  return pct >= 5 ? `Save ${pct}%` : null;
+}
+
+const STORE_ACCOUNT = Platform.OS === "ios" ? "Apple ID" : "Google Play account";
 
 // Packages keep their RevenueCat identifier ("$rc_monthly", …) within each
 // offering, so the personal and club offerings can collide on identifier
@@ -149,7 +166,7 @@ export default function Paywall() {
           [{ text: "OK", onPress: () => router.back() }],
         );
       } else {
-        Alert.alert("Welcome to ImuaTrak+", "Ads removed. Thank you for your support!", [
+        Alert.alert("Welcome to ImuaTrak+", "Ads are gone, and you can now message any paddler in your club. Mahalo for your support!", [
           { text: "Great!", onPress: () => router.back() },
         ]);
       }
@@ -173,7 +190,7 @@ export default function Paywall() {
     <ScreenBackground>
       <GradientHeader
         title="ImuaTrak+"
-        subtitle="Paddle without interruption"
+        subtitle="Go ad-free and message your crew"
       />
       <ScrollView contentContainerStyle={styles.scroll}>
 
@@ -188,59 +205,51 @@ export default function Paywall() {
           </GradientCard>
         )}
 
-        <GradientCard style={styles.benefitsCard}>
-          {BENEFITS.map((b) => (
-            <View key={b.text} style={styles.benefitRow}>
-              <Ionicons name={b.icon} size={20} color={colors.ocean} />
-              <Text style={styles.benefitText}>{b.text}</Text>
-            </View>
-          ))}
-        </GradientCard>
-
-        <View>
-          <Text style={styles.featuresHeading}>Everything in ImuaTrak</Text>
-          <GradientCard style={styles.benefitsCard}>
-            {FEATURES.map((f) => (
-              <View key={f.text} style={styles.benefitRow}>
-                <Ionicons name={f.icon} size={20} color={colors.seafoam} />
-                <Text style={styles.benefitText}>{f.text}</Text>
+        {canBuyPersonal && (
+          <View>
+            <Text style={styles.sectionHeading}>Just for you</Text>
+            <BenefitList items={PERSONAL_BENEFITS} />
+            {packages.length > 0 && (
+              <View style={[styles.packages, styles.packagesSpaced]}>
+                {packages.map((pkg) => (
+                  <PackageCard
+                    key={pkgKey(pkg)}
+                    pkg={pkg}
+                    badge={yearlySavings(pkg, packages)}
+                    selected={selectedPkg ? pkgKey(selectedPkg) === pkgKey(pkg) : false}
+                    onSelect={setSelectedPkg}
+                  />
+                ))}
               </View>
-            ))}
-          </GradientCard>
-        </View>
-
-        {canBuyPersonal && packages.length > 0 && (
-          <View style={styles.packages}>
-            {packages.map((pkg) => (
-              <PackageCard
-                key={pkgKey(pkg)}
-                pkg={pkg}
-                selected={selectedPkg ? pkgKey(selectedPkg) === pkgKey(pkg) : false}
-                onSelect={setSelectedPkg}
-              />
-            ))}
+            )}
           </View>
         )}
 
         {canBuyClub && (
           <View>
-            <Text style={styles.featuresHeading}>Club plan — {club?.name}</Text>
-            <View style={styles.packages}>
+            <Text style={styles.sectionHeading}>For the whole club — {club?.name}</Text>
+            <BenefitList items={CLUB_BENEFITS} />
+            <View style={[styles.packages, styles.packagesSpaced]}>
               {clubPackages.map((pkg) => (
                 <PackageCard
                   key={pkgKey(pkg)}
                   pkg={pkg}
+                  badge={yearlySavings(pkg, clubPackages)}
                   selected={selectedPkg ? pkgKey(selectedPkg) === pkgKey(pkg) : false}
                   onSelect={setSelectedPkg}
                 />
               ))}
             </View>
             <Text style={styles.clubPlanNote}>
-              One subscription for the whole club: removes ads for every member and unlocks
-              unlimited channels while active.
+              One subscription covers every member of {club?.name ?? "your club"} while it's active.
             </Text>
           </View>
         )}
+
+        {/* Said plainly so nobody thinks the core app is behind the paywall. */}
+        <Text style={styles.freeNote}>
+          GPS tracking, session history, club chat, events and lineups stay free for everyone.
+        </Text>
 
         {(canBuyPersonal || canBuyClub) && (
           packages.length > 0 || clubPackages.length > 0 ? (
@@ -292,19 +301,36 @@ export default function Paywall() {
         </View>
 
         <Text style={styles.legal}>
-          Subscriptions auto-renew until cancelled. Manage or cancel in your device's subscription settings.
+          Payment is charged to your {STORE_ACCOUNT} when you confirm. Subscriptions renew
+          automatically at the same price unless cancelled at least 24 hours before the end of
+          the current period. Manage or cancel anytime in your {STORE_ACCOUNT} settings.
         </Text>
       </ScrollView>
     </ScreenBackground>
   );
 }
 
+function BenefitList({ items }: { items: { icon: keyof typeof Ionicons.glyphMap; text: string }[] }) {
+  return (
+    <GradientCard style={styles.benefitsCard}>
+      {items.map((b) => (
+        <View key={b.text} style={styles.benefitRow}>
+          <Ionicons name={b.icon} size={20} color={colors.ocean} />
+          <Text style={styles.benefitText}>{b.text}</Text>
+        </View>
+      ))}
+    </GradientCard>
+  );
+}
+
 function PackageCard({
   pkg,
+  badge,
   selected,
   onSelect,
 }: {
   pkg: PurchasesPackage;
+  badge?: string | null;
   selected: boolean;
   onSelect: (pkg: PurchasesPackage) => void;
 }) {
@@ -313,6 +339,11 @@ function PackageCard({
       onPress={() => onSelect(pkg)}
       style={[styles.pkgCard, selected && styles.pkgCardSelected]}
     >
+      {badge ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badge}</Text>
+        </View>
+      ) : null}
       <Text style={[styles.pkgTitle, selected && styles.pkgTitleSelected]}>
         {planTitle(pkg)}
       </Text>
@@ -333,11 +364,24 @@ const styles = StyleSheet.create({
   activeCard: { marginBottom: spacing.xs },
   activeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   activeText: { color: colors.white, fontWeight: type.weight.bold, fontSize: type.size.md, flex: 1 },
-  featuresHeading: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.muted, letterSpacing: 0.5, marginBottom: spacing.sm },
+  sectionHeading: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.muted, letterSpacing: 0.5, marginBottom: spacing.sm },
   benefitsCard: { gap: spacing.md },
   benefitRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   benefitText: { color: colors.ink, fontSize: type.size.md, flex: 1 },
   packages: { flexDirection: "row", gap: spacing.sm },
+  packagesSpaced: { marginTop: spacing.md },
+  freeNote: { fontSize: type.size.xs, color: colors.muted, textAlign: "center", lineHeight: 16 },
+  // Sits on the card's top edge, like a ribbon.
+  badge: {
+    position: "absolute",
+    top: -10,
+    alignSelf: "center",
+    backgroundColor: colors.gold,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  badgeText: { fontSize: type.size.xs, fontWeight: type.weight.heavy, color: colors.ink },
   pkgCard: {
     flex: 1,
     borderRadius: 14,
