@@ -75,11 +75,11 @@ service firebase.storage {
         && request.resource.size < 10 * 1024 * 1024
         && (request.resource.contentType.matches('image/.*')
             || request.resource.contentType.matches('video/.*'));
-      // Deleting a message cleans up its media. The write rule above can't
-      // cover delete (no request.resource on a delete), so allow it explicitly
-      // for club members. Firestore rules still gate WHO can delete the message
-      // doc (author or owner/admin), which is what drives this cleanup.
-      allow delete: if isClubMember(clubId);
+      // Media cleanup on message delete runs in the deleteChannelMessage
+      // Cloud Function (Admin SDK), so clients don't need delete here. It was
+      // open to every club member, who could then delete anyone's photos
+      // straight from Storage. Owners/admins keep it for moderation.
+      allow delete: if isClubAdmin(clubId);
     }
 
     // Gallery photos attached to a club post. Written by the uploadPostMedia
@@ -88,7 +88,8 @@ service firebase.storage {
     match /clubs/{clubId}/posts/{postId}/{file} {
       allow read: if isClubMember(clubId);
       allow write: if false;
-      allow delete: if isClubMember(clubId);
+      // deleteClubPost (Admin SDK) clears these; members don't delete directly.
+      allow delete: if isClubAdmin(clubId);
     }
 
     match /clubs/{clubId}/logo.jpg {
