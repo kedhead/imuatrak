@@ -49,6 +49,7 @@ import {
 import { extractImageUrls, LinkifiedText } from "@/ui/LinkifiedText";
 import { useClub } from "@/services/clubStore";
 import type { ClubChannel, ClubMember, ClubMessage, MemberRole } from "@/models/club";
+import { AdBanner } from "@/ui/AdBanner";
 import { Avatar } from "@/ui/Avatar";
 import { formatMessageTime } from "@/ui/format";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
@@ -463,6 +464,11 @@ export default function ChannelChatScreen() {
         // keyboard overlapped the newest chat bubbles.
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
+        {/* Free clubs only (AdBanner renders nothing for ad-free members).
+            At the top, away from the composer, so typing can't hit it. It sits
+            inside the KeyboardAvoidingView so that view's position, which the
+            keyboard offset above is measured against, doesn't move. */}
+        <AdBanner aboveTabBar={false} />
         <View style={styles.listWrap}>
         <FlatList
           data={reversed}

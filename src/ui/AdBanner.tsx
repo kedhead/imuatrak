@@ -20,7 +20,12 @@ const IS_DEV = __DEV__;
 // loaded ad renders entirely behind the tab bar and is never seen.
 const TAB_BAR_CLEARANCE = (Platform.OS === "ios" ? 24 : 16) + 68 + 8;
 
-export function AdBanner() {
+/**
+ * `aboveTabBar` (default true) lifts the banner clear of the floating tab bar,
+ * for the bottom of a tab screen. Pass false where there's no tab bar, e.g.
+ * at the top of a chat.
+ */
+export function AdBanner({ aboveTabBar = true }: { aboveTabBar?: boolean } = {}) {
   const isAdFree = useSubscription((s) => s.isAdFree);
   const club = useClub((s) => s.club);
   const clubAdFree = clubGrantsAdFree(club);
@@ -31,7 +36,7 @@ export function AdBanner() {
   if (isAdFree || clubAdFree) return null;
 
   return (
-    <View style={{ alignItems: "center", marginBottom: TAB_BAR_CLEARANCE }}>
+    <View style={{ alignItems: "center", marginBottom: aboveTabBar ? TAB_BAR_CLEARANCE : 0 }}>
       {IS_DEV && error && (
         <Text style={{ color: "red", fontSize: 10, padding: 4 }}>
           Ad error: {error}

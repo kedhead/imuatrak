@@ -718,7 +718,7 @@ function showAdDiagnostics() {
   Alert.alert(
     "Ad diagnostics",
     [
-      `Banner (Stats): ${ads.lastAdResult ?? "no request this session (open Stats first)"}`,
+      `Banner (Stats, chat): ${ads.lastAdResult ?? "no request this session (open Stats or a chat first)"}`,
       `Banner unit: ${UNIT_ID ?? "none"}`,
       `Native card (Sessions, Club): ${ads.lastNativeAdResult ?? "no request this session (open Sessions or Club first)"}`,
       `Native unit: ${NATIVE_UNIT_ID ?? "none"}`,
