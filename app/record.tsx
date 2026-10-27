@@ -13,6 +13,7 @@ import Animated, {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CRAFT_TYPES } from "@/models";
 import { loadSavedStrap, useHeartRateStrap, type StrapStatus } from "@/services/heartRateStrap";
+import { maybeShowUpgradePrompt } from "@/services/upgradePrompt";
 import { useRecorder } from "@/services/recorder";
 import { useSettings } from "@/services/settings";
 import { Button } from "@/ui/Button";
@@ -92,7 +93,11 @@ export default function Record() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (router.canDismiss()) router.dismiss();
       else router.back();
-      if (session) router.push(`/session/${session.id}`);
+      if (session) {
+        router.push(`/session/${session.id}`);
+        // Let them see their session first; the prompt decides if it's due.
+        setTimeout(() => void maybeShowUpgradePrompt(), 1500);
+      }
     } catch (e) {
       Alert.alert("Save failed", e instanceof Error ? e.message : String(e));
     } finally {
