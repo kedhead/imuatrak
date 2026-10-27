@@ -13,7 +13,7 @@ import { leaveClub, syncMemberDisplayName, syncMemberProfile, uploadAvatar } fro
 import { useClub } from "@/services/clubStore";
 import { loadSavedStrap, useHeartRateStrap } from "@/services/heartRateStrap";
 import { useSettings, type Units } from "@/services/settings";
-import { useSubscription } from "@/services/subscriptionStore";
+import { getManageSubscriptionUrl, useSubscription } from "@/services/subscriptionStore";
 import { useDmUnreadCount } from "@/services/unread";
 import { UNIT_ID } from "@/ui/AdBanner";
 import { NATIVE_UNIT_ID } from "@/ui/NativeAdCard";
@@ -88,7 +88,9 @@ export default function Settings() {
   const myClubs = useClub((s) => s.myClubs);
   const loadClubs = useClub((s) => s.load);
   const isAdFree = useSubscription((s) => s.isAdFree);
-  const clubAdFree = club?.subscriptionStatus === "active" || club?.subscriptionStatus === "trial";
+  // clubGrantsAdFree also checks a trial's end date, so a lapsed trial isn't
+  // shown as ad-free in the gap before the daily expiry sweep updates it.
+  const clubAdFree = clubGrantsAdFree(club);
   const routerHook = useRouter();
 
   useEffect(() => watchAuth((u) => {
@@ -456,8 +458,7 @@ export default function Settings() {
                 <Pressable
                   style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
                   onPress={() => {
-                    const url = "https://apps.apple.com/account/subscriptions";
-                    void Linking.openURL(url);
+                    void getManageSubscriptionUrl().then((url) => Linking.openURL(url));
                   }}
                 >
                   <Text style={styles.settingsRowText}>Manage Subscription</Text>

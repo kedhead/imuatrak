@@ -60,6 +60,24 @@ async function syncClubPlanWithBackend(clubId?: string): Promise<boolean> {
 /** What a purchase did: personal plan, club plan confirmed active, or club plan still activating. */
 export type PurchaseOutcome = "personal" | "club_active" | "club_pending";
 
+// Where a subscriber manages or cancels, if RevenueCat can't say: each
+// store's own subscriptions page for this app.
+const FALLBACK_MANAGE_URL =
+  Platform.OS === "ios"
+    ? "https://apps.apple.com/account/subscriptions"
+    : "https://play.google.com/store/account/subscriptions?package=app.imuatrak";
+
+/**
+ * The page where the user manages or cancels their subscription. RevenueCat's
+ * managementURL points at the store the subscription was actually bought in,
+ * so a subscriber always lands on the right one.
+ */
+export async function getManageSubscriptionUrl(): Promise<string> {
+  if (!configured) return FALLBACK_MANAGE_URL;
+  const info = await Purchases.getCustomerInfo().catch(() => null);
+  return info?.managementURL ?? FALLBACK_MANAGE_URL;
+}
+
 /**
  * Drives the paywall UI so it never shows a silently-disabled button:
  *  - "loading"      → offerings are being fetched
