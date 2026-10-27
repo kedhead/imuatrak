@@ -1,4 +1,12 @@
-import { clubGrantsAdFree, eventGoingCount, MAX_POST_TAGS, parseHashtags, type EventRsvp } from "../club";
+import {
+  canAddChannel,
+  clubGrantsAdFree,
+  eventGoingCount,
+  FREE_CHANNEL_LIMIT,
+  MAX_POST_TAGS,
+  parseHashtags,
+  type EventRsvp,
+} from "../club";
 
 describe("eventGoingCount", () => {
   const rsvp = (uid: string, status: EventRsvp["status"], guests?: string[]): EventRsvp => ({
@@ -97,5 +105,33 @@ describe("parseHashtags", () => {
   it("caps the number of tags stored", () => {
     const caption = Array.from({ length: 20 }, (_, i) => `#tag${i}`).join(" ");
     expect(parseHashtags(caption)).toHaveLength(MAX_POST_TAGS);
+  });
+});
+
+describe("canAddChannel", () => {
+  const now = new Date("2026-10-27T12:00:00Z");
+  const future = "2026-11-10T00:00:00Z";
+  const past = "2026-10-01T00:00:00Z";
+
+  it("lets a free club create its first channel, and no more", () => {
+    expect(FREE_CHANNEL_LIMIT).toBe(1);
+    expect(canAddChannel({ subscriptionStatus: "free" }, 0, now)).toBe(true);
+    expect(canAddChannel({ subscriptionStatus: "free" }, 1, now)).toBe(false);
+  });
+
+  it("applies the free limit to expired clubs and lapsed trials", () => {
+    expect(canAddChannel({ subscriptionStatus: "expired" }, 1, now)).toBe(false);
+    expect(canAddChannel({ subscriptionStatus: "trial", trialEndsAt: past }, 1, now)).toBe(false);
+    expect(canAddChannel({ subscriptionStatus: "expired" }, 0, now)).toBe(true);
+  });
+
+  it("is unlimited on an active plan or a running trial", () => {
+    expect(canAddChannel({ subscriptionStatus: "active" }, 5, now)).toBe(true);
+    expect(canAddChannel({ subscriptionStatus: "trial", trialEndsAt: future }, 5, now)).toBe(true);
+  });
+
+  it("treats no club as free", () => {
+    expect(canAddChannel(null, 0, now)).toBe(true);
+    expect(canAddChannel(undefined, 1, now)).toBe(false);
   });
 });

@@ -97,8 +97,23 @@ export function clubIsPro(
 }
 
 /** Chat channels a free (basic) club may have — the default "general" only.
- *  Additional channels require the Pro club plan. */
+ *  Additional channels require the Pro club plan. Mirrored server-side in
+ *  createChannel (firebase/functions/src/index.ts). */
 export const FREE_CHANNEL_LIMIT = 1;
+
+/**
+ * Whether an owner/admin may create another channel: always on a paid or
+ * trialling club, otherwise only while the club is under FREE_CHANNEL_LIMIT.
+ * A free club that somehow has no channel (one created before General was
+ * made automatically) can therefore still create its one.
+ */
+export function canAddChannel(
+  club: Pick<Club, "subscriptionStatus" | "trialEndsAt"> | null | undefined,
+  channelCount: number,
+  now: Date = new Date(),
+): boolean {
+  return clubIsPro(club, now) || channelCount < FREE_CHANNEL_LIMIT;
+}
 
 /** A paddler's preferred rigging side, so coaches can seat them correctly. */
 export type PaddleSide = "left" | "right" | "either";
