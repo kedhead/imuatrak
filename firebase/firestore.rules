@@ -81,7 +81,14 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
 
-      allow create, update: if isSignedIn()
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.isPublic == true;
+      // An update must also be to YOUR existing session: checking only the new
+      // data let anyone overwrite a shared session (its id is in the link) by
+      // writing their own userId into it.
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.isPublic == true;
 
@@ -317,7 +324,9 @@ service cloud.firestore {
         // narrow carve-outs to like or comment on a post they didn't write.
         // Without them, restricting authorship to staff would have silently
         // broken liking and commenting for every ordinary member.
+        // authorId never changes, so no edit can re-attribute a post.
         allow update: if isClubMember(clubId)
+          && request.resource.data.authorId == resource.data.authorId
           && (resource.data.authorId == request.auth.uid
               || hasClubRole(clubId, ["owner", "admin"])
               || request.resource.data.diff(resource.data).affectedKeys()
@@ -336,7 +345,8 @@ service cloud.firestore {
           allow create: if isClubMember(clubId)
             && request.resource.data.authorId == request.auth.uid;
           allow update: if isClubMember(clubId)
-            && resource.data.authorId == request.auth.uid;
+            && resource.data.authorId == request.auth.uid
+            && request.resource.data.authorId == resource.data.authorId;
           allow delete: if isClubMember(clubId)
             && (resource.data.authorId == request.auth.uid
                 || hasClubRole(clubId, ["owner", "admin"]));
