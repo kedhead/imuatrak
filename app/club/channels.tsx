@@ -18,7 +18,7 @@ import {
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
 import { useClub } from "@/services/clubStore";
-import type { ClubChannel, ChannelPreference } from "@/models/club";
+import { canAddChannel, type ClubChannel, type ChannelPreference } from "@/models/club";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
@@ -34,8 +34,9 @@ export default function ChannelsScreen() {
   const [loading, setLoading] = useState(true);
 
   const isAdmin = role === "owner" || role === "admin";
-  const canAddChannels =
-    club?.subscriptionStatus === "trial" || club?.subscriptionStatus === "active";
+  // Admins see every channel (private ones included), so the visible count
+  // is the club's count wherever this matters.
+  const canAddChannels = canAddChannel(club, channels.length);
 
   useEffect(() => {
     if (!club || !user) return;

@@ -939,6 +939,37 @@ export const fetchWeather = onCall(async (request) => {
 // writers of memberCount (clients have no rules carve-out for it), so the
 // counter can't be spoofed or double-counted.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// onClubCreated — gives every new club its General channel, the one channel a
+// club without a plan keeps. Clubs are created by the client, which can't
+// create channels (rules route that through createChannel), and nothing else
+// made one, so free clubs started with none and couldn't add any.
+// `create` fails if General already exists, which keeps this idempotent.
+// ---------------------------------------------------------------------------
+export const onClubCreated = onDocumentCreated("clubs/{clubId}", async (event) => {
+  const { clubId } = event.params;
+  const ownerId = (event.data?.data() as { ownerId?: string } | undefined)?.ownerId ?? "";
+  await getFirestore()
+    .doc(`clubs/${clubId}/channels/general`)
+    .create({
+      id: "general",
+      clubId,
+      name: "General",
+      icon: "chatbubbles-outline",
+      iconType: "ionicon",
+      description: "",
+      isPrivate: false,
+      memberIds: [],
+      createdBy: ownerId,
+      createdAt: new Date().toISOString(),
+      sortOrder: 0,
+    })
+    .catch((e: { code?: number }) => {
+      // 6 = ALREADY_EXISTS: General is already there, nothing to do.
+      if (e?.code !== 6) throw e;
+    });
+});
+
 export const onMemberJoin = onDocumentCreated(
   "clubs/{clubId}/members/{uid}",
   async (event) => {
@@ -1181,6 +1212,22 @@ export const createClubInvite = onCall(async (request) => {
 // Request:  { clubId, name, icon, iconType, description?, isPrivate, memberIds? }
 // Response: ClubChannel
 // ---------------------------------------------------------------------------
+// Chat channels a club without a paid plan or trial may have: General only.
+// Mirrors FREE_CHANNEL_LIMIT in src/models/club.ts.
+const FREE_CHANNEL_LIMIT = 1;
+
+/** Same rule as the app's clubIsPro: an active plan, or a trial still running. */
+function clubIsPaidOrTrialing(
+  club: { subscriptionStatus?: string; trialEndsAt?: string } | undefined,
+): boolean {
+  if (club?.subscriptionStatus === "active") return true;
+  return (
+    club?.subscriptionStatus === "trial" &&
+    typeof club.trialEndsAt === "string" &&
+    club.trialEndsAt > new Date().toISOString()
+  );
+}
+
 export const createChannel = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
@@ -1227,19 +1274,17 @@ export const createChannel = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Only owners and admins can create channels");
   }
 
+  // A club without a paid plan or running trial gets FREE_CHANNEL_LIMIT
+  // channels (General). This used to apply only to "expired" clubs, which let
+  // a never-subscribed "free" club create any number.
   const clubSnap = await db.doc(`clubs/${clubId}`).get();
-  const clubData = clubSnap.data() as { subscriptionStatus?: string } | undefined;
-  if (clubData?.subscriptionStatus === "expired") {
-    const existingChannels = await db.collection(`clubs/${clubId}/channels`).count().get();
-    if (existingChannels.data().count >= 1) {
-      throw new HttpsError(
-        "permission-denied",
-        "Upgrade your subscription to add more channels",
-      );
-    }
-  }
-
+  const clubData = clubSnap.data() as
+    | { subscriptionStatus?: string; trialEndsAt?: string }
+    | undefined;
   const existingChannels = await db.collection(`clubs/${clubId}/channels`).get();
+  if (!clubIsPaidOrTrialing(clubData) && existingChannels.size >= FREE_CHANNEL_LIMIT) {
+    throw new HttpsError("permission-denied", "Upgrade your subscription to add more channels");
+  }
   const sortOrder = existingChannels.size;
 
   const now = new Date().toISOString();

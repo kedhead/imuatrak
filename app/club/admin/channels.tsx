@@ -26,7 +26,7 @@ import {
 } from "@/services/clubService";
 import { useClub } from "@/services/clubStore";
 import { currentUser } from "@/services/auth";
-import type { ClubChannel, ClubMember } from "@/models/club";
+import { canAddChannel, type ClubChannel, type ClubMember } from "@/models/club";
 import { ChannelIcon } from "../channels";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
@@ -67,8 +67,7 @@ export default function ManageChannelsScreen() {
     );
   }
 
-  const canAddChannels =
-    club.subscriptionStatus === "trial" || club.subscriptionStatus === "active";
+  const canAddChannels = canAddChannel(club, channels.length);
 
   const handleDelete = (ch: ClubChannel) => {
     if (ch.id === "general") {
