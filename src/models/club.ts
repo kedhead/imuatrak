@@ -628,14 +628,82 @@ export const SIGNUP_SLOTS_MAX = 50;
 /** Keeps one sheet from becoming an unbounded list of reads. */
 export const SIGNUP_ITEMS_MAX = 40;
 
-/** A sensible starting point for a club potluck; staff can edit after. */
-export const POTLUCK_TEMPLATE: readonly { label: string; slots: number; details?: string }[] = [
-  { label: "Main dish", slots: 4, details: "Serves 8–10" },
-  { label: "Side dish / salad", slots: 4 },
-  { label: "Pūpū / appetizers", slots: 3 },
-  { label: "Dessert", slots: 3 },
-  { label: "Drinks + ice", slots: 2 },
-  { label: "Plates, cups & utensils", slots: 1 },
+export interface SignupTemplateItem {
+  label: string;
+  slots: number;
+  details?: string;
+}
+
+export interface SignupTemplate {
+  id: string;
+  emoji: string;
+  name: string;
+  blurb: string;
+  items: readonly SignupTemplateItem[];
+}
+
+/**
+ * Starting points staff can drop onto a sheet in one tap, then edit. They
+ * stack — a regatta can take Race-day gear AND Volunteers — so keep each one
+ * focused on a single kind of job.
+ */
+export const SIGNUP_TEMPLATES: readonly SignupTemplate[] = [
+  {
+    id: "potluck",
+    emoji: "🥘",
+    name: "Potluck",
+    blurb: "Mains, sides, desserts, drinks",
+    items: [
+      { label: "Main dish", slots: 4, details: "Serves 8–10" },
+      { label: "Side dish / salad", slots: 4 },
+      { label: "Pūpū / appetizers", slots: 3 },
+      { label: "Dessert", slots: 3 },
+      { label: "Drinks + ice", slots: 2 },
+      { label: "Plates, cups & utensils", slots: 1 },
+    ],
+  },
+  {
+    id: "gear",
+    emoji: "🛶",
+    name: "Race-day gear",
+    blurb: "Tent, coolers, spares, first aid",
+    items: [
+      { label: "Pop-up tent", slots: 2 },
+      { label: "Canoe trailer / tow", slots: 1 },
+      { label: "Spare paddles", slots: 2 },
+      { label: "Bailers", slots: 2 },
+      { label: "Lashing ropes & bungees", slots: 1 },
+      { label: "First-aid kit", slots: 1 },
+      { label: "Cooler with ice", slots: 2 },
+      { label: "Tables & chairs", slots: 2 },
+    ],
+  },
+  {
+    id: "volunteers",
+    emoji: "🙋",
+    name: "Volunteers",
+    blurb: "Rigging, escort boat, setup, cleanup",
+    items: [
+      { label: "Rig canoes", slots: 4, details: "Arrive an hour early" },
+      { label: "Escort boat crew", slots: 2 },
+      { label: "Tent setup", slots: 3 },
+      { label: "Check-in / registration", slots: 2 },
+      { label: "Photographer", slots: 1 },
+      { label: "De-rig & cleanup", slots: 4 },
+    ],
+  },
+  {
+    id: "snacks",
+    emoji: "🍉",
+    name: "Practice snacks",
+    blurb: "Water, fruit, post-paddle fuel",
+    items: [
+      { label: "Water jug", slots: 1 },
+      { label: "Fruit", slots: 2 },
+      { label: "Snacks", slots: 2 },
+      { label: "Electrolyte drinks", slots: 1 },
+    ],
+  },
 ];
 
 export function claimCount(item: SignupItem): number {
