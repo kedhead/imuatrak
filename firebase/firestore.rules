@@ -252,6 +252,74 @@ service cloud.firestore {
           || (isClubMember(clubId)
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["rsvps"]));
         allow delete: if hasClubRole(clubId, ["owner", "admin"]);
+
+        // ── Sign-up sheets (potlucks, snacks, volunteer jobs) ──────────────
+        // Staff manage the items; any member may claim or drop THEIR OWN slot.
+        // Claims are a map keyed by uid precisely so these rules can check
+        // that — unlike the RSVP array above, which has to trust members.
+        match /signupItems/{itemId} {
+          function isEventStaff() {
+            return hasClubRole(clubId, ["owner", "admin", "coach"]);
+          }
+          function validClaim(c) {
+            return c is map
+              && c.keys().hasAll(["name", "claimedAt"])
+              && c.keys().hasOnly(["name", "note", "claimedAt"])
+              && c.name is string && c.name.size() <= 100
+              && c.claimedAt is string
+              && (!("note" in c) || (c.note is string && c.note.size() <= 80));
+          }
+          function validItem(d) {
+            return d.keys().hasAll(["label", "slots", "order", "createdBy", "createdAt", "claims"])
+              && d.keys().hasOnly(["label", "details", "slots", "order", "createdBy", "createdAt", "writeIn", "claims"])
+              && d.label is string && d.label.size() > 0 && d.label.size() <= 60
+              && (!("details" in d) || (d.details is string && d.details.size() <= 120))
+              && d.slots is int && d.slots >= 1 && d.slots <= 50
+              && d.order is int
+              && d.createdAt is string
+              && d.claims is map;
+          }
+
+          allow read: if isClubMember(clubId);
+
+          allow create: if validItem(request.resource.data)
+            && request.resource.data.createdBy == request.auth.uid
+            && (
+              (isEventStaff() && request.resource.data.claims.size() == 0)
+              // "Bring something else": a member's own one-slot write-in that
+              // they hold from the start, and nothing more.
+              || (isClubMember(clubId)
+                  && request.resource.data.get("writeIn", false) == true
+                  && request.resource.data.slots == 1
+                  && request.resource.data.claims.size() == 1
+                  && request.auth.uid in request.resource.data.claims
+                  && validClaim(request.resource.data.claims[request.auth.uid]))
+            );
+
+          allow update: if validItem(request.resource.data)
+            && request.resource.data.createdBy == resource.data.createdBy
+            && (
+              isEventStaff()
+              || (isClubMember(clubId)
+                  && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["claims"])
+                  && request.resource.data.claims.diff(resource.data.claims).affectedKeys()
+                       .hasOnly([request.auth.uid])
+                  && (
+                    // Dropping your own claim is always fine.
+                    !(request.auth.uid in request.resource.data.claims)
+                    || (validClaim(request.resource.data.claims[request.auth.uid])
+                        // Editing a note on a slot you hold, or taking an
+                        // open one — never overfilling.
+                        && (request.auth.uid in resource.data.claims
+                            || request.resource.data.claims.size() <= resource.data.slots))
+                  ))
+            );
+
+          allow delete: if isEventStaff()
+            || (isClubMember(clubId)
+                && resource.data.get("writeIn", false) == true
+                && resource.data.createdBy == request.auth.uid);
+        }
       }
 
       // ── Legacy chat messages (kept readable during migration) ─────────────

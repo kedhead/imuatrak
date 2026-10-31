@@ -585,3 +585,102 @@ export interface FcmToken {
   platform: "ios" | "android";
   updatedAt: string;
 }
+
+// ── Sign-up sheets ──────────────────────────────────────────────────────────
+//
+// A sign-up sheet is a list of things to bring or jobs to cover ("Desserts ×3",
+// "Tent setup ×2") hung off a club event — a potluck is just a social event
+// with a sheet. Items live in clubs/{clubId}/events/{eventId}/signupItems so
+// each one can be claimed independently without rewriting the event doc.
+//
+// Claims are a MAP keyed by uid, not an array: Firestore rules can then check
+// that a member only added or removed their own key, which an array can't
+// express (see the RSVP carve-out in firestore.rules). One claim per person
+// per item.
+
+export interface SignupClaim {
+  /** Display name when claimed, so the sheet still reads after someone leaves. */
+  name: string;
+  /** What they're bringing — "Kalua pig", "Chips + salsa". Optional. */
+  note?: string;
+  claimedAt: string;
+}
+
+export interface SignupItem {
+  id: string;
+  label: string;
+  /** Extra detail from the organizer — "Serves 10", "Bring a cooler". */
+  details?: string;
+  /** How many people can take this item. */
+  slots: number;
+  /** Sort key. Staff items are ordered as added; write-ins sort after. */
+  order: number;
+  createdBy: string;
+  createdAt: string;
+  /** True when a member added it themselves via "Bring something else". */
+  writeIn?: boolean;
+  claims: Record<string, SignupClaim>;
+}
+
+export const SIGNUP_LABEL_MAX = 60;
+export const SIGNUP_NOTE_MAX = 80;
+export const SIGNUP_SLOTS_MAX = 50;
+/** Keeps one sheet from becoming an unbounded list of reads. */
+export const SIGNUP_ITEMS_MAX = 40;
+
+/** A sensible starting point for a club potluck; staff can edit after. */
+export const POTLUCK_TEMPLATE: readonly { label: string; slots: number; details?: string }[] = [
+  { label: "Main dish", slots: 4, details: "Serves 8–10" },
+  { label: "Side dish / salad", slots: 4 },
+  { label: "Pūpū / appetizers", slots: 3 },
+  { label: "Dessert", slots: 3 },
+  { label: "Drinks + ice", slots: 2 },
+  { label: "Plates, cups & utensils", slots: 1 },
+];
+
+export function claimCount(item: SignupItem): number {
+  return Object.keys(item.claims ?? {}).length;
+}
+
+export function openSlots(item: SignupItem): number {
+  return Math.max(0, item.slots - claimCount(item));
+}
+
+export function hasClaimed(item: SignupItem, uid: string | null | undefined): boolean {
+  return !!uid && !!item.claims?.[uid];
+}
+
+/** Total filled vs. total slots across a sheet, for the section header. */
+export function signupProgress(items: SignupItem[]): { filled: number; total: number } {
+  let filled = 0;
+  let total = 0;
+  for (const item of items) {
+    // A slot count lowered under existing claims shouldn't read as >100%.
+    filled += Math.min(claimCount(item), item.slots);
+    total += item.slots;
+  }
+  return { filled, total };
+}
+
+/** Staff items first in the order they were added, then write-ins by time. */
+export function sortSignupItems(items: SignupItem[]): SignupItem[] {
+  return [...items].sort(
+    (a, b) =>
+      Number(!!a.writeIn) - Number(!!b.writeIn) ||
+      a.order - b.order ||
+      a.createdAt.localeCompare(b.createdAt),
+  );
+}
+
+/** Claims oldest-first, so whoever signed up first is listed first. */
+export function sortedClaims(item: SignupItem): (SignupClaim & { uid: string })[] {
+  return Object.entries(item.claims ?? {})
+    .map(([uid, c]) => ({ ...c, uid }))
+    .sort((a, b) => a.claimedAt.localeCompare(b.claimedAt));
+}
+
+/** Clamp a typed slot count into the range rules accept. */
+export function clampSlots(n: number, minimum = 1): number {
+  if (!Number.isFinite(n)) return Math.max(1, minimum);
+  return Math.min(SIGNUP_SLOTS_MAX, Math.max(1, minimum, Math.floor(n)));
+}

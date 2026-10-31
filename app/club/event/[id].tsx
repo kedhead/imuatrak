@@ -58,6 +58,7 @@ import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { Pill } from "@/ui/Pill";
 import { ScreenBackground } from "@/ui/ScreenBackground";
+import { SignupSheet } from "@/ui/SignupSheet";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
 /** One-line summary of a boat's crew, shown under the picker. */
@@ -482,6 +483,17 @@ function EventDetail({
               </View>
             )}
           </GradientCard>
+        </Animated.View>
+
+        {/* Sign-up sheet — potlucks, snacks, volunteer jobs */}
+        <Animated.View entering={FadeInDown.delay(150).duration(400)}>
+          <SignupSheet
+            clubId={clubId}
+            eventId={eventId}
+            isStaff={isAdmin}
+            members={members}
+            accent={TYPE_COLOR[event.type] ?? colors.ocean}
+          />
         </Animated.View>
 
         {/* Boat lineup */}
