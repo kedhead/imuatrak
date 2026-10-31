@@ -82,11 +82,10 @@ export default function Onboarding() {
       <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.lg }]}>
         <View style={styles.hero}>
           <Animated.View entering={FadeInDown.duration(700)} style={logoStyle}>
-            <Logo size={150} />
+            {/* Same art and size as the launch splash, so the mark carries
+                straight through. It includes the wordmark — no separate title. */}
+            <Logo size={200} shadow="lg" />
           </Animated.View>
-          <Animated.Text entering={FadeInDown.delay(200).duration(700)} style={styles.title}>
-            ImuaTrak
-          </Animated.Text>
           <Animated.Text entering={FadeIn.delay(450).duration(700)} style={styles.tag}>
             Track every paddle — distance, pace, stroke rate, and the whole journey forward.
           </Animated.Text>
@@ -188,13 +187,6 @@ function GoogleSignInButton() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: spacing.xxl, justifyContent: "space-between" },
   hero: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md },
-  title: {
-    fontSize: type.size.hero,
-    fontWeight: type.weight.heavy,
-    color: colors.white,
-    letterSpacing: type.spacing.tight,
-    marginTop: spacing.sm,
-  },
   tag: {
     color: "rgba(255,255,255,0.82)",
     textAlign: "center",
