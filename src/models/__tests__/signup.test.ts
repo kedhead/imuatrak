@@ -1,6 +1,8 @@
 import {
-  POTLUCK_TEMPLATE,
+  SIGNUP_ITEMS_MAX,
+  SIGNUP_LABEL_MAX,
   SIGNUP_SLOTS_MAX,
+  SIGNUP_TEMPLATES,
   clampSlots,
   hasClaimed,
   openSlots,
@@ -97,12 +99,35 @@ describe("clampSlots", () => {
   });
 });
 
-describe("POTLUCK_TEMPLATE", () => {
+describe("SIGNUP_TEMPLATES", () => {
+  it("offers more than just food", () => {
+    expect(SIGNUP_TEMPLATES.map((t) => t.id)).toEqual(
+      expect.arrayContaining(["potluck", "gear", "volunteers"]),
+    );
+  });
+
+  it("has unique ids", () => {
+    const ids = SIGNUP_TEMPLATES.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("only contains items the rules will accept", () => {
-    for (const t of POTLUCK_TEMPLATE) {
-      expect(t.label.length).toBeGreaterThan(0);
-      expect(t.label.length).toBeLessThanOrEqual(60);
-      expect(t.slots).toBe(clampSlots(t.slots));
+    for (const t of SIGNUP_TEMPLATES) {
+      expect(t.items.length).toBeGreaterThan(0);
+      expect(t.items.length).toBeLessThanOrEqual(SIGNUP_ITEMS_MAX);
+      for (const it of t.items) {
+        expect(it.label.length).toBeGreaterThan(0);
+        expect(it.label.length).toBeLessThanOrEqual(SIGNUP_LABEL_MAX);
+        expect(it.slots).toBe(clampSlots(it.slots));
+        expect((it.details ?? "").length).toBeLessThanOrEqual(120);
+      }
+    }
+  });
+
+  it("has no duplicate labels inside one template", () => {
+    for (const t of SIGNUP_TEMPLATES) {
+      const labels = t.items.map((i) => i.label.toLowerCase());
+      expect(new Set(labels).size).toBe(labels.length);
     }
   });
 });

@@ -4,11 +4,11 @@ import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "reac
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  POTLUCK_TEMPLATE,
   SIGNUP_ITEMS_MAX,
   SIGNUP_LABEL_MAX,
   SIGNUP_NOTE_MAX,
   SIGNUP_SLOTS_MAX,
+  SIGNUP_TEMPLATES,
   claimCount,
   clampSlots,
   hasClaimed,
@@ -18,12 +18,14 @@ import {
   sortedClaims,
   type ClubMember,
   type SignupItem,
+  type SignupTemplate,
 } from "@/models/club";
 import { currentUser } from "@/services/auth";
 import {
   SignupFullError,
   addSignupItems,
   addWriteInItem,
+  clearSignupSheet,
   claimSignupSlot,
   deleteSignupItem,
   releaseSignupSlot,
@@ -40,7 +42,8 @@ const DETAILS_MAX = 120;
 type Sheet =
   | { kind: "claim"; item: SignupItem }
   | { kind: "edit"; item: SignupItem | null }
-  | { kind: "writeIn" };
+  | { kind: "writeIn" }
+  | { kind: "templates" };
 
 /**
  * The sign-up sheet on an event: potluck dishes, snack duty, volunteer jobs.
@@ -124,9 +127,48 @@ export function SignupSheet({
   const nextOrder = sorted.reduce((max, it) => Math.max(max, it.order), -1) + 1;
   const atItemCap = items.length >= SIGNUP_ITEMS_MAX;
 
-  const addTemplate = () => {
+  const addTemplate = (t: SignupTemplate) => {
     if (!me) return;
-    void run(() => addSignupItems(clubId, eventId, me.uid, [...POTLUCK_TEMPLATE], nextOrder));
+    if (items.length + t.items.length > SIGNUP_ITEMS_MAX) {
+      Alert.alert(
+        "Sheet's too full",
+        `${t.name} adds ${t.items.length} items, and a sheet holds up to ${SIGNUP_ITEMS_MAX}. Remove a few first.`,
+      );
+      return;
+    }
+    const apply = () =>
+      void run(() => addSignupItems(clubId, eventId, me.uid, [...t.items], nextOrder));
+    // Templates stack on purpose (gear + volunteers for a regatta), but the
+    // same one twice is almost always a double tap.
+    const existing = new Set(items.map((i) => i.label.trim().toLowerCase()));
+    if (t.items.every((it) => existing.has(it.label.toLowerCase()))) {
+      Alert.alert(`${t.name} is already here`, "Add its items again anyway?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Add again", onPress: apply },
+      ]);
+      return;
+    }
+    apply();
+  };
+
+  const clearAll = () => {
+    const signedUp = new Set(items.flatMap((i) => Object.keys(i.claims ?? {}))).size;
+    Alert.alert(
+      "Clear the whole sheet?",
+      `This removes all ${items.length} item${items.length === 1 ? "" : "s"}` +
+        (signedUp > 0
+          ? ` and takes ${signedUp} ${signedUp === 1 ? "person" : "people"} off what they signed up for.`
+          : ".") +
+        " It can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear all",
+          style: "destructive",
+          onPress: () => void run(async () => void (await clearSignupSheet(clubId, eventId))),
+        },
+      ],
+    );
   };
 
   const saveItem = (item: SignupItem | null) => {
@@ -202,7 +244,12 @@ export function SignupSheet({
               slot and say what they&apos;ll bring.
             </Text>
             <View style={styles.emptyActions}>
-              <Button title="🍍 Potluck template" gradient="sunrise" onPress={addTemplate} disabled={busy} />
+              <Button
+                title="✨ Start from a template"
+                gradient="sunrise"
+                onPress={() => open({ kind: "templates" })}
+                disabled={busy}
+              />
               <Button title="Add an item" variant="outline" onPress={() => open({ kind: "edit", item: null })} />
             </View>
           </View>
@@ -322,6 +369,22 @@ export function SignupSheet({
                   <Text style={styles.footerText}>Add item</Text>
                 </Pressable>
               )}
+              {isStaff && (
+                <Pressable
+                  style={styles.footerBtn}
+                  disabled={atItemCap}
+                  onPress={() => open({ kind: "templates" })}
+                >
+                  <Ionicons name="albums-outline" size={15} color={colors.ocean} />
+                  <Text style={styles.footerText}>Template</Text>
+                </Pressable>
+              )}
+              {isStaff && (
+                <Pressable style={[styles.footerBtn, styles.footerEnd]} disabled={busy} onPress={clearAll}>
+                  <Ionicons name="trash-outline" size={15} color={colors.danger} />
+                  <Text style={[styles.footerText, { color: colors.danger }]}>Clear all</Text>
+                </Pressable>
+              )}
             </View>
           </>
         )}
@@ -429,6 +492,34 @@ export function SignupSheet({
                       style={styles.modalBtnSm}
                     />
                   )}
+                </>
+              )}
+
+              {sheet?.kind === "templates" && (
+                <>
+                  <Text style={styles.modalTitle}>Start from a template</Text>
+                  <Text style={styles.modalHint}>
+                    Adds a ready-made list you can edit. Mix and match — a regatta might want gear
+                    and volunteers.
+                  </Text>
+                  {SIGNUP_TEMPLATES.map((t) => (
+                    <AnimatedPressable
+                      key={t.id}
+                      haptic
+                      disabled={busy}
+                      style={styles.templateRow}
+                      onPress={() => addTemplate(t)}
+                    >
+                      <Text style={styles.templateEmoji}>{t.emoji}</Text>
+                      <View style={styles.flex}>
+                        <Text style={styles.templateName}>{t.name}</Text>
+                        <Text style={styles.templateBlurb} numberOfLines={1}>
+                          {t.blurb} · {t.items.length} items
+                        </Text>
+                      </View>
+                      <Ionicons name="add-circle" size={24} color={accent} />
+                    </AnimatedPressable>
+                  ))}
                 </>
               )}
 
@@ -550,6 +641,20 @@ const styles = StyleSheet.create({
   },
   footerBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   footerText: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.ocean },
+  // Pushed to the far end so it isn't hit by mistake next to "Template".
+  footerEnd: { marginLeft: "auto" },
+
+  templateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  templateEmoji: { fontSize: 28 },
+  templateName: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ink },
+  templateBlurb: { fontSize: type.size.xs, color: colors.muted, marginTop: 2 },
 
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   modal: {

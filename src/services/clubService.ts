@@ -418,12 +418,7 @@ export async function updateEvent(
 export async function deleteEvent(clubId: string, eventId: string): Promise<void> {
   // Firestore doesn't cascade: clear the sign-up sheet first so its items
   // aren't orphaned under a deleted event.
-  const items = await getDocs(collection(db, "clubs", clubId, "events", eventId, "signupItems"));
-  if (!items.empty) {
-    const batch = writeBatch(db);
-    items.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-  }
+  await clearSignupSheet(clubId, eventId);
   await deleteDoc(doc(db, "clubs", clubId, "events", eventId));
 }
 
@@ -614,6 +609,20 @@ export async function updateSignupItem(
     slots: updates.slots,
     details: details ? details : deleteField(),
   });
+}
+
+/**
+ * Staff: remove every item on an event's sheet (claims go with them) — the
+ * undo for a template added by mistake. One batch, so the sheet never sits
+ * half-cleared; SIGNUP_ITEMS_MAX keeps it far under the 500-write limit.
+ */
+export async function clearSignupSheet(clubId: string, eventId: string): Promise<number> {
+  const items = await getDocs(signupItemsCol(clubId, eventId));
+  if (items.empty) return 0;
+  const batch = writeBatch(db);
+  items.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
+  return items.size;
 }
 
 export async function deleteSignupItem(clubId: string, eventId: string, itemId: string): Promise<void> {
