@@ -108,6 +108,7 @@ export default function Onboarding() {
             <Button
               title="Continue with Google"
               variant="outline"
+              light
               disabled
               onPress={() => Alert.alert("Not configured", "Google Sign-In requires EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to be set.")}
               style={styles.googleBtn}
@@ -116,6 +117,7 @@ export default function Onboarding() {
           <Button
             title="Continue with email"
             variant="outline"
+            light
             onPress={() => router.push("/email-auth")}
             style={styles.googleBtn}
           />
@@ -177,6 +179,7 @@ function GoogleSignInButton() {
     <Button
       title={signingIn ? "Signing in…" : "Continue with Google"}
       variant="outline"
+      light
       onPress={() => void onPress()}
       disabled={signingIn}
       style={styles.googleBtn}

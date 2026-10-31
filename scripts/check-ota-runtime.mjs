@@ -107,10 +107,14 @@ for (const platform of PLATFORMS) {
     continue;
   }
 
-  // eas-cli has moved this field around between versions; read the known
-  // locations so a CLI update doesn't blind the check.
-  const got = build.runtimeVersion ?? build.metadata?.runtimeVersion;
+  // eas-cli has moved these fields around between versions; read every known
+  // location so a CLI update doesn't blind the check. Current eas-cli (27.x)
+  // prints the raw GraphQL BuildFragment: `runtime { version }` and
+  // `updateChannel { name }`. Reading only the older flat `runtimeVersion` /
+  // `channel` fields left both comparisons silently skipped on every publish.
+  const got = build.runtime?.version ?? build.runtimeVersion ?? build.metadata?.runtimeVersion;
   const built = build.appVersion ?? build.metadata?.appVersion ?? "?";
+  const channel = build.updateChannel?.name ?? build.channel ?? build.metadata?.channel;
 
   // A runtime we could not read (e.g. an eas-cli --json schema change dropped
   // or renamed the field) is "the check could not run" — NOT a definite
@@ -135,10 +139,10 @@ for (const platform of PLATFORMS) {
       `${label} — MISMATCH. An update published now would not reach that build. ` +
         `Set ${platform}.runtimeVersion to ${got}, or rebuild the app.`,
     );
-  } else if (build.channel && build.channel !== CHANNEL) {
+  } else if (channel && channel !== CHANNEL) {
     problems.push(
       `${label} — runtime matches, but that build listens on channel ` +
-        `"${build.channel}" and deploy:ota publishes to "${CHANNEL}". ` +
+        `"${channel}" and deploy:ota publishes to "${CHANNEL}". ` +
         `The update would not reach it.`,
     );
   } else {
