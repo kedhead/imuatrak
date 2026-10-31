@@ -257,11 +257,7 @@ function SessionRow({
 function EmptyState() {
   return (
     <View style={styles.empty}>
-      <View style={styles.emptyLogo}>
-        <Gradient name="aqua" style={styles.emptyLogoFill}>
-          <Logo size={88} />
-        </Gradient>
-      </View>
+      <Logo size={128} shadow="glowAqua" />
       <Text style={styles.emptyTitle}>Your first paddle awaits</Text>
       <Text style={styles.emptyBody}>
         Tap Record to start tracking distance, pace, and stroke rate out on the water.
@@ -291,8 +287,6 @@ const styles = StyleSheet.create({
   },
   cardSub: { fontSize: type.size.sm, color: colors.muted },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xxl, gap: spacing.md },
-  emptyLogo: { borderRadius: radii.xxl, overflow: "hidden", ...shadow.glowAqua },
-  emptyLogoFill: { padding: spacing.xl, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: type.size.xl, fontWeight: type.weight.heavy, color: colors.ink, marginTop: spacing.sm },
   emptyBody: { color: colors.muted, textAlign: "center", fontSize: type.size.md, lineHeight: 22 },
   goalCard: { marginBottom: spacing.md },
