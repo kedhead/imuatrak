@@ -43,6 +43,8 @@ import type {
   PostType,
   PollOption,
   RsvpStatus,
+  SignupClaim,
+  SignupItem,
   UserClubs,
 } from "@/models/club";
 
@@ -414,6 +416,14 @@ export async function updateEvent(
 }
 
 export async function deleteEvent(clubId: string, eventId: string): Promise<void> {
+  // Firestore doesn't cascade: clear the sign-up sheet first so its items
+  // aren't orphaned under a deleted event.
+  const items = await getDocs(collection(db, "clubs", clubId, "events", eventId, "signupItems"));
+  if (!items.empty) {
+    const batch = writeBatch(db);
+    items.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
   await deleteDoc(doc(db, "clubs", clubId, "events", eventId));
 }
 
@@ -535,6 +545,153 @@ export async function addEventGuest(
     guests,
   });
   await updateDoc(ref, { rsvps });
+}
+
+// ── Sign-up sheets ───────────────────────────────────────────────────────────
+// Items live under the event; see SignupItem in models/club for why claims are
+// a uid-keyed map. Writes mirror what firestore.rules allows: staff manage
+// items, members only add/remove their own claim (or a write-in of their own).
+
+function signupItemsCol(clubId: string, eventId: string) {
+  return collection(db, "clubs", clubId, "events", eventId, "signupItems");
+}
+
+/** Live sheet — claims show up for everyone as they happen. */
+export function subscribeSignupItems(
+  clubId: string,
+  eventId: string,
+  onItems: (items: SignupItem[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  return onSnapshot(
+    signupItemsCol(clubId, eventId),
+    (snap) =>
+      onItems(
+        snap.docs.map((d) => {
+          const data = d.data() as Omit<SignupItem, "id">;
+          return { ...data, claims: data.claims ?? {}, id: d.id };
+        }),
+      ),
+    (e) => onError?.(e),
+  );
+}
+
+/** Staff: add one or more items (one batch, so a template lands all at once). */
+export async function addSignupItems(
+  clubId: string,
+  eventId: string,
+  uid: string,
+  items: { label: string; slots: number; details?: string }[],
+  startOrder: number,
+): Promise<void> {
+  const batch = writeBatch(db);
+  const now = new Date().toISOString();
+  items.forEach((it, i) => {
+    const details = it.details?.trim();
+    batch.set(doc(signupItemsCol(clubId, eventId)), {
+      label: it.label.trim(),
+      slots: it.slots,
+      order: startOrder + i,
+      createdBy: uid,
+      createdAt: now,
+      claims: {},
+      ...(details ? { details } : {}),
+    });
+  });
+  await batch.commit();
+}
+
+/** Staff: rename / resize an item. Claims are left untouched. */
+export async function updateSignupItem(
+  clubId: string,
+  eventId: string,
+  itemId: string,
+  updates: { label: string; slots: number; details?: string },
+): Promise<void> {
+  const details = updates.details?.trim();
+  await updateDoc(doc(signupItemsCol(clubId, eventId), itemId), {
+    label: updates.label.trim(),
+    slots: updates.slots,
+    details: details ? details : deleteField(),
+  });
+}
+
+export async function deleteSignupItem(clubId: string, eventId: string, itemId: string): Promise<void> {
+  await deleteDoc(doc(signupItemsCol(clubId, eventId), itemId));
+}
+
+export class SignupFullError extends Error {
+  constructor() {
+    super("That item just filled up.");
+    this.name = "SignupFullError";
+  }
+}
+
+/**
+ * Claim a slot (or update your note on one you already hold). Runs in a
+ * transaction so two people can't both take the last slot — the loser gets a
+ * SignupFullError instead of silently overfilling.
+ */
+export async function claimSignupSlot(
+  clubId: string,
+  eventId: string,
+  itemId: string,
+  uid: string,
+  name: string,
+  note?: string,
+): Promise<void> {
+  const ref = doc(signupItemsCol(clubId, eventId), itemId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("That item was removed.");
+    const item = snap.data() as Omit<SignupItem, "id">;
+    const claims = item.claims ?? {};
+    const existing = claims[uid];
+    if (!existing && Object.keys(claims).length >= item.slots) throw new SignupFullError();
+    const trimmed = note?.trim();
+    const claim: SignupClaim = {
+      name,
+      claimedAt: existing?.claimedAt ?? new Date().toISOString(),
+      ...(trimmed ? { note: trimmed } : {}),
+    };
+    // FieldPath, not a dotted string: uids are safe today, but this can't
+    // misparse whatever an auth provider hands out.
+    tx.update(ref, new FieldPath("claims", uid), claim);
+  });
+}
+
+export async function releaseSignupSlot(
+  clubId: string,
+  eventId: string,
+  itemId: string,
+  uid: string,
+): Promise<void> {
+  await updateDoc(doc(signupItemsCol(clubId, eventId), itemId), new FieldPath("claims", uid), deleteField());
+}
+
+/**
+ * Member "Bring something else": a one-slot item they create and hold
+ * themselves. Rules only allow exactly this shape from a non-staff member.
+ */
+export async function addWriteInItem(
+  clubId: string,
+  eventId: string,
+  uid: string,
+  name: string,
+  label: string,
+  note?: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const trimmed = note?.trim();
+  await addDoc(signupItemsCol(clubId, eventId), {
+    label: label.trim(),
+    slots: 1,
+    order: 0,
+    createdBy: uid,
+    createdAt: now,
+    writeIn: true,
+    claims: { [uid]: { name, claimedAt: now, ...(trimmed ? { note: trimmed } : {}) } },
+  });
 }
 
 // ── Posts ────────────────────────────────────────────────────────────────────
