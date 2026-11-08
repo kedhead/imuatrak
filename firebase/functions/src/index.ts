@@ -6,6 +6,7 @@ import { getStorage } from "firebase-admin/storage";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
+import { chunkPushMessages } from "./pushChunks";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
 initializeApp();
@@ -115,9 +116,9 @@ async function sendExpoPush(
   // Tokens Expo says will never deliver again, grouped by user.
   const dead = new Map<string, Set<string>>();
 
-  for (let i = 0; i < messages.length; i += 100) {
-    const chunk = messages.slice(i, i + 100);
-    const chunkOwners = owners.slice(i, i + 100);
+  // Chunk by TOKEN count, not message count: Expo's 100-per-request limit
+  // counts every recipient, and an over-limit request is rejected whole.
+  for (const { messages: chunk, owners: chunkOwners } of chunkPushMessages(messages, owners)) {
     try {
       const res = await fetch("https://exp.host/--/api/v2/push/send", {
         method: "POST",

@@ -23,6 +23,7 @@ import { Button } from "@/ui/Button";
 import { ClubSwitcher } from "@/ui/ClubSwitcher";
 import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
+import { NotificationStatusCard } from "@/ui/NotificationStatusCard";
 import { Pill } from "@/ui/Pill";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, spacing, type } from "@/ui/theme";
@@ -537,6 +538,12 @@ export default function Settings() {
             ) : null}
           </GradientCard>
         </Section>
+
+        {user && (
+          <Section title="Notifications">
+            <NotificationStatusCard uid={user.uid} />
+          </Section>
+        )}
 
         <Section title="Units">
           <View style={styles.choices}>
