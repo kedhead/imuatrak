@@ -315,6 +315,14 @@ export default function ClubAdminScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: "auto" }} />
         </Pressable>
 
+        {/* Surveys */}
+        <Text style={styles.sectionLabel}>SURVEYS</Text>
+        <Pressable style={styles.inviteBtn} onPress={() => router.push("/club/surveys" as never)}>
+          <Ionicons name="clipboard-outline" size={18} color={colors.blue} />
+          <Text style={styles.inviteBtnText}>Surveys & questionnaires</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: "auto" }} />
+        </Pressable>
+
         {/* Channels */}
         <Text style={styles.sectionLabel}>CHANNELS</Text>
         <Pressable style={styles.inviteBtn} onPress={() => router.push("/club/admin/channels" as never)}>

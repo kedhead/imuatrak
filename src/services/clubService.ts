@@ -45,6 +45,10 @@ import type {
   RsvpStatus,
   SignupClaim,
   SignupItem,
+  Survey,
+  SurveyAnswer,
+  SurveyQuestion,
+  SurveyResponse,
   UserClubs,
 } from "@/models/club";
 
@@ -701,6 +705,175 @@ export async function addWriteInItem(
     writeIn: true,
     claims: { [uid]: { name, claimedAt: now, ...(trimmed ? { note: trimmed } : {}) } },
   });
+}
+
+// ── Surveys ─────────────────────────────────────────────────────────────────
+// See Survey in models/club and the surveys block in firestore.rules — the
+// anonymous path in particular has to match the rules exactly.
+
+function surveysCol(clubId: string) {
+  return collection(db, "clubs", clubId, "surveys");
+}
+
+export function subscribeSurveys(
+  clubId: string,
+  onSurveys: (surveys: Survey[]) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  return onSnapshot(
+    query(surveysCol(clubId), orderBy("createdAt", "desc"), limit(50)),
+    (snap) => onSurveys(snap.docs.map((d) => ({ ...(d.data() as Omit<Survey, "id">), id: d.id }))),
+    (e) => onError?.(e),
+  );
+}
+
+export async function getSurvey(clubId: string, surveyId: string): Promise<Survey | null> {
+  const snap = await getDoc(doc(surveysCol(clubId), surveyId));
+  return snap.exists() ? { ...(snap.data() as Omit<Survey, "id">), id: snap.id } : null;
+}
+
+export interface SurveyDraft {
+  title: string;
+  description?: string;
+  questions: SurveyQuestion[];
+  anonymous: boolean;
+  closesAt?: number;
+}
+
+function surveyFields(d: SurveyDraft) {
+  const description = d.description?.trim();
+  return {
+    title: d.title.trim(),
+    // Questions are stored with only the fields their type uses, so a
+    // single-choice turned into text doesn't drag stale options along.
+    questions: d.questions.map((q) => ({
+      id: q.id,
+      type: q.type,
+      prompt: q.prompt.trim(),
+      required: q.required,
+      ...(q.type === "single" || q.type === "multi"
+        ? { options: (q.options ?? []).map((o) => o.trim()).filter(Boolean) }
+        : {}),
+    })),
+    ...(description ? { description } : {}),
+  };
+}
+
+export async function createSurvey(clubId: string, uid: string, d: SurveyDraft): Promise<string> {
+  const ref = await addDoc(surveysCol(clubId), {
+    ...surveyFields(d),
+    anonymous: d.anonymous,
+    status: "open",
+    createdBy: uid,
+    createdAt: new Date().toISOString(),
+    ...(d.closesAt != null ? { closesAt: d.closesAt } : {}),
+  });
+  return ref.id;
+}
+
+/** Edit wording, questions and close date. Anonymity can't change (rules). */
+export async function updateSurvey(clubId: string, surveyId: string, d: SurveyDraft): Promise<void> {
+  const fields = surveyFields(d);
+  await updateDoc(doc(surveysCol(clubId), surveyId), {
+    ...fields,
+    description: fields.description ?? deleteField(),
+    closesAt: d.closesAt ?? deleteField(),
+  });
+}
+
+export async function setSurveyStatus(
+  clubId: string,
+  surveyId: string,
+  status: "open" | "closed",
+): Promise<void> {
+  // Reopening also drops a passed close date, or it would stay shut.
+  await updateDoc(doc(surveysCol(clubId), surveyId), {
+    status,
+    ...(status === "open" ? { closesAt: deleteField() } : {}),
+  });
+}
+
+/** Delete a survey with its responses (Firestore doesn't cascade). */
+export async function deleteSurvey(clubId: string, surveyId: string): Promise<void> {
+  const ref = doc(surveysCol(clubId), surveyId);
+  for (const sub of ["responses", "respondents"]) {
+    const snap = await getDocs(collection(ref, sub));
+    for (let i = 0; i < snap.docs.length; i += 450) {
+      const batch = writeBatch(db);
+      snap.docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+  await deleteDoc(ref);
+}
+
+/**
+ * This member's response, if any. Named surveys return the answers so they
+ * can be edited; anonymous ones only say "you've answered" — by design there
+ * is no way back to which response was yours.
+ */
+export async function getMySurveyResponse(
+  clubId: string,
+  survey: Survey,
+  uid: string,
+): Promise<{ submitted: boolean; answers?: Record<string, SurveyAnswer> }> {
+  const ref = doc(surveysCol(clubId), survey.id);
+  if (survey.anonymous) {
+    const marker = await getDoc(doc(ref, "respondents", uid));
+    return { submitted: marker.exists() };
+  }
+  const mine = await getDoc(doc(ref, "responses", uid));
+  return mine.exists()
+    ? { submitted: true, answers: (mine.data() as SurveyResponse).answers }
+    : { submitted: false };
+}
+
+export async function submitSurveyResponse(
+  clubId: string,
+  survey: Survey,
+  uid: string,
+  name: string,
+  answers: Record<string, SurveyAnswer>,
+): Promise<void> {
+  const ref = doc(surveysCol(clubId), survey.id);
+  const now = new Date().toISOString();
+  if (survey.anonymous) {
+    // One batch, so the marker and the response land together — the rules
+    // require exactly that, and it's what keeps it to one response each.
+    // The response carries ONLY answers: no uid, name or time to link back.
+    const batch = writeBatch(db);
+    batch.set(doc(ref, "respondents", uid), {});
+    batch.set(doc(collection(ref, "responses")), { answers });
+    await batch.commit();
+    return;
+  }
+  const mine = doc(ref, "responses", uid);
+  await runTransaction(db, async (tx) => {
+    const existing = await tx.get(mine);
+    tx.set(mine, {
+      uid,
+      name,
+      answers,
+      submittedAt: existing.exists() ? (existing.data().submittedAt as string) : now,
+      updatedAt: now,
+    });
+  });
+}
+
+/**
+ * Staff: uids of members who've answered. Named surveys read it off the
+ * responses; anonymous ones off the respondent markers — never the answers.
+ */
+export async function getSurveyRespondentUids(clubId: string, survey: Survey): Promise<string[]> {
+  const ref = doc(surveysCol(clubId), survey.id);
+  const snap = await getDocs(collection(ref, survey.anonymous ? "respondents" : "responses"));
+  return snap.docs.map((d) => d.id);
+}
+
+/** Staff: every response, for results and export. */
+export async function getSurveyResponses(clubId: string, surveyId: string): Promise<SurveyResponse[]> {
+  const snap = await getDocs(collection(doc(surveysCol(clubId), surveyId), "responses"));
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<SurveyResponse, "id">), id: d.id }));
 }
 
 // ── Posts ────────────────────────────────────────────────────────────────────
