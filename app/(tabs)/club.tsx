@@ -38,6 +38,7 @@ import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { RsvpBadge } from "@/ui/RsvpBadge";
 import { Logo } from "@/ui/Logo";
+import { OpenSurveysBanner } from "@/ui/OpenSurveysBanner";
 import { NativeAdCard } from "@/ui/NativeAdCard";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
@@ -362,6 +363,10 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
                   </Pressable>
                 )}
               </View>
+            )}
+
+            {club?.id && (
+              <OpenSurveysBanner clubId={club.id} isStaff={isAdmin || role === "coach"} />
             )}
 
             {events.length > 0 && (

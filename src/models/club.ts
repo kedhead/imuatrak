@@ -752,3 +752,254 @@ export function clampSlots(n: number, minimum = 1): number {
   if (!Number.isFinite(n)) return Math.max(1, minimum);
   return Math.min(SIGNUP_SLOTS_MAX, Math.max(1, minimum, Math.floor(n)));
 }
+
+// ── Surveys ─────────────────────────────────────────────────────────────────
+//
+// Club questionnaires (end-of-season feedback, race debriefs, practice-time
+// polls). Staff build them; members answer once. Stored at
+// clubs/{clubId}/surveys/{surveyId}, with answers in a `responses`
+// subcollection. See firestore.rules for how anonymous surveys stay anonymous.
+
+export type SurveyQuestionType = "single" | "multi" | "rating" | "text";
+
+export interface SurveyQuestion {
+  /** Stable key into a response's `answers` map. */
+  id: string;
+  type: SurveyQuestionType;
+  prompt: string;
+  /** Choices for single/multi. */
+  options?: string[];
+  required: boolean;
+}
+
+export interface Survey {
+  id: string;
+  title: string;
+  description?: string;
+  questions: SurveyQuestion[];
+  /**
+   * Anonymous responses carry no uid or name, and who-answered is tracked in a
+   * separate `respondents` collection with no timestamps, so staff can see how
+   * many answered but can't tie an answer to a person.
+   */
+  anonymous: boolean;
+  status: "open" | "closed";
+  /** Epoch ms. Rules refuse responses after it. */
+  closesAt?: number;
+  createdBy: string;
+  createdAt: string;
+}
+
+/** A single answer: one choice, several, a 1–5 rating, or free text. */
+export type SurveyAnswer = string | string[] | number;
+
+export interface SurveyResponse {
+  id: string;
+  /** Present only on named (non-anonymous) surveys. */
+  uid?: string;
+  name?: string;
+  answers: Record<string, SurveyAnswer>;
+}
+
+export const SURVEY_TITLE_MAX = 80;
+export const SURVEY_PROMPT_MAX = 200;
+export const SURVEY_OPTION_MAX = 60;
+export const SURVEY_TEXT_ANSWER_MAX = 1000;
+export const SURVEY_QUESTIONS_MAX = 25;
+export const SURVEY_OPTIONS_MAX = 10;
+export const SURVEY_RATING_MAX = 5;
+
+export function isSurveyOpen(s: Pick<Survey, "status" | "closesAt">, now = Date.now()): boolean {
+  return s.status === "open" && (s.closesAt == null || now < s.closesAt);
+}
+
+/** "Closes Fri, Nov 14" / "Closed" / "Open", for list rows and headers. */
+export function surveyWhen(s: Pick<Survey, "status" | "closesAt">, now = Date.now()): string {
+  if (!isSurveyOpen(s, now)) return "Closed";
+  if (s.closesAt == null) return "Open";
+  return `Closes ${new Date(s.closesAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}`;
+}
+
+/** Is a question answered (for required checks)? Ratings count from 1. */
+export function hasAnswer(q: SurveyQuestion, a: SurveyAnswer | undefined): boolean {
+  if (a == null) return false;
+  switch (q.type) {
+    case "single":
+      return typeof a === "string" && a.length > 0;
+    case "multi":
+      return Array.isArray(a) && a.length > 0;
+    case "rating":
+      return typeof a === "number" && a >= 1 && a <= SURVEY_RATING_MAX;
+    case "text":
+      return typeof a === "string" && a.trim().length > 0;
+  }
+}
+
+/** Prompts of required questions still unanswered, in order. */
+export function missingRequired(
+  questions: SurveyQuestion[],
+  answers: Record<string, SurveyAnswer>,
+): string[] {
+  return questions.filter((q) => q.required && !hasAnswer(q, answers[q.id])).map((q) => q.prompt);
+}
+
+/** Drop empty answers and trim text so stored responses stay small and tidy. */
+export function cleanAnswers(
+  questions: SurveyQuestion[],
+  answers: Record<string, SurveyAnswer>,
+): Record<string, SurveyAnswer> {
+  const out: Record<string, SurveyAnswer> = {};
+  for (const q of questions) {
+    const a = answers[q.id];
+    if (!hasAnswer(q, a)) continue;
+    if (q.type === "text") out[q.id] = (a as string).trim().slice(0, SURVEY_TEXT_ANSWER_MAX);
+    else if (q.type === "multi") out[q.id] = (a as string[]).filter((o) => q.options?.includes(o));
+    else out[q.id] = a!;
+  }
+  return out;
+}
+
+export type QuestionResult =
+  | { type: "single" | "multi"; answered: number; counts: { option: string; count: number }[] }
+  | { type: "rating"; answered: number; average: number | null; counts: number[] }
+  | { type: "text"; answered: number; answers: { text: string; name?: string }[] };
+
+/** Tally one question across all responses, for the results screen. */
+export function tallyQuestion(q: SurveyQuestion, responses: SurveyResponse[]): QuestionResult {
+  const given = responses
+    .map((r) => ({ a: r.answers?.[q.id], name: r.name }))
+    .filter((x) => hasAnswer(q, x.a));
+  switch (q.type) {
+    case "single":
+    case "multi": {
+      const counts = (q.options ?? []).map((option) => ({
+        option,
+        count: given.filter((x) => (Array.isArray(x.a) ? x.a.includes(option) : x.a === option)).length,
+      }));
+      return { type: q.type, answered: given.length, counts };
+    }
+    case "rating": {
+      const counts = Array.from({ length: SURVEY_RATING_MAX }, () => 0);
+      let sum = 0;
+      for (const x of given) {
+        const n = x.a as number;
+        counts[n - 1]! += 1;
+        sum += n;
+      }
+      return {
+        type: "rating",
+        answered: given.length,
+        average: given.length ? Math.round((sum / given.length) * 10) / 10 : null,
+        counts,
+      };
+    }
+    case "text":
+      return {
+        type: "text",
+        answered: given.length,
+        answers: given.map((x) => ({ text: x.a as string, ...(x.name ? { name: x.name } : {}) })),
+      };
+  }
+}
+
+/** Results as CSV (one row per response) for sharing or a spreadsheet. */
+export function surveyToCsv(survey: Survey, responses: SurveyResponse[]): string {
+  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const header = [...(survey.anonymous ? [] : ["Name"]), ...survey.questions.map((q) => q.prompt)];
+  const rows = responses.map((r) => [
+    ...(survey.anonymous ? [] : [r.name ?? ""]),
+    ...survey.questions.map((q) => {
+      const a = r.answers?.[q.id];
+      return a == null ? "" : Array.isArray(a) ? a.join("; ") : String(a);
+    }),
+  ]);
+  return [header, ...rows].map((row) => row.map(esc).join(",")).join("\n");
+}
+
+export interface SurveyTemplate {
+  id: string;
+  emoji: string;
+  name: string;
+  blurb: string;
+  title: string;
+  description?: string;
+  anonymous: boolean;
+  questions: Omit<SurveyQuestion, "id">[];
+}
+
+/** One-tap starting points; everything stays editable before publishing. */
+export const SURVEY_TEMPLATES: readonly SurveyTemplate[] = [
+  {
+    id: "season",
+    emoji: "🏁",
+    name: "End of season",
+    blurb: "How the season went and what to change",
+    title: "End of season survey",
+    description: "Help us plan next season. Takes about 3 minutes.",
+    anonymous: true,
+    questions: [
+      { type: "rating", prompt: "How would you rate this season overall?", required: true },
+      { type: "rating", prompt: "How well did practices prepare you for races?", required: false },
+      {
+        type: "multi",
+        prompt: "Which practice times work for you?",
+        options: ["Weekday mornings", "Weekday evenings", "Saturday", "Sunday"],
+        required: false,
+      },
+      {
+        type: "single",
+        prompt: "Will you paddle with us next season?",
+        options: ["Yes", "Maybe", "No"],
+        required: true,
+      },
+      { type: "text", prompt: "What did you enjoy most?", required: false },
+      { type: "text", prompt: "What should we change?", required: false },
+    ],
+  },
+  {
+    id: "race",
+    emoji: "🛶",
+    name: "Race debrief",
+    blurb: "Quick feedback after a regatta",
+    title: "Race debrief",
+    anonymous: false,
+    questions: [
+      { type: "rating", prompt: "How did your race feel?", required: true },
+      {
+        type: "single",
+        prompt: "How was the race-day logistics (rigging, tent, timing)?",
+        options: ["Smooth", "Mostly fine", "Needs work"],
+        required: false,
+      },
+      { type: "text", prompt: "One thing that went well", required: false },
+      { type: "text", prompt: "One thing to work on", required: false },
+    ],
+  },
+  {
+    id: "practice",
+    emoji: "📅",
+    name: "Practice times",
+    blurb: "Find the slots most people can make",
+    title: "Practice time poll",
+    anonymous: false,
+    questions: [
+      {
+        type: "multi",
+        prompt: "Which times can you usually make?",
+        options: [
+          "Weekdays 5–6:30am",
+          "Weekdays 5:30–7pm",
+          "Saturday morning",
+          "Sunday morning",
+        ],
+        required: true,
+      },
+      {
+        type: "single",
+        prompt: "How many practices a week do you want?",
+        options: ["1", "2", "3", "4+"],
+        required: false,
+      },
+    ],
+  },
+];

@@ -193,6 +193,10 @@ export default function RootLayout() {
           <Stack.Screen name="club/gallery" options={{ headerShown: true, title: "Gallery" }} />
           <Stack.Screen name="club/event/[id]" options={{ headerShown: true, title: "Event" }} />
           <Stack.Screen name="club/events" options={{ headerShown: true, title: "Events" }} />
+          <Stack.Screen name="club/surveys" options={{ headerShown: true, title: "Surveys" }} />
+          <Stack.Screen name="club/survey/[id]" options={{ headerShown: true, title: "Survey" }} />
+          <Stack.Screen name="club/survey-edit/[id]" options={{ headerShown: true, title: "Survey" }} />
+          <Stack.Screen name="club/survey-results/[id]" options={{ headerShown: true, title: "Results" }} />
           <Stack.Screen name="club/admin" options={{ headerShown: true, title: "Club Settings" }} />
           <Stack.Screen name="club/invite" options={{ headerShown: true, title: "Invite Members" }} />
           <Stack.Screen name="club/admin/bulk-schedule" options={{ headerShown: true, title: "Bulk Schedule" }} />

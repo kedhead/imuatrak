@@ -322,6 +322,107 @@ service cloud.firestore {
         }
       }
 
+      // ── Surveys (end-of-season questionnaires, race debriefs, polls) ───────
+      // Staff build them; members answer once while they're open.
+      //
+      // Anonymity: an anonymous response is stored under a random id with
+      // ONLY `answers` — no uid, name or timestamp. Who-answered lives in
+      // respondents/{uid}, an empty doc written in the same batch: the
+      // response create below requires that marker to come into existence
+      // with it (existsAfter && !exists), which is also what limits each
+      // member to one anonymous response. Nothing links the two docs, so
+      // staff see a count and answers but not who gave which.
+      match /surveys/{surveyId} {
+        function isSurveyStaff() {
+          return hasClubRole(clubId, ["owner", "admin", "coach"]);
+        }
+        function theSurvey() {
+          return get(/databases/$(database)/documents/clubs/$(clubId)/surveys/$(surveyId)).data;
+        }
+        function acceptingResponses() {
+          let s = theSurvey();
+          return s.status == "open"
+            && (!("closesAt" in s) || request.time.toMillis() < s.closesAt);
+        }
+        function validSurvey(d) {
+          return d.keys().hasAll(["title", "questions", "anonymous", "status", "createdBy", "createdAt"])
+            && d.keys().hasOnly(["title", "description", "questions", "anonymous", "status", "closesAt", "createdBy", "createdAt"])
+            && d.title is string && d.title.size() > 0 && d.title.size() <= 80
+            && (!("description" in d) || (d.description is string && d.description.size() <= 500))
+            && d.questions is list && d.questions.size() > 0 && d.questions.size() <= 25
+            && d.anonymous is bool
+            && d.status in ["open", "closed"]
+            && (!("closesAt" in d) || d.closesAt is number)
+            && d.createdAt is string;
+        }
+        function validAnswers(d) {
+          return d.answers is map && d.answers.size() <= 25;
+        }
+
+        allow read: if isClubMember(clubId);
+        allow create: if isSurveyStaff()
+          && validSurvey(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid;
+        // Anonymity is fixed at creation: flipping it later would put named
+        // and anonymous answers under one promise.
+        allow update: if isSurveyStaff()
+          && validSurvey(request.resource.data)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.anonymous == resource.data.anonymous;
+        allow delete: if hasClubRole(clubId, ["owner", "admin"])
+          || (isSurveyStaff() && resource.data.createdBy == request.auth.uid);
+
+        match /responses/{responseId} {
+          // Staff read everything for results; a member can read back their
+          // own named response (doc id == uid) to edit it.
+          allow read: if isSurveyStaff()
+            || (isClubMember(clubId) && responseId == request.auth.uid);
+
+          allow create: if isClubMember(clubId)
+            && acceptingResponses()
+            && validAnswers(request.resource.data)
+            && (
+              (!theSurvey().anonymous
+                && responseId == request.auth.uid
+                && request.resource.data.keys().hasOnly(["uid", "name", "answers", "submittedAt", "updatedAt"])
+                && request.resource.data.uid == request.auth.uid
+                && request.resource.data.name is string
+                && request.resource.data.name.size() <= 100)
+              || (theSurvey().anonymous
+                && request.resource.data.keys().hasOnly(["answers"])
+                && !exists(/databases/$(database)/documents/clubs/$(clubId)/surveys/$(surveyId)/respondents/$(request.auth.uid))
+                && existsAfter(/databases/$(database)/documents/clubs/$(clubId)/surveys/$(surveyId)/respondents/$(request.auth.uid)))
+            );
+
+          // Named responses can be changed until the survey closes;
+          // anonymous ones can't be (nobody can tell which is yours).
+          allow update: if isClubMember(clubId)
+            && acceptingResponses()
+            && !theSurvey().anonymous
+            && responseId == request.auth.uid
+            && validAnswers(request.resource.data)
+            && request.resource.data.keys().hasOnly(["uid", "name", "answers", "submittedAt", "updatedAt"])
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.submittedAt == resource.data.submittedAt;
+
+          // Clearing out a deleted survey.
+          allow delete: if isSurveyStaff();
+        }
+
+        match /respondents/{respondentId} {
+          allow read: if isSurveyStaff()
+            || (isClubMember(clubId) && respondentId == request.auth.uid);
+          // An empty marker, only for yourself, only on an open anonymous
+          // survey. Writing one without a response only locks yourself out.
+          allow create: if isClubMember(clubId)
+            && respondentId == request.auth.uid
+            && theSurvey().anonymous
+            && acceptingResponses()
+            && request.resource.data.keys().size() == 0;
+          allow delete: if isSurveyStaff();
+        }
+      }
+
       // ── Legacy chat messages (kept readable during migration) ─────────────
       match /messages/{messageId} {
         allow read: if isClubMember(clubId);
