@@ -4,6 +4,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   FieldPath,
   limit,
@@ -11,6 +12,7 @@ import {
   orderBy,
   query,
   runTransaction,
+  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -237,8 +239,61 @@ export async function markDmRead(uid: string, threadId: string): Promise<number>
     const threadUnread = (prefSnap.data()?.unreadCount as number | undefined) ?? 0;
     const currentTotal = (userSnap.data()?.unreadTotal as number | undefined) ?? 0;
     const newTotal = Math.max(0, currentTotal - threadUnread);
-    tx.set(prefRef, { lastReadAt: new Date().toISOString(), unreadCount: 0 }, { merge: true });
+    // Opening a conversation also un-hides it (same write, no extra cost).
+    tx.set(
+      prefRef,
+      { lastReadAt: new Date().toISOString(), unreadCount: 0, hiddenAt: deleteField() },
+      { merge: true },
+    );
     tx.set(userRef, { unreadTotal: newTotal }, { merge: true });
     return newTotal;
   });
+}
+
+// ── Hiding conversations ────────────────────────────────────────────────────
+// Per-person and reversible: a hidden thread drops off YOUR list until it gets
+// a newer message (see isDmThreadHidden). Nothing is deleted, and nobody else
+// is affected. Stored on users/{uid}/dmThreads/{threadId}, which only you can
+// read or write.
+
+/** Hide a conversation, clearing its unread so the badge doesn't stay lit. */
+export async function hideDmThread(uid: string, threadId: string): Promise<number> {
+  const userRef = doc(db, "users", uid);
+  const prefRef = doc(db, "users", uid, "dmThreads", threadId);
+  return runTransaction(db, async (tx) => {
+    const [userSnap, prefSnap] = await Promise.all([tx.get(userRef), tx.get(prefRef)]);
+    const threadUnread = (prefSnap.data()?.unreadCount as number | undefined) ?? 0;
+    const currentTotal = (userSnap.data()?.unreadTotal as number | undefined) ?? 0;
+    const newTotal = Math.max(0, currentTotal - threadUnread);
+    const now = new Date().toISOString();
+    tx.set(prefRef, { hiddenAt: now, lastReadAt: now, unreadCount: 0 }, { merge: true });
+    tx.set(userRef, { unreadTotal: newTotal }, { merge: true });
+    return newTotal;
+  });
+}
+
+/** Put a hidden conversation back on the list (or a no-op if it isn't hidden). */
+export async function unhideDmThread(uid: string, threadId: string): Promise<void> {
+  await setDoc(doc(db, "users", uid, "dmThreads", threadId), { hiddenAt: deleteField() }, { merge: true });
+}
+
+/** Live map of threadId → when this user hid it. */
+export function subscribeHiddenDmThreads(
+  uid: string,
+  onUpdate: (hidden: Record<string, string>) => void,
+): () => void {
+  // Only hidden ones: any non-empty ISO string sorts after "".
+  const q = query(collection(db, "users", uid, "dmThreads"), where("hiddenAt", ">", ""), limit(200));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const map: Record<string, string> = {};
+      for (const d of snap.docs) {
+        const at = (d.data() as { hiddenAt?: string }).hiddenAt;
+        if (at) map[d.id] = at;
+      }
+      onUpdate(map);
+    },
+    () => onUpdate({}),
+  );
 }

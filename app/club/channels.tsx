@@ -17,10 +17,16 @@ import {
   markChannelRead,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
-import { subscribeDmThreads } from "@/services/dmService";
-import { useDmUnreadByThread } from "@/services/unread";
+import { hideDmThread, subscribeDmThreads } from "@/services/dmService";
+import { useDmUnreadByThread, useHiddenDmThreads } from "@/services/unread";
 import { useClub } from "@/services/clubStore";
-import { canAddChannel, type ClubChannel, type ChannelPreference, type DmThread } from "@/models/club";
+import {
+  canAddChannel,
+  isDmThreadHidden,
+  type ClubChannel,
+  type ChannelPreference,
+  type DmThread,
+} from "@/models/club";
 import { DmThreadRow } from "@/ui/DmThreadRow";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { ScreenBackground } from "@/ui/ScreenBackground";
@@ -39,6 +45,12 @@ export default function ChannelsScreen() {
   // only behind the Members icon, so people missed them.
   const [threads, setThreads] = useState<(DmThread & { id: string })[]>([]);
   const dmUnread = useDmUnreadByThread(user?.uid);
+  const dmHidden = useHiddenDmThreads(user?.uid);
+  // Hidden conversations stay off the list until they get a new message.
+  const visibleThreads = threads.filter(
+    (t) => !isDmThreadHidden(t, dmHidden[t.id], dmUnread[t.id] ?? 0),
+  );
+  const hiddenThreadCount = threads.length - visibleThreads.length;
 
   const isAdmin = role === "owner" || role === "admin";
   // Admins see every channel (private ones included), so the visible count
@@ -155,21 +167,35 @@ export default function ChannelsScreen() {
                   <Text style={styles.newBtnText}>New</Text>
                 </Pressable>
               </View>
-              {threads.length === 0 ? (
+              {visibleThreads.length === 0 ? (
                 <Text style={styles.sectionEmpty}>
                   Message a teammate, or start a group chat for your crew.
                 </Text>
               ) : (
-                threads.map((t) => (
+                visibleThreads.map((t) => (
                   <DmThreadRow
                     key={t.id}
                     thread={t}
                     myUid={user?.uid}
                     unread={dmUnread[t.id] ?? 0}
                     variant="list"
+                    onHide={() => {
+                      if (myUid) void hideDmThread(myUid, t.id).then(setAppBadge).catch(() => undefined);
+                    }}
                     onPress={() => router.push(`/dm/${t.id}` as never)}
                   />
                 ))
+              )}
+              {hiddenThreadCount > 0 && (
+                <Pressable
+                  style={styles.hiddenLink}
+                  onPress={() => router.push("/dm?showHidden=1" as never)}
+                >
+                  <Ionicons name="eye-off-outline" size={14} color={colors.muted} />
+                  <Text style={styles.hiddenLinkText}>
+                    {hiddenThreadCount} hidden · they come back when there&apos;s a new message
+                  </Text>
+                </Pressable>
               )}
             </>
           }
@@ -276,6 +302,14 @@ const styles = StyleSheet.create({
   dmLabel: { paddingTop: 0, paddingBottom: 0 },
   newBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   newBtnText: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.ocean },
+  hiddenLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  hiddenLinkText: { fontSize: type.size.xs, color: colors.muted },
   row: {
     flexDirection: "row",
     alignItems: "center",
