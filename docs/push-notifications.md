@@ -84,6 +84,33 @@ bearer token when present. It is deliberately a plain env var and not a
 `defineSecret` — declaring a secret that doesn't exist in Secret Manager fails
 the entire functions deploy (see `revenuecat.ts`).
 
+### Per-member status: `users/{uid}.pushStatus`
+
+Every app open records what happened when that device tried to register
+(`src/services/pushRegistration.ts`), and Settings → Notifications shows it to
+the member with the matching fix:
+
+| `state` | Meaning | Fix |
+| --- | --- | --- |
+| `registered` | Permission on, token stored. | If pushes still don't arrive: muted channel, battery saver, or a ticket error in the Functions log. |
+| `denied` | Permission off (Android 14+ denies by default on new installs). | Turn on in phone settings — the card links there. |
+| `undetermined` | Never asked. | "Turn on" in the card. |
+| `error` | Permission on but no token. On Android, almost always a binary built before google-services.json (before 2026-09-19). | Update from the Play Store. **OTA cannot fix this.** |
+
+`appVersion` / `appBuild` are the installed binary's, so an old build is
+visible at a glance. Filter the `users` collection on `pushStatus.state` in the
+Firebase console to see who is affected.
+
+### Expo's 100-per-request limit counts tokens
+
+Expo accepts at most 100 notifications per request, and a message with several
+tokens counts once **per token**. `sendExpoPush` used to slice 100 *messages*
+per request, so a channel whose recipients had more than ~100 devices between
+them had every request rejected outright (`Expo push send failed: 400`) —
+nobody in it got the push, and because no tickets came back, dead tokens were
+never pruned either. `chunkPushMessages` (`firebase/functions/src/pushChunks.ts`)
+now chunks by token, mirroring `expo-server-sdk`.
+
 ### Checking whether a user has a usable token
 
 ```

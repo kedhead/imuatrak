@@ -1,9 +1,8 @@
-import Constants from "expo-constants";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState } from "react-native";
 import MobileAds from "react-native-google-mobile-ads";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -18,7 +17,7 @@ import { useSubscription } from "@/services/subscriptionStore";
 import { currentUser, watchAuth } from "@/services/auth";
 import { setAppBadge, syncAppBadge } from "@/services/badge";
 import { pruneEventReminders } from "@/services/eventReminders";
-import { registerFcmToken } from "@/services/clubService";
+import { registerPush, resetPushStatus } from "@/services/pushRegistration";
 import { AnimatedSplash } from "@/ui/AnimatedSplash";
 import { colors } from "@/ui/theme";
 
@@ -89,38 +88,13 @@ export default function RootLayout() {
         void initSubscription(user.uid);
         // Sync the app-icon badge to the user's unread total on sign-in/launch.
         void syncAppBadge(user.uid);
-        // Register FCM token for push notifications (best-effort)
-        void (async () => {
-          try {
-            const { status } = await Notifications.requestPermissionsAsync();
-            if (status === "granted") {
-              // Register an EXPO push token, not getDevicePushTokenAsync():
-              // on iOS that returns a raw APNs hex token which FCM silently
-              // rejects — the reason chat pushes never arrived. The Expo Push
-              // Service handles APNs/FCM routing from one token type.
-              const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
-              const expoToken = await Notifications.getExpoPushTokenAsync(
-                projectId ? { projectId } : undefined,
-              );
-              await registerFcmToken(
-                user.uid,
-                expoToken.data,
-                Platform.OS === "ios" ? "ios" : "android",
-              );
-            }
-          } catch (e) {
-            // Still non-fatal — never block sign-in on notifications. But it
-            // must not be SILENT: this bare catch is why Android going without
-            // push notifications for its whole life went unnoticed. Android
-            // cannot get an FCM token without google-services.json compiled in,
-            // so getExpoPushTokenAsync throws here, and swallowing it left no
-            // token, no log, and nothing for a user to report beyond "I don't
-            // get notifications".
-            console.warn("[push] token registration failed:", e);
-          }
-        })();
+        // Register for pushes (best-effort, never blocks sign-in). The result
+        // is recorded on the user doc and shown in Settings → Notifications,
+        // so a member who gets nothing can see why.
+        void registerPush(user.uid, { prompt: true });
       } else {
         clearClub();
+        resetPushStatus();
         void setAppBadge(0);
       }
     });
@@ -133,6 +107,19 @@ export default function RootLayout() {
       if (next !== "active") return;
       const user = currentUser();
       if (user) void syncAppBadge(user.uid);
+      // Someone who switched notifications on in system settings, or whose
+      // last attempt failed, gets registered without having to relaunch.
+      if (user) void registerPush(user.uid, { prompt: false });
+    });
+    return () => sub.remove();
+  }, []);
+
+  // FCM/APNs can rotate the device token; re-register so the account doesn't
+  // keep a token that will never deliver again.
+  useEffect(() => {
+    const sub = Notifications.addPushTokenListener(() => {
+      const user = currentUser();
+      if (user) void registerPush(user.uid, { prompt: false });
     });
     return () => sub.remove();
   }, []);
