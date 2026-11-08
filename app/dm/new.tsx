@@ -1,12 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import type { ClubMember } from "@/models/club";
+import { clubGrantsAdFree, clubIsPro, type ClubMember } from "@/models/club";
 import { currentUser } from "@/services/auth";
 import { useClub } from "@/services/clubStore";
 import { addGroupMembers, createGroupChat, openDmThread } from "@/services/dmService";
+import { useSubscription } from "@/services/subscriptionStore";
 import { Avatar } from "@/ui/Avatar";
 import { Button } from "@/ui/Button";
 import { ScreenBackground } from "@/ui/ScreenBackground";
@@ -27,7 +37,16 @@ export default function NewConversationScreen() {
   const adding = !!addTo;
   const club = useClub((s) => s.club);
   const members = useClub((s) => s.members);
+  const role = useClub((s) => s.role);
   const me = currentUser();
+  // Same gates as the rest of the app (see the benefit lists in paywall.tsx):
+  // starting a DM needs ImuaTrak+ or a club plan; starting a GROUP needs the
+  // club plan (also enforced in createGroupChat). Adding people to a group
+  // that already exists isn't gated — existing groups keep working.
+  const isAdFree = useSubscription((s) => s.isAdFree);
+  const canDm = isAdFree || clubGrantsAdFree(club);
+  const canGroup = clubIsPro(club);
+  const isClubAdmin = role === "owner" || role === "admin";
 
   const [mode, setMode] = useState<"dm" | "group">(adding ? "group" : "dm");
   const [search, setSearch] = useState("");
@@ -81,7 +100,8 @@ export default function NewConversationScreen() {
     }
   };
 
-  const nameOf = (uid: string) => members.find((m) => m.uid === uid)?.displayName.split(" ")[0] ?? "Member";
+  const nameOf = (uid: string) =>
+    members.find((m) => m.uid === uid)?.displayName.split(" ")[0] ?? "Member";
 
   return (
     <ScreenBackground>
@@ -89,7 +109,11 @@ export default function NewConversationScreen() {
         {!adding && (
           <View style={styles.tabs}>
             {(["dm", "group"] as const).map((m) => (
-              <Pressable key={m} style={[styles.tab, mode === m && styles.tabOn]} onPress={() => setMode(m)}>
+              <Pressable
+                key={m}
+                style={[styles.tab, mode === m && styles.tabOn]}
+                onPress={() => setMode(m)}
+              >
                 <Ionicons
                   name={m === "dm" ? "person-outline" : "people-outline"}
                   size={16}
@@ -103,99 +127,136 @@ export default function NewConversationScreen() {
           </View>
         )}
 
-        {mode === "group" && !adding && (
-          <TextInput
-            style={styles.nameInput}
-            placeholder="Group name, e.g. Sat carpool"
-            placeholderTextColor={colors.muted}
-            value={name}
-            onChangeText={setName}
-            maxLength={GROUP_NAME_MAX}
-          />
-        )}
-
-        <View style={styles.searchRow}>
-          <Ionicons name="search" size={16} color={colors.muted} />
-          <TextInput
-            style={styles.search}
-            placeholder={`Search ${club?.name ?? "your club"}`}
-            placeholderTextColor={colors.muted}
-            value={search}
-            onChangeText={setSearch}
-            autoCorrect={false}
-          />
-        </View>
-
-        {mode === "group" && picked.length > 0 && (
-          <Text style={styles.pickedLine} numberOfLines={2}>
-            {adding ? "Adding " : "With you and "}
-            {picked.map(nameOf).join(", ")}
-          </Text>
-        )}
-        {mode === "group" && (
-          <Text style={styles.hint}>
-            Only the people in a group can see it — club admins included, unless they're added.
-          </Text>
-        )}
-
-        <FlatList
-          data={people}
-          keyExtractor={(m) => m.uid}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <Text style={styles.empty}>{search ? "No one matches that." : "No one else to add yet."}</Text>
-          }
-          renderItem={({ item }) => {
-            const on = picked.includes(item.uid);
-            const full = !on && picked.length >= limit;
-            return (
-              <Pressable
-                style={[styles.row, full && { opacity: 0.4 }]}
-                disabled={busy || full}
-                onPress={() => (mode === "dm" ? void openDm(item) : toggle(item.uid))}
-              >
-                <Avatar uri={item.avatarUrl} name={item.displayName} uid={item.uid} size={36} />
-                <Text style={styles.rowName} numberOfLines={1}>
-                  {item.displayName}
-                </Text>
-                {mode === "group" ? (
-                  <Ionicons
-                    name={on ? "checkmark-circle" : "ellipse-outline"}
-                    size={22}
-                    color={on ? colors.ocean : colors.line}
-                  />
-                ) : (
-                  <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-                )}
-              </Pressable>
-            );
-          }}
-        />
-
-        {mode === "group" && (
-          <View style={styles.footer}>
-            {busy ? (
-              <ActivityIndicator color={colors.ocean} />
-            ) : (
-              <Button
-                title={
-                  adding
-                    ? picked.length === 0
-                      ? "Pick people to add"
-                      : `Add ${picked.length} ${picked.length === 1 ? "person" : "people"}`
-                    : picked.length < 2
-                      ? "Pick at least 2 people"
-                      : !name.trim()
-                        ? "Name the group"
-                        : `Create group (${picked.length + 1})`
-                }
-                gradient="aqua"
-                disabled={!canCreate}
-                onPress={() => void submit()}
+        {!adding && (mode === "dm" ? !canDm : !canGroup) ? (
+          <View style={styles.lock}>
+            <View style={styles.lockBadge}>
+              <Ionicons
+                name={mode === "dm" ? "paper-plane-outline" : "people-outline"}
+                size={32}
+                color={colors.ocean}
               />
+            </View>
+            <Text style={styles.lockTitle}>
+              {mode === "dm"
+                ? "Direct messages are part of ImuaTrak+"
+                : "Group chats are part of the club plan"}
+            </Text>
+            <Text style={styles.lockText}>
+              {mode === "dm"
+                ? "Upgrade to message any paddler in your club, or ask your club to get the club plan so everyone can."
+                : "With the club plan, anyone in the club can start a group for their crew, carpool or race team, plus unlimited channels, the photo gallery and no ads."}
+            </Text>
+            {mode === "dm" || isClubAdmin ? (
+              <Button
+                title={mode === "dm" ? "See ImuaTrak+" : "Upgrade club"}
+                gradient="sunrise"
+                glow
+                onPress={() => router.push("/paywall" as never)}
+                style={styles.lockBtn}
+              />
+            ) : (
+              <Text style={styles.lockHint}>Ask a club owner or admin to upgrade.</Text>
             )}
           </View>
+        ) : (
+          <>
+            {mode === "group" && !adding && (
+              <TextInput
+                style={styles.nameInput}
+                placeholder="Group name, e.g. Sat carpool"
+                placeholderTextColor={colors.muted}
+                value={name}
+                onChangeText={setName}
+                maxLength={GROUP_NAME_MAX}
+              />
+            )}
+
+            <View style={styles.searchRow}>
+              <Ionicons name="search" size={16} color={colors.muted} />
+              <TextInput
+                style={styles.search}
+                placeholder={`Search ${club?.name ?? "your club"}`}
+                placeholderTextColor={colors.muted}
+                value={search}
+                onChangeText={setSearch}
+                autoCorrect={false}
+              />
+            </View>
+
+            {mode === "group" && picked.length > 0 && (
+              <Text style={styles.pickedLine} numberOfLines={2}>
+                {adding ? "Adding " : "With you and "}
+                {picked.map(nameOf).join(", ")}
+              </Text>
+            )}
+            {mode === "group" && (
+              <Text style={styles.hint}>
+                Only the people in a group can see it — club admins included, unless they're added.
+              </Text>
+            )}
+
+            <FlatList
+              data={people}
+              keyExtractor={(m) => m.uid}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.list}
+              ListEmptyComponent={
+                <Text style={styles.empty}>
+                  {search ? "No one matches that." : "No one else to add yet."}
+                </Text>
+              }
+              renderItem={({ item }) => {
+                const on = picked.includes(item.uid);
+                const full = !on && picked.length >= limit;
+                return (
+                  <Pressable
+                    style={[styles.row, full && { opacity: 0.4 }]}
+                    disabled={busy || full}
+                    onPress={() => (mode === "dm" ? void openDm(item) : toggle(item.uid))}
+                  >
+                    <Avatar uri={item.avatarUrl} name={item.displayName} uid={item.uid} size={36} />
+                    <Text style={styles.rowName} numberOfLines={1}>
+                      {item.displayName}
+                    </Text>
+                    {mode === "group" ? (
+                      <Ionicons
+                        name={on ? "checkmark-circle" : "ellipse-outline"}
+                        size={22}
+                        color={on ? colors.ocean : colors.line}
+                      />
+                    ) : (
+                      <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                    )}
+                  </Pressable>
+                );
+              }}
+            />
+
+            {mode === "group" && (
+              <View style={styles.footer}>
+                {busy ? (
+                  <ActivityIndicator color={colors.ocean} />
+                ) : (
+                  <Button
+                    title={
+                      adding
+                        ? picked.length === 0
+                          ? "Pick people to add"
+                          : `Add ${picked.length} ${picked.length === 1 ? "person" : "people"}`
+                        : picked.length < 2
+                          ? "Pick at least 2 people"
+                          : !name.trim()
+                            ? "Name the group"
+                            : `Create group (${picked.length + 1})`
+                    }
+                    gradient="aqua"
+                    disabled={!canCreate}
+                    onPress={() => void submit()}
+                  />
+                )}
+              </View>
+            )}
+          </>
         )}
       </KeyboardAvoidingView>
     </ScreenBackground>
@@ -246,8 +307,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   search: { flex: 1, paddingVertical: spacing.sm + 2, fontSize: type.size.md, color: colors.ink },
-  pickedLine: { marginHorizontal: spacing.lg, marginTop: spacing.sm, fontSize: type.size.sm, color: colors.ocean, fontWeight: type.weight.bold },
-  hint: { marginHorizontal: spacing.lg, marginTop: spacing.xs, fontSize: type.size.xs, color: colors.muted },
+  pickedLine: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    fontSize: type.size.sm,
+    color: colors.ocean,
+    fontWeight: type.weight.bold,
+  },
+  hint: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xs,
+    fontSize: type.size.xs,
+    color: colors.muted,
+  },
   list: { padding: spacing.lg, paddingTop: spacing.sm, gap: spacing.xs, paddingBottom: 120 },
   row: {
     flexDirection: "row",
@@ -260,4 +332,34 @@ const styles = StyleSheet.create({
   rowName: { flex: 1, fontSize: type.size.md, color: colors.ink },
   empty: { textAlign: "center", color: colors.muted, marginTop: spacing.xl },
   footer: { padding: spacing.lg, paddingBottom: spacing.xl, backgroundColor: colors.bg },
+  lock: { alignItems: "center", padding: spacing.xl, paddingTop: spacing.xxl },
+  lockBadge: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: colors.ocean + "14",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockTitle: {
+    fontSize: type.size.lg,
+    fontWeight: type.weight.heavy,
+    color: colors.ink,
+    textAlign: "center",
+    marginTop: spacing.md,
+  },
+  lockText: {
+    fontSize: type.size.sm,
+    color: colors.muted,
+    textAlign: "center",
+    lineHeight: 20,
+    marginTop: spacing.sm,
+  },
+  lockBtn: { alignSelf: "stretch", marginTop: spacing.lg },
+  lockHint: {
+    fontSize: type.size.sm,
+    color: colors.inkSoft,
+    fontWeight: type.weight.bold,
+    marginTop: spacing.lg,
+  },
 });

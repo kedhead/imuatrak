@@ -18,8 +18,9 @@ const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stde
 const PRIVACY_URL = "https://imuatrak.app/privacy";
 
 // What each plan actually unlocks. Keep these in step with the gates in code:
-// ads (AdBanner/NativeAdCard), DMs (club/members, club/member/[uid]), the
-// gallery and extra channels (clubIsPro / canAddChannel). Apple guideline
+// ads (AdBanner/NativeAdCard), DMs (club/members, club/member/[uid], dm/new),
+// group chats (dm/new + createGroupChat), the gallery and extra channels
+// (clubIsPro / canAddChannel). Apple guideline
 // 3.1.2 requires a subscription to say clearly what the buyer gets.
 const PERSONAL_BENEFITS = [
   { icon: "eye-off-outline" as const, text: "No ads anywhere in the app" },
@@ -31,6 +32,7 @@ const CLUB_BENEFITS = [
   { icon: "paper-plane-outline" as const, text: "Everyone can message each other directly" },
   { icon: "images-outline" as const, text: "Club photo gallery" },
   { icon: "chatbubbles-outline" as const, text: "Unlimited chat channels" },
+  { icon: "people-outline" as const, text: "Group chats for any crew" },
 ];
 
 // What the store actually bills, from the product's ISO 8601 period ("P1M",

@@ -1750,8 +1750,19 @@ export const createGroupChat = onCall(async (request) => {
 
   const db = getFirestore();
   // Caller included, so a non-member can't make groups out of a club.
+  // Checked before the plan, so an outsider learns nothing about the club.
   const participants = [uid, ...others];
   const { names, avatars } = await rosterFor(db, clubId, participants);
+
+  // Group chats are a club-plan feature. Only CREATING is gated: a group made
+  // while the club was on a plan keeps working if the plan lapses, so nobody
+  // loses a conversation mid-season (updateGroupChat isn't gated).
+  const club = (await db.doc(`clubs/${clubId}`).get()).data() as
+    | { subscriptionStatus?: string; trialEndsAt?: string }
+    | undefined;
+  if (!clubIsPaidOrTrialing(club)) {
+    throw new HttpsError("permission-denied", "Group chats are part of the club plan");
+  }
 
   const ref = db.collection("dms").doc();
   await ref.set({
