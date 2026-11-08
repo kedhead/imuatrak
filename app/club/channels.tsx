@@ -17,8 +17,11 @@ import {
   markChannelRead,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
+import { subscribeDmThreads } from "@/services/dmService";
+import { useDmUnreadByThread } from "@/services/unread";
 import { useClub } from "@/services/clubStore";
-import { canAddChannel, type ClubChannel, type ChannelPreference } from "@/models/club";
+import { canAddChannel, type ClubChannel, type ChannelPreference, type DmThread } from "@/models/club";
+import { DmThreadRow } from "@/ui/DmThreadRow";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
@@ -32,6 +35,10 @@ export default function ChannelsScreen() {
   const [channels, setChannels] = useState<ClubChannel[]>([]);
   const [prefs, setPrefs] = useState<Map<string, ChannelPreference>>(new Map());
   const [loading, setLoading] = useState(true);
+  // Direct messages and group chats, under the channels. They used to live
+  // only behind the Members icon, so people missed them.
+  const [threads, setThreads] = useState<(DmThread & { id: string })[]>([]);
+  const dmUnread = useDmUnreadByThread(user?.uid);
 
   const isAdmin = role === "owner" || role === "admin";
   // Admins see every channel (private ones included), so the visible count
@@ -54,6 +61,12 @@ export default function ChannelsScreen() {
     });
     return unsub;
   }, [club?.id, user?.uid, role]);
+
+  const myUid = user?.uid;
+  useEffect(() => {
+    if (!myUid) return;
+    return subscribeDmThreads(myUid, setThreads);
+  }, [myUid]);
 
   useFocusEffect(
     useCallback(() => {
@@ -98,20 +111,17 @@ export default function ChannelsScreen() {
         <View style={styles.center}>
           <ActivityIndicator color={colors.ocean} />
         </View>
-      ) : channels.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>No channels yet.</Text>
-          {isAdmin && (
-            <Text style={[styles.emptyText, { marginTop: spacing.sm }]}>
-              Tap + to create one.
-            </Text>
-          )}
-        </View>
       ) : (
         <FlatList
           data={channels}
           keyExtractor={(ch) => ch.id}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={<Text style={styles.sectionLabel}>CHANNELS</Text>}
+          ListEmptyComponent={
+            <Text style={styles.sectionEmpty}>
+              No channels yet.{isAdmin ? " Tap + to create one." : ""}
+            </Text>
+          }
           renderItem={({ item }) => (
             <ChannelRow
               channel={item}
@@ -120,18 +130,48 @@ export default function ChannelsScreen() {
             />
           )}
           ListFooterComponent={
-            !canAddChannels && isAdmin ? (
-              <Pressable
-                style={styles.upgradeBanner}
-                onPress={() => router.push("/paywall" as never)}
-              >
-                <Ionicons name="lock-closed-outline" size={16} color={colors.ocean} />
-                <Text style={styles.upgradeText}>
-                  Upgrade to add more channels
+            <>
+              {!canAddChannels && isAdmin && (
+                <Pressable
+                  style={styles.upgradeBanner}
+                  onPress={() => router.push("/paywall" as never)}
+                >
+                  <Ionicons name="lock-closed-outline" size={16} color={colors.ocean} />
+                  <Text style={styles.upgradeText}>
+                    Upgrade to add more channels
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={colors.muted} />
+                </Pressable>
+              )}
+
+              <View style={styles.dmHeader}>
+                <Text style={[styles.sectionLabel, styles.dmLabel]}>DIRECT MESSAGES</Text>
+                <Pressable
+                  style={styles.newBtn}
+                  hitSlop={8}
+                  onPress={() => router.push("/dm/new" as never)}
+                >
+                  <Ionicons name="create-outline" size={16} color={colors.ocean} />
+                  <Text style={styles.newBtnText}>New</Text>
+                </Pressable>
+              </View>
+              {threads.length === 0 ? (
+                <Text style={styles.sectionEmpty}>
+                  Message a teammate, or start a group chat for your crew.
                 </Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.muted} />
-              </Pressable>
-            ) : undefined
+              ) : (
+                threads.map((t) => (
+                  <DmThreadRow
+                    key={t.id}
+                    thread={t}
+                    myUid={user?.uid}
+                    unread={dmUnread[t.id] ?? 0}
+                    variant="list"
+                    onPress={() => router.push(`/dm/${t.id}` as never)}
+                  />
+                ))
+              )}
+            </>
           }
         />
       )}
@@ -210,7 +250,32 @@ export function ChannelIcon({
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.sm },
   emptyText: { color: colors.muted, fontSize: type.size.md },
-  list: { paddingVertical: spacing.sm },
+  list: { paddingVertical: spacing.sm, paddingBottom: 120 },
+  sectionLabel: {
+    fontSize: type.size.xs,
+    fontWeight: type.weight.heavy,
+    color: colors.muted,
+    letterSpacing: type.spacing.label,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  sectionEmpty: {
+    fontSize: type.size.sm,
+    color: colors.muted,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  dmHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.lg,
+    paddingRight: spacing.lg,
+  },
+  dmLabel: { paddingTop: 0, paddingBottom: 0 },
+  newBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  newBtnText: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.ocean },
   row: {
     flexDirection: "row",
     alignItems: "center",

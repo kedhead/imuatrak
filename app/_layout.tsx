@@ -130,6 +130,10 @@ export default function RootLayout() {
       const data = response.notification.request.content.data as Record<string, unknown>;
       if (typeof data?.channelId === "string") {
         router.push(`/club/chat/${data.channelId}` as never);
+      } else if (data?.screen === "dm" && typeof data.threadId === "string") {
+        // DM and group-chat pushes carry the thread; tapping one used to open
+        // the app and go nowhere.
+        router.push(`/dm/${data.threadId}` as never);
       }
     });
     return () => sub.remove();
@@ -192,6 +196,8 @@ export default function RootLayout() {
           <Stack.Screen name="club/chat/[channelId]" options={{ headerShown: true, title: "" }} />
           <Stack.Screen name="club/chat" options={{ headerShown: true, title: "Club Chat" }} />
           <Stack.Screen name="dm/index" options={{ headerShown: true, title: "Messages" }} />
+          <Stack.Screen name="dm/new" options={{ headerShown: true, title: "New message" }} />
+          <Stack.Screen name="dm/group/[threadId]" options={{ headerShown: true, title: "Group info" }} />
           <Stack.Screen name="dm/[threadId]" options={{ headerShown: true, title: "" }} />
           <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false }} />
         </Stack>
