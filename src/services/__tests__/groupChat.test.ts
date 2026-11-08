@@ -79,3 +79,27 @@ describe("dmThreadTitle / groupMemberSummary", () => {
     expect(groupMemberSummary({ participants: ["me"], participantNames: names }, "me")).toBe("Just you");
   });
 });
+
+describe("isDmThreadHidden", () => {
+  // Imported lazily to keep this file's group-chat focus clear above.
+  const { isDmThreadHidden } = jest.requireActual("@/models/club") as typeof import("@/models/club");
+  const t = (lastMessageAt?: string) => ({ createdAt: "2026-11-01T00:00:00.000Z", ...(lastMessageAt ? { lastMessageAt } : {}) });
+
+  it("stays hidden while nothing newer has happened", () => {
+    expect(isDmThreadHidden(t("2026-11-05T10:00:00.000Z"), "2026-11-06T00:00:00.000Z")).toBe(true);
+    // A brand-new thread with no messages yet uses createdAt.
+    expect(isDmThreadHidden(t(), "2026-11-02T00:00:00.000Z")).toBe(true);
+  });
+
+  it("comes back when a newer message arrives", () => {
+    expect(isDmThreadHidden(t("2026-11-07T08:00:00.000Z"), "2026-11-06T00:00:00.000Z")).toBe(false);
+  });
+
+  it("comes back if anything is unread, even if the preview time lags", () => {
+    expect(isDmThreadHidden(t("2026-11-05T10:00:00.000Z"), "2026-11-06T00:00:00.000Z", 1)).toBe(false);
+  });
+
+  it("isn't hidden without a hiddenAt", () => {
+    expect(isDmThreadHidden(t("2026-11-05T10:00:00.000Z"), undefined)).toBe(false);
+  });
+});

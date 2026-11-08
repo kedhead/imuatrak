@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { MemberRole } from "@/models/club";
 import { subscribeChannels, subscribeChannelUnread } from "./clubService";
-import { subscribeDmUnread } from "./dmService";
+import { subscribeDmUnread, subscribeHiddenDmThreads } from "./dmService";
 
 /**
  * Live count of unread chat messages in ONE club.
@@ -85,4 +85,17 @@ export function useDmUnreadByThread(uid: string | undefined): Record<string, num
 export function useDmUnreadCount(uid: string | undefined): number {
   const byThread = useDmUnreadByThread(uid);
   return Object.values(byThread).reduce((sum, n) => sum + n, 0);
+}
+
+/** Live map of threadId → hiddenAt for conversations this user hid. */
+export function useHiddenDmThreads(uid: string | undefined): Record<string, string> {
+  const [hidden, setHidden] = useState<Record<string, string>>({});
+
+  // No reset on sign-out: the thread list it filters empties at the same time.
+  useEffect(() => {
+    if (!uid) return;
+    return subscribeHiddenDmThreads(uid, setHidden);
+  }, [uid]);
+
+  return hidden;
 }

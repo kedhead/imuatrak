@@ -1028,3 +1028,19 @@ export function groupMemberSummary(t: Pick<DmThread, "participants" | "participa
   if (names.length <= 3) return names.length === 0 ? "Just you" : names.join(", ").replace(/, ([^,]*)$/, " and $1");
   return `${names.slice(0, 2).join(", ")} and ${names.length - 2} others`;
 }
+
+/**
+ * Whether a conversation the user hid should stay off their list. Hiding is
+ * per-person (users/{uid}/dmThreads/{threadId}.hiddenAt) and lasts only until
+ * the conversation moves on: a message newer than the hide, or anything
+ * unread, brings it back. Unread is checked too because lastMessageAt is
+ * updated by the sender's client and could lag the message itself.
+ */
+export function isDmThreadHidden(
+  t: Pick<DmThread, "lastMessageAt" | "createdAt">,
+  hiddenAt: string | undefined,
+  unread = 0,
+): boolean {
+  if (!hiddenAt || unread > 0) return false;
+  return (t.lastMessageAt ?? t.createdAt) <= hiddenAt;
+}
