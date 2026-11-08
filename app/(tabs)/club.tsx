@@ -167,6 +167,10 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const unread = useClubUnreadCount(clubId, user?.uid, role);
   // DMs are reached through the roster, so the people icon carries their badge.
   const dmUnread = useDmUnreadCount(user?.uid);
+  // DMs and group chats now live on the Channels screen, so the 💬 badge
+  // counts them too. They used to light the Members icon instead, which is
+  // why people missed them.
+  const chatUnread = unread + dmUnread;
   const members = useClub((s) => s.members);
   const birthdayNames = members.filter((m) => isBirthdayToday(m.birthday)).map((m) => m.displayName);
 
@@ -287,13 +291,13 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
           <>
             <Pressable onPress={() => router.push("/club/channels" as never)} hitSlop={8}>
               <Ionicons
-                name={unread > 0 ? "chatbubbles" : "chatbubbles-outline"}
+                name={chatUnread > 0 ? "chatbubbles" : "chatbubbles-outline"}
                 size={23}
-                color={unread > 0 ? colors.gold : colors.white}
+                color={chatUnread > 0 ? colors.gold : colors.white}
               />
-              {unread > 0 && (
+              {chatUnread > 0 && (
                 <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>{unread > 9 ? "9+" : unread}</Text>
+                  <Text style={styles.unreadBadgeText}>{chatUnread > 9 ? "9+" : chatUnread}</Text>
                 </View>
               )}
             </Pressable>
@@ -304,16 +308,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
               <Ionicons name="calendar-outline" size={23} color={colors.white} />
             </Pressable>
             <Pressable onPress={() => router.push("/club/members")} hitSlop={8}>
-              <Ionicons
-                name="people"
-                size={24}
-                color={dmUnread > 0 ? colors.gold : colors.white}
-              />
-              {dmUnread > 0 && (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>{dmUnread > 9 ? "9+" : dmUnread}</Text>
-                </View>
-              )}
+              <Ionicons name="people" size={24} color={colors.white} />
             </Pressable>
             {/* Any member can invite — recruiting happens at the beach, not
                 in the admin screen. */}

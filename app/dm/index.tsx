@@ -1,10 +1,12 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { currentUser } from "@/services/auth";
 import { subscribeDmThreads } from "@/services/dmService";
+import { useDmUnreadByThread } from "@/services/unread";
 import type { DmThread } from "@/models/club";
-import { Avatar } from "@/ui/Avatar";
+import { DmThreadRow } from "@/ui/DmThreadRow";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
@@ -12,6 +14,7 @@ export default function DmListScreen() {
   const user = currentUser();
   const [threads, setThreads] = useState<(DmThread & { id: string })[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const unread = useDmUnreadByThread(user?.uid);
 
   useEffect(() => {
     if (!user) return;
@@ -27,44 +30,27 @@ export default function DmListScreen() {
         data={threads}
         keyExtractor={(t) => t.id}
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.xs }}
-        renderItem={({ item }) => {
-          const otherUid = item.participants.find((p) => p !== user?.uid) ?? "";
-          const name = item.participantNames?.[otherUid] ?? "Member";
-          return (
-            <Pressable
-              style={styles.row}
-              onPress={() => router.push(`/dm/${item.id}`)}
-            >
-              <Avatar
-                uri={item.participantAvatars?.[otherUid]}
-                name={name}
-                uid={otherUid}
-                size={44}
-              />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.name} numberOfLines={1}>{name}</Text>
-                <Text style={styles.preview} numberOfLines={1}>
-                  {item.lastMessagePreview ?? "No messages yet"}
-                </Text>
-              </View>
-              {!!item.lastMessageAt && (
-                <Text style={styles.when}>
-                  {new Date(item.lastMessageAt).toLocaleDateString([], {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </Text>
-              )}
-            </Pressable>
-          );
-        }}
+        ListHeaderComponent={
+          <Pressable style={styles.newBtn} onPress={() => router.push("/dm/new" as never)}>
+            <Ionicons name="create-outline" size={18} color={colors.ocean} />
+            <Text style={styles.newText}>New message or group</Text>
+          </Pressable>
+        }
+        renderItem={({ item }) => (
+          <DmThreadRow
+            thread={item}
+            myUid={user?.uid}
+            unread={unread[item.id] ?? 0}
+            onPress={() => router.push(`/dm/${item.id}`)}
+          />
+        )}
         ListEmptyComponent={
           loaded ? (
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyTitle}>No messages yet</Text>
               <Text style={styles.emptyText}>
-                Open a club member&rsquo;s profile from the Members list to start a private
-                conversation.
+                Tap &ldquo;New&rdquo; to message a teammate or start a group chat for your
+                crew.
               </Text>
             </View>
           ) : undefined
@@ -75,17 +61,16 @@ export default function DmListScreen() {
 }
 
 const styles = StyleSheet.create({
-  row: {
+  newBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
+    gap: spacing.sm,
     backgroundColor: colors.white,
     borderRadius: radii.lg,
     padding: spacing.md,
+    marginBottom: spacing.xs,
   },
-  name: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ink },
-  preview: { fontSize: type.size.sm, color: colors.muted, marginTop: 2 },
-  when: { fontSize: type.size.xs, color: colors.muted },
+  newText: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ocean },
   emptyWrap: { padding: spacing.xl, alignItems: "center", gap: spacing.sm },
   emptyTitle: { fontSize: type.size.lg, fontWeight: type.weight.bold, color: colors.ink },
   emptyText: { fontSize: type.size.sm, color: colors.muted, textAlign: "center", lineHeight: 20 },

@@ -75,6 +75,50 @@ export async function openDmThread(otherUid: string): Promise<string> {
   return data.threadId;
 }
 
+// ── Group chats ─────────────────────────────────────────────────────────────
+// Server-side for the same reason as openDmThread: who can be in a group has
+// to be checked (club members only), and rules let clients change nothing on
+// a thread but its preview fields.
+
+export async function createGroupChat(clubId: string, name: string, memberUids: string[]): Promise<string> {
+  const fn = httpsCallable<{ clubId: string; name: string; memberUids: string[] }, { threadId: string }>(
+    functions,
+    "createGroupChat",
+  );
+  const { data } = await fn({ clubId, name, memberUids });
+  return data.threadId;
+}
+
+type GroupAction =
+  | { action: "rename"; name: string }
+  | { action: "add"; memberUids: string[] }
+  | { action: "leave" };
+
+async function updateGroupChat(threadId: string, a: GroupAction): Promise<void> {
+  const fn = httpsCallable<{ threadId: string } & GroupAction, { ok: boolean }>(functions, "updateGroupChat");
+  await fn({ threadId, ...a });
+}
+
+export const renameGroupChat = (threadId: string, name: string) =>
+  updateGroupChat(threadId, { action: "rename", name });
+export const addGroupMembers = (threadId: string, memberUids: string[]) =>
+  updateGroupChat(threadId, { action: "add", memberUids });
+export const leaveGroupChat = (threadId: string) => updateGroupChat(threadId, { action: "leave" });
+
+/** Live thread doc, so renames and new members show up while it's open. */
+export function subscribeDmThread(
+  threadId: string,
+  onUpdate: (t: (DmThread & { id: string }) | null) => void,
+): () => void {
+  // An error here almost always means "you're not in it any more" (left, or
+  // never were) — report that as null rather than throwing at the screen.
+  return onSnapshot(
+    doc(db, "dms", threadId),
+    (snap) => onUpdate(snap.exists() ? { ...(snap.data() as DmThread), id: snap.id } : null),
+    () => onUpdate(null),
+  );
+}
+
 export async function sendDmMessage(
   threadId: string,
   uid: string,

@@ -3,8 +3,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library/legacy";
 import * as Sharing from "expo-sharing";
-import { useLocalSearchParams, useNavigation } from "expo-router";
-import { doc, getDoc } from "firebase/firestore";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -30,12 +29,12 @@ import {
   markDmRead,
   sendDmMessage,
   subscribeDmMessages,
+  subscribeDmThread,
   toggleDmReaction,
   uploadDmMedia,
 } from "@/services/dmService";
 import { setAppBadge } from "@/services/badge";
-import { db } from "@/services/firebase";
-import type { DmMessage, DmThread } from "@/models/club";
+import { dmThreadTitle, type DmMessage, type DmThread } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
 import { LinkifiedText } from "@/ui/LinkifiedText";
 import { formatTime } from "@/ui/format";
@@ -56,6 +55,7 @@ export default function DmThreadScreen() {
   const { threadId } = useLocalSearchParams<{ threadId: string }>();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const router = useRouter();
   const user = currentUser();
 
   const [thread, setThread] = useState<DmThread | null>(null);
@@ -77,22 +77,29 @@ export default function DmThreadScreen() {
   // photo instead of flicking to the next one.
   const [viewerZoomed, setViewerZoomed] = useState(false);
 
+  // Live, so a group's rename or new members show up while it's open.
   useEffect(() => {
     if (!threadId) return;
-    void getDoc(doc(db, "dms", threadId)).then((snap) => {
-      if (snap.exists()) setThread(snap.data() as DmThread);
-    });
+    return subscribeDmThread(threadId, setThread);
   }, [threadId]);
 
-  const otherUid = useMemo(
-    () => thread?.participants.find((p) => p !== user?.uid),
-    [thread, user?.uid],
-  );
-  const otherName = otherUid ? (thread?.participantNames?.[otherUid] ?? "Member") : "";
+  const isGroup = thread?.isGroup === true;
+  const title = useMemo(() => (thread ? dmThreadTitle(thread, user?.uid) : ""), [thread, user?.uid]);
 
   useEffect(() => {
-    if (otherName) navigation.setOptions({ title: otherName });
-  }, [otherName, navigation]);
+    if (!title) return;
+    navigation.setOptions({
+      title,
+      // A group's header opens its info screen (members, add, rename, leave).
+      headerRight: isGroup
+        ? () => (
+            <Pressable onPress={() => router.push(`/dm/group/${threadId}` as never)} hitSlop={8}>
+              <Ionicons name="people-circle-outline" size={26} color={colors.white} />
+            </Pressable>
+          )
+        : undefined,
+    });
+  }, [title, isGroup, navigation, router, threadId]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -319,8 +326,10 @@ export default function DmThreadScreen() {
               myUid={user?.uid}
               uploading={uploadingId === item.id}
               avatarUrl={
-                item.authorId === otherUid ? thread?.participantAvatars?.[item.authorId] : undefined
+                item.authorId !== user?.uid ? thread?.participantAvatars?.[item.authorId] : undefined
               }
+              // In a group several people talk, so say who; a DM doesn't need it.
+              showName={isGroup}
               onLongPress={onRowLongPress}
               onToggleReaction={onToggleReaction}
               onPressImage={onRowPressImage}
@@ -337,7 +346,7 @@ export default function DmThreadScreen() {
         {messages.length === 0 && (
           <View style={styles.emptyOverlay} pointerEvents="none">
             <Text style={styles.emptyText}>
-              No messages yet. Say hi to {otherName || "them"}.
+              No messages yet. Say hi to {isGroup ? "the group" : title || "them"}.
             </Text>
           </View>
         )}
@@ -592,6 +601,7 @@ const Bubble = memo(function Bubble({
   myUid,
   uploading,
   avatarUrl,
+  showName,
   onLongPress,
   onToggleReaction,
   onPressImage,
@@ -601,6 +611,7 @@ const Bubble = memo(function Bubble({
   myUid?: string;
   uploading: boolean;
   avatarUrl?: string;
+  showName?: boolean;
   onLongPress: (m: DmMessage) => void;
   onToggleReaction: (m: DmMessage, emoji: string) => void;
   onPressImage: (urls: string[], index: number) => void;
@@ -621,6 +632,11 @@ const Bubble = memo(function Bubble({
         <Avatar uri={avatarUrl} name={message.authorName} uid={message.authorId} size={28} />
       )}
       <View style={[styles.bubbleWrap, { alignItems: isMe ? "flex-end" : "flex-start" }]}>
+        {showName && !isMe && (
+          <Text style={styles.authorName} numberOfLines={1}>
+            {message.authorName}
+          </Text>
+        )}
         <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
           {photoUrls.length > 0 && (
             <MediaGrid
@@ -741,6 +757,7 @@ const styles = StyleSheet.create({
   // broke words mid-token. alignItems lets the bubble hug its content within
   // the cap instead of stretching to it.
   bubbleWrap: { flexShrink: 1, maxWidth: "80%" },
+  authorName: { fontSize: 11, fontWeight: type.weight.bold, color: colors.muted, marginLeft: spacing.sm, marginBottom: 2 },
   bubble: {
     borderRadius: radii.lg,
     paddingHorizontal: spacing.md,

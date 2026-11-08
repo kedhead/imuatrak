@@ -542,8 +542,16 @@ export interface ChannelPreference {
 // retention sweep, and doesn't count against a club's channel limit.
 
 export interface DmThread {
-  /** Exactly two uids, sorted — see dmThreadId. */
+  /** Two uids (sorted) for a direct message; 3+ for a group chat. */
   participants: string[];
+  /** Group chats only — member-created via createGroupChat. A group is
+   *  private to its participants exactly like a DM: club staff can't read it
+   *  unless they've been added. */
+  isGroup?: boolean;
+  name?: string;
+  /** The club a group was made from; only its members can be added. */
+  clubId?: string;
+  createdBy?: string;
   /** Denormalized so a thread list can render without reading two rosters. */
   participantNames: Record<string, string>;
   participantAvatars?: Record<string, string>;
@@ -1003,3 +1011,20 @@ export const SURVEY_TEMPLATES: readonly SurveyTemplate[] = [
     ],
   },
 ];
+
+/** What to call a thread in lists and headers: a group's name, or the other
+ *  person in a DM. */
+export function dmThreadTitle(t: Pick<DmThread, "isGroup" | "name" | "participants" | "participantNames">, myUid: string | undefined): string {
+  if (t.isGroup) return t.name?.trim() || "Group chat";
+  const other = t.participants.find((p) => p !== myUid);
+  return (other && t.participantNames?.[other]) || "Member";
+}
+
+/** "Kai, Noa and 3 others" — the people in a group besides you. */
+export function groupMemberSummary(t: Pick<DmThread, "participants" | "participantNames">, myUid: string | undefined): string {
+  const names = t.participants
+    .filter((p) => p !== myUid)
+    .map((p) => (t.participantNames?.[p] ?? "Member").split(" ")[0]!);
+  if (names.length <= 3) return names.length === 0 ? "Just you" : names.join(", ").replace(/, ([^,]*)$/, " and $1");
+  return `${names.slice(0, 2).join(", ")} and ${names.length - 2} others`;
+}

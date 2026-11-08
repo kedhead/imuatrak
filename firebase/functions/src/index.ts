@@ -7,6 +7,13 @@ import { setGlobalOptions } from "firebase-functions/v2";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import { chunkPushMessages } from "./pushChunks";
+import {
+  GroupChatInputError,
+  groupPushText,
+  normalizeAddedMembers,
+  normalizeGroupName,
+  normalizeNewGroupMembers,
+} from "./groupChat";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
 initializeApp();
@@ -1630,8 +1637,10 @@ export const onDmMessageCreate = onDocumentCreated(
     const db = getFirestore();
     const threadSnap = await db.doc(`dms/${threadId}`).get();
     if (!threadSnap.exists) return;
-    const participants =
-      (threadSnap.data() as { participants?: string[] } | undefined)?.participants ?? [];
+    const thread = threadSnap.data() as
+      | { participants?: string[]; isGroup?: boolean; name?: string }
+      | undefined;
+    const participants = thread?.participants ?? [];
 
     const recipients = participants.filter((uid) => uid !== message.authorId);
     if (recipients.length === 0) return;
@@ -1669,9 +1678,11 @@ export const onDmMessageCreate = onDocumentCreated(
         [
           {
             to: tokens,
-            // A DM is from a person, not a room — no channel name to qualify it.
-            title: message.authorName,
-            body,
+            // A DM is from a person, so their name is the title. A group is a
+            // room: its name is the title and the sender leads the body.
+            ...(thread?.isGroup && thread.name
+              ? groupPushText(thread.name, message.authorName, body)
+              : { title: message.authorName, body }),
             sound: "default",
             badge: newTotal,
             priority: "high",
@@ -1683,6 +1694,163 @@ export const onDmMessageCreate = onDocumentCreated(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// Group chats — member-created, no admin needed.
+//
+// A group is a dms/{threadId} doc with isGroup: true, a name, the club it was
+// made from, and 3+ participants. It rides the DM rules unchanged: only
+// participants can read or post, and there is NO owner/admin bypass, so club
+// staff see a group only if someone adds them. Membership changes go through
+// these callables (rules let clients touch only the preview fields), which is
+// where "everyone in the group is really in the club" is enforced.
+// ---------------------------------------------------------------------------
+
+function groupInputError(e: unknown): never {
+  if (e instanceof GroupChatInputError) throw new HttpsError("invalid-argument", e.message);
+  throw e;
+}
+
+/** Roster names/avatars for uids, all of whom must be in the club. */
+async function rosterFor(
+  db: FirebaseFirestore.Firestore,
+  clubId: string,
+  uids: string[],
+): Promise<{ names: Record<string, string>; avatars: Record<string, string> }> {
+  const snaps = await db.getAll(...uids.map((u) => db.doc(`clubs/${clubId}/members/${u}`)));
+  const names: Record<string, string> = {};
+  const avatars: Record<string, string> = {};
+  snaps.forEach((snap, i) => {
+    if (!snap.exists) {
+      throw new HttpsError("permission-denied", "You can only add people from your club");
+    }
+    const d = snap.data() as { displayName?: string; avatarUrl?: string };
+    names[uids[i]!] = d.displayName ?? "Member";
+    if (d.avatarUrl) avatars[uids[i]!] = d.avatarUrl;
+  });
+  return { names, avatars };
+}
+
+export const createGroupChat = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+  const { clubId, name, memberUids } = request.data ?? {};
+  if (typeof clubId !== "string" || !clubId) {
+    throw new HttpsError("invalid-argument", "clubId is required");
+  }
+
+  let groupName: string;
+  let others: string[];
+  try {
+    groupName = normalizeGroupName(name);
+    others = normalizeNewGroupMembers(uid, memberUids);
+  } catch (e) {
+    groupInputError(e);
+  }
+
+  const db = getFirestore();
+  // Caller included, so a non-member can't make groups out of a club.
+  // Checked before the plan, so an outsider learns nothing about the club.
+  const participants = [uid, ...others];
+  const { names, avatars } = await rosterFor(db, clubId, participants);
+
+  // Group chats are a club-plan feature. Only CREATING is gated: a group made
+  // while the club was on a plan keeps working if the plan lapses, so nobody
+  // loses a conversation mid-season (updateGroupChat isn't gated).
+  const club = (await db.doc(`clubs/${clubId}`).get()).data() as
+    | { subscriptionStatus?: string; trialEndsAt?: string }
+    | undefined;
+  if (!clubIsPaidOrTrialing(club)) {
+    throw new HttpsError("permission-denied", "Group chats are part of the club plan");
+  }
+
+  const ref = db.collection("dms").doc();
+  await ref.set({
+    isGroup: true,
+    name: groupName,
+    clubId,
+    createdBy: uid,
+    participants,
+    participantNames: names,
+    ...(Object.keys(avatars).length > 0 ? { participantAvatars: avatars } : {}),
+    createdAt: new Date().toISOString(),
+  });
+  return { threadId: ref.id };
+});
+
+export const updateGroupChat = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+  const { threadId, action, name, memberUids } = request.data ?? {};
+  if (typeof threadId !== "string" || !threadId) {
+    throw new HttpsError("invalid-argument", "threadId is required");
+  }
+
+  const db = getFirestore();
+  const ref = db.doc(`dms/${threadId}`);
+  const snap = await ref.get();
+  const thread = snap.data() as
+    | { isGroup?: boolean; clubId?: string; participants?: string[] }
+    | undefined;
+  if (!snap.exists || !thread?.isGroup) throw new HttpsError("not-found", "Group not found");
+  const participants = thread.participants ?? [];
+  if (!participants.includes(uid)) {
+    throw new HttpsError("permission-denied", "You're not in this group");
+  }
+
+  if (action === "rename") {
+    let groupName: string;
+    try {
+      groupName = normalizeGroupName(name);
+    } catch (e) {
+      groupInputError(e);
+    }
+    await ref.update({ name: groupName });
+    return { ok: true };
+  }
+
+  if (action === "add") {
+    let toAdd: string[];
+    try {
+      toAdd = normalizeAddedMembers(participants, memberUids);
+    } catch (e) {
+      groupInputError(e);
+    }
+    if (!thread.clubId) throw new HttpsError("failed-precondition", "Group has no club");
+    const { names, avatars } = await rosterFor(db, thread.clubId, toAdd);
+    const update: Record<string, unknown> = { participants: FieldValue.arrayUnion(...toAdd) };
+    for (const u of toAdd) {
+      update[`participantNames.${u}`] = names[u];
+      if (avatars[u]) update[`participantAvatars.${u}`] = avatars[u];
+    }
+    await ref.update(update);
+    return { ok: true };
+  }
+
+  if (action === "leave") {
+    // Take what they had unread off their app badge, or it would stay lit
+    // for a conversation they can no longer open.
+    const prefRef = db.doc(`users/${uid}/dmThreads/${threadId}`);
+    const userRef = db.doc(`users/${uid}`);
+    await db.runTransaction(async (tx) => {
+      const [prefSnap, userSnap] = await Promise.all([tx.get(prefRef), tx.get(userRef)]);
+      const unread = (prefSnap.data()?.unreadCount as number | undefined) ?? 0;
+      const total = (userSnap.data()?.unreadTotal as number | undefined) ?? 0;
+      if (unread > 0) tx.set(userRef, { unreadTotal: Math.max(0, total - unread) }, { merge: true });
+      tx.delete(prefRef);
+      tx.update(ref, {
+        participants: FieldValue.arrayRemove(uid),
+        [`participantNames.${uid}`]: FieldValue.delete(),
+        [`participantAvatars.${uid}`]: FieldValue.delete(),
+      });
+    });
+    // Last one out: nobody can read it any more, so don't keep paying for it.
+    if (participants.length <= 1) await db.recursiveDelete(ref);
+    return { ok: true };
+  }
+
+  throw new HttpsError("invalid-argument", "Unknown action");
+});
 
 // ---------------------------------------------------------------------------
 // openDmThread — find or create the direct-message thread for two users.
