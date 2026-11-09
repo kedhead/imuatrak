@@ -88,12 +88,13 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // no device has, and an update would reach nobody. And do not retarget an
 // update at 1.0.6 or earlier from this code — it imports a native module
 // those builds lack.
-const IOS_RUNTIME_VERSION = "1.0.7";
-// 1.0.8 is an ANDROID-ONLY native build: it turns on R8 code shrinking (Play
-// Console flags the app for DEX obfuscation below 25%, fix-by Feb 2027). iOS
-// has no native change and stays on 1.0.7. Until 1.0.8 is rolled out to
-// Android production, Android OTAs from this code target a build Android
+// 1.0.8 ships to BOTH stores from one commit, so the two platforms stay on the
+// same runtime and an OTA can't reach one and miss the other. The native
+// change is Android's (R8 code shrinking — Play flags DEX obfuscation below
+// 25%, fix-by Feb 2027); iOS rebuilds alongside it to stay in step.
+// Until 1.0.8 is live on BOTH stores, OTAs from this code target a build some
 // users don't have yet — see docs/backlog.md → "Enable R8" for the rollout.
+const IOS_RUNTIME_VERSION = "1.0.8";
 const ANDROID_RUNTIME_VERSION = "1.0.8";
 
 /** @type {import('expo/config').ExpoConfig} */
