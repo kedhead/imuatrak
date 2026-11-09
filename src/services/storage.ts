@@ -51,6 +51,18 @@ export async function markSynced(id: string): Promise<void> {
   await FileSystem.writeAsStringAsync(syncIndexUri(), JSON.stringify(index));
 }
 
+/**
+ * Rewrite just a stored session's metadata (session.json), leaving the track
+ * and GPX alone — e.g. to stamp the owner onto a session that arrived without
+ * one. No-op if the session isn't stored on this device.
+ */
+export async function updateStoredSession(session: Session): Promise<void> {
+  const file = `${getRoot()}${session.id}/session.json`;
+  const info = await FileSystem.getInfoAsync(file);
+  if (!info.exists) return;
+  await FileSystem.writeAsStringAsync(file, JSON.stringify(session));
+}
+
 export async function save(session: Session, track: TrackPoint[]): Promise<void> {
   const root = await ensureRoot();
   const dir = `${root}${session.id}/`;
