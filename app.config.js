@@ -88,10 +88,14 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // no device has, and an update would reach nobody. And do not retarget an
 // update at 1.0.6 or earlier from this code — it imports a native module
 // those builds lack.
-const IOS_RUNTIME_VERSION = "1.0.7";
-// Both platforms ship from this commit; heart-rate straps are a feature of
-// both phone apps.
-const ANDROID_RUNTIME_VERSION = "1.0.7";
+// 1.0.8 ships to BOTH stores from one commit, so the two platforms stay on the
+// same runtime and an OTA can't reach one and miss the other. The native
+// change is Android's (R8 code shrinking — Play flags DEX obfuscation below
+// 25%, fix-by Feb 2027); iOS rebuilds alongside it to stay in step.
+// Until 1.0.8 is live on BOTH stores, OTAs from this code target a build some
+// users don't have yet — see docs/backlog.md → "Enable R8" for the rollout.
+const IOS_RUNTIME_VERSION = "1.0.8";
+const ANDROID_RUNTIME_VERSION = "1.0.8";
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
@@ -118,7 +122,7 @@ const config = {
   // number you land on, in the same commit.
   //
   // See the runtime comment above for what 1.0.7 carries and why.
-  version: "1.0.7",
+  version: "1.0.8",
   orientation: "portrait",
   icon: "./assets/icon.png",
   // Every screen is styled with hardcoded light colors — there is no dark
@@ -379,15 +383,23 @@ const config = {
           // stops this from recurring on every RN upgrade.
           targetSdkVersion: 36,
           minSdkVersion: 26,
-          // R8 shrinking is held OFF on purpose. Expo SDK 58's template turns
-          // it ON by default (SDK 56's had it off), so without this line the
-          // SDK upgrade would silently ship R8 too. R8 strips and renames
-          // native code and breaks reflection-based libraries that lack keep
-          // rules (Firebase, RevenueCat, AdMob, Google Sign-In, Maps, BLE), and
-          // the only proof it's safe is an internal-testing build exercised by
-          // hand — see "Enable R8" in docs/backlog.md. Flip to true as the
-          // first change of a cycle, not as a side effect of something else.
-          enableMinifyInReleaseBuilds: false,
+          // R8 code shrinking + obfuscation, ON as of 1.0.8. Play Console
+          // flagged DEX obfuscation at 1% (needs 25%+, fix-by Feb 2027).
+          // R8 strips and renames native code, which breaks reflection-based
+          // libraries without keep rules. The libraries here ship their own
+          // consumer rules (React Native, Expo modules, RevenueCat, AdMob,
+          // Google Sign-In, Maps, expo-notifications); the app uses the
+          // Firebase JS SDK, so there is no native Firebase to protect.
+          // MUST go through closed testing and the smoke test in
+          // docs/backlog.md before production. A crash there = a missing
+          // keep rule below.
+          enableMinifyInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+          // react-native-ble-manager (heart-rate straps) ships no ProGuard
+          // rules. Its own reflection only targets Android framework classes,
+          // which R8 doesn't rename, but keep it whole so the strap path
+          // can't be the thing that breaks.
+          extraProguardRules: "-keep class it.innove.** { *; }",
         },
       },
     ],

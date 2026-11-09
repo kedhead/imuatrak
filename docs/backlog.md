@@ -8,7 +8,37 @@ right build/deploy window comes up.
 
 ## Enable R8 (Android code shrinking) — first change of the 1.0.8 cycle
 
-**Status:** deferred from 1.0.4, 1.0.5, 1.0.6 and 1.0.7. Play Console flags the
+**Status (2026-11-09): IN PROGRESS as Android 1.0.8.** Play Console now gives a
+deadline: "DEX code optimization is below our threshold — Obfuscation (1%)",
+fix by **Feb 2027**, or visibility and publishing on Google Play may be
+affected. The config change below is made (with
+`extraProguardRules: "-keep class it.innove.** { *; }"` for
+react-native-ble-manager, which ships no rules). `version` and BOTH runtime
+constants are 1.0.8: iOS has no native change of its own, but ships 1.0.8
+alongside Android so the platforms stay on one runtime and an OTA can't reach
+one store and miss the other.
+
+### Rollout
+
+1. Build both: `npm run build:android` and `npm run build:ios` (or Actions →
+   EAS Build, profile `production`, platform `all`).
+2. Submit: `npm run submit:android` (closed testing, track `alpha`) and
+   `npm run submit:ios` (TestFlight, then the App Store review).
+3. Smoke-test the **closed-testing** build on a real Android phone (list
+   below). A crash or a dead feature = a missing `-keep` rule: read the stack
+   trace in Play Console → Android vitals (it's deobfuscated once EAS uploads
+   the mapping file) and add the rule to `extraProguardRules`.
+   iOS has no native change, so a quick TestFlight launch-and-record check is
+   enough there.
+4. Promote Android to production and release iOS 1.0.8 on the App Store.
+5. Only then publish OTAs again: until 1.0.8 is what users on BOTH stores
+   have, an update built from this code targets runtime 1.0.8 and phones still
+   on 1.0.7 won't receive it. `npm run check:ota` compares against the newest
+   production build per platform, so it goes green as soon as both 1.0.8
+   builds exist; wait for the store releases, not just the check.
+6. Check the Play Console warning clears on the 1.0.8 release.
+
+Previously deferred from 1.0.4, 1.0.5, 1.0.6 and 1.0.7. Play Console flags the
 app as not optimized:
 https://developer.android.com/topic/performance/app-optimization/enable-app-optimization
 
@@ -46,7 +76,9 @@ the win is real but modest — not worth risking a release on.
 Do it as the FIRST change of a cycle, promote to **internal testing** (never
 straight to production), and smoke-test: Google + Apple sign-in, a subscription
 purchase, chat photo/video upload, the invite QR scanner, the map on a saved
-paddle, and push notifications. A failure there is a missing `-keep` rule, added
+paddle, push notifications (Settings → Notifications should say "On"), a
+Bluetooth heart-rate strap, an AdMob banner on a free account, and
+recording a paddle with the screen locked. A failure there is a missing `-keep` rule, added
 via `expo-build-properties`' `extraProguardRules`.
 
 ---
