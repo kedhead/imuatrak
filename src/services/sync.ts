@@ -1,9 +1,21 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { deleteDoc, doc, setDoc } from "firebase/firestore";
 import { deleteObject, ref, uploadBytes } from "firebase/storage";
-import type { Session } from "@/models";
+import { canActOnSession, isUnownedSession, type Session } from "@/models";
 import { auth, db, storage } from "./firebase";
-import { gpxUriFor, markSynced, remove as removeLocal } from "./storage";
+import { gpxUriFor, markSynced, remove as removeLocal, updateStoredSession } from "./storage";
+
+/**
+ * Give an owner-less session (watch transfer, or recorded before sign-in) to
+ * the signed-in user on this device, so the local copy stops carrying "" or
+ * "anonymous" — which made Share publicly fail with "not your session".
+ */
+async function stampLocalOwner(session: Session, uid: string): Promise<Session> {
+  if (!isUnownedSession(session)) return session;
+  const owned = { ...session, userId: uid };
+  await updateStoredSession(owned).catch(() => undefined);
+  return owned;
+}
 
 /**
  * Upload a finished session document and its GPX track. Idempotent — safe
@@ -23,6 +35,9 @@ export async function syncSession(session: Session): Promise<void> {
   // The session is durably in Firestore — record that so sign-in re-sync
   // skips it. The GPX upload below stays best-effort and doesn't gate this.
   await markSynced(session.id).catch(() => undefined);
+  // Watch sessions arrive with userId "" and the cloud copy above now has
+  // the real uid; bring the copy on this phone in line too.
+  await stampLocalOwner(session, user.uid);
 
   try {
     const path = `users/${user.uid}/tracks/${session.id}.gpx`;
@@ -71,16 +86,21 @@ export async function deleteSession(session: Session): Promise<void> {
 export async function setSessionPublic(session: Session, isPublic: boolean): Promise<void> {
   const user = auth.currentUser;
   if (!user) throw new Error("not signed in");
-  if (session.userId !== user.uid) throw new Error("not your session");
+  // An owner-less session on this phone is the signed-in user's (see
+  // isUnownedSession). Only one stamped with a different account is refused.
+  if (!canActOnSession(session, user.uid)) throw new Error("not your session");
+  const owned = await stampLocalOwner(session, user.uid);
 
-  // Update the private source-of-truth doc
+  // Update the private source-of-truth doc. userId is always the real uid:
+  // writing the local "" back would also be refused by the rules, which
+  // forbid changing a session's userId.
   const privateRef = doc(db, "users", user.uid, "sessions", session.id);
-  await setDoc(privateRef, { ...session, isPublic }, { merge: true });
+  await setDoc(privateRef, { ...owned, userId: user.uid, isPublic }, { merge: true });
 
   // Write or remove the public copy
   const publicRef = doc(db, "publicSessions", session.id);
   if (isPublic) {
-    await setDoc(publicRef, { ...session, userId: user.uid, isPublic: true });
+    await setDoc(publicRef, { ...owned, userId: user.uid, isPublic: true });
   } else {
     await deleteDoc(publicRef).catch(() => undefined);
   }

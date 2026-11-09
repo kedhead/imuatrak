@@ -152,3 +152,19 @@ export const emptyTotals = (): Totals => ({
 });
 
 export const emptyHr = (): HrSummary => ({ avg: 0, max: 0, zones: [] });
+
+/**
+ * Sessions can arrive on this phone without an owner: the Apple Watch sends
+ * `userId: ""` (the phone is meant to fill it in), and a recording started
+ * before sign-in finished, or while exploring signed out, is stamped
+ * "anonymous". Those belong to whoever is signed in on this device. A session
+ * stamped with a DIFFERENT real uid does not.
+ */
+export function isUnownedSession(s: Pick<Session, "userId">): boolean {
+  return !s.userId || s.userId === "anonymous";
+}
+
+/** May `uid` act on this locally stored session (share it, sync it)? */
+export function canActOnSession(s: Pick<Session, "userId">, uid: string): boolean {
+  return s.userId === uid || isUnownedSession(s);
+}
