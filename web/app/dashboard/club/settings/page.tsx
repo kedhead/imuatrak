@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { countExpiringMessages, getUserClub, updateClub, uploadClubLogo } from "@/lib/firebase";
 import { deleteField } from "firebase/firestore";
-import { CHAT_RETENTION_OPTIONS, type Club, type MemberRole } from "@/lib/clubTypes";
+import { CHAT_RETENTION_OPTIONS, OWNER_BADGE_OPTIONS, type Club, type MemberRole, type OwnerBadge } from "@/lib/clubTypes";
 
 export default function ClubSettingsPage() {
   const { user, loading } = useAuth();
@@ -20,6 +20,7 @@ export default function ClubSettingsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [retentionDays, setRetentionDays] = useState(0);
+  const [ownerBadge, setOwnerBadge] = useState<OwnerBadge>("owner");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,6 +38,7 @@ export default function ClubSettingsPage() {
       setWebsiteUrl(ctx.club.websiteUrl ?? "");
       setLogoUrl(ctx.club.logoUrl ?? "");
       setRetentionDays(ctx.club.chatRetentionDays ?? 0);
+      setOwnerBadge(ctx.club.ownerBadge ?? "owner");
     });
   }, [user]);
 
@@ -90,8 +92,14 @@ export default function ClubSettingsPage() {
         websiteUrl: websiteUrl.trim() || undefined,
         logoUrl: finalLogoUrl || undefined,
         chatRetentionDays: retentionDays > 0 ? retentionDays : deleteField(),
+        // Owner-only control; admins saving other settings leave it alone.
+        ...(myRole === "owner" ? { ownerBadge: ownerBadge === "owner" ? deleteField() : ownerBadge } : {}),
       });
-      setClub({ ...club, chatRetentionDays: retentionDays > 0 ? retentionDays : undefined });
+      setClub({
+        ...club,
+        chatRetentionDays: retentionDays > 0 ? retentionDays : undefined,
+        ...(myRole === "owner" ? { ownerBadge: ownerBadge === "owner" ? undefined : ownerBadge } : {}),
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } finally {
@@ -251,6 +259,40 @@ export default function ClubSettingsPage() {
                 : `Messages older than ${retentionDays} days are deleted nightly, along with their photos. Pinned messages are always kept.`}
             </p>
           </div>
+
+          {myRole === "owner" && (
+            <div>
+              <label style={labelStyle}>Show me as</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {OWNER_BADGE_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => setOwnerBadge(o.value)}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: 999,
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      border: ownerBadge === o.value ? "1px solid var(--blue-bright)" : "1px solid var(--line)",
+                      background: ownerBadge === o.value ? "var(--blue-bright)" : "transparent",
+                      color: ownerBadge === o.value ? "#fff" : "inherit",
+                    }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
+                {ownerBadge === "owner"
+                  ? "Members see an OWNER badge on your messages and in the roster."
+                  : ownerBadge === "admin"
+                    ? "You'll appear as an admin. You keep full owner control; only the label changes."
+                    : "You'll appear like any other member, with no badge. You keep full owner control."}
+              </p>
+            </div>
+          )}
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button type="submit" disabled={saving}

@@ -21,6 +21,8 @@ export interface Club {
   memberCount: number;
   /** Delete chat older than this many days. Absent or 0 keeps everything. */
   chatRetentionDays?: number;
+  /** How the owner appears (chat badge, roster). Display only; absent = "owner". */
+  ownerBadge?: OwnerBadge;
   createdAt: string;
 }
 
@@ -194,4 +196,23 @@ export interface DmMessage {
   reactions?: Record<string, string[]>;
   replyTo?: { messageId: string; authorName: string; preview: string };
   createdAt: string;
+}
+
+// ── Owner badge ──────────────────────────────────────────────────────────────
+// Mirrored from src/models/club.ts.
+
+export type OwnerBadge = "owner" | "admin" | "none";
+
+export const OWNER_BADGE_OPTIONS: { value: OwnerBadge; label: string }[] = [
+  { value: "owner", label: "Owner" },
+  { value: "admin", label: "Admin" },
+  { value: "none", label: "No badge" },
+];
+
+/** The role to SHOW for someone, honouring the club's ownerBadge. Never use for permissions. */
+export function displayRole(role: MemberRole, club: { ownerBadge?: OwnerBadge } | null | undefined): MemberRole {
+  if (role !== "owner") return role;
+  if (club?.ownerBadge === "admin") return "admin";
+  if (club?.ownerBadge === "none") return "member";
+  return "owner";
 }

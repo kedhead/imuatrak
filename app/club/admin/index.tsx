@@ -21,7 +21,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "@/services/firebase";
 import { useClub } from "@/services/clubStore";
 import { updateClub, leaveClub, countExpiringMessages, startClubTrial } from "@/services/clubService";
-import { CHAT_RETENTION_OPTIONS } from "@/models/club";
+import { CHAT_RETENTION_OPTIONS, OWNER_BADGE_OPTIONS, type OwnerBadge } from "@/models/club";
 import { currentUser } from "@/services/auth";
 import { colors, spacing, radii } from "@/ui/theme";
 
@@ -40,6 +40,7 @@ export default function ClubAdminScreen() {
   const [logoUrl, setLogoUrl] = useState(club?.logoUrl ?? "");
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [retentionDays, setRetentionDays] = useState(club?.chatRetentionDays ?? 0);
+  const [ownerBadge, setOwnerBadge] = useState<OwnerBadge>(club?.ownerBadge ?? "owner");
   const [saving, setSaving] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [migrated, setMigrated] = useState(false);
@@ -156,6 +157,10 @@ export default function ClubAdminScreen() {
         websiteUrl: trimmedWebsite ? trimmedWebsite : deleteField(),
         logoUrl: logoUrl ? logoUrl : deleteField(),
         chatRetentionDays: retentionDays > 0 ? retentionDays : deleteField(),
+        // Only the owner sees this control; leave the field alone otherwise.
+        ...(role === "owner"
+          ? { ownerBadge: ownerBadge === "owner" ? deleteField() : ownerBadge }
+          : {}),
       };
       await updateClub(club.id, updates);
       setClub(
@@ -164,6 +169,7 @@ export default function ClubAdminScreen() {
           websiteUrl: trimmedWebsite || undefined,
           logoUrl: logoUrl || undefined,
           chatRetentionDays: retentionDays > 0 ? retentionDays : undefined,
+          ownerBadge: role === "owner" ? (ownerBadge === "owner" ? undefined : ownerBadge) : club.ownerBadge,
         },
         role!,
       );
@@ -409,6 +415,32 @@ export default function ClubAdminScreen() {
             ? "Chat messages are kept indefinitely."
             : `Messages older than ${retentionDays} days are deleted nightly, along with their photos. Pinned messages are always kept.`}
         </Text>
+
+        {role === "owner" && (
+          <>
+            <Text style={styles.sectionLabel}>SHOW ME AS</Text>
+            <View style={styles.retentionRow}>
+              {OWNER_BADGE_OPTIONS.map((o) => (
+                <Pressable
+                  key={o.value}
+                  style={[styles.retentionPill, ownerBadge === o.value && styles.retentionPillOn]}
+                  onPress={() => setOwnerBadge(o.value)}
+                >
+                  <Text style={[styles.retentionPillText, ownerBadge === o.value && styles.retentionPillTextOn]}>
+                    {o.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.retentionHint}>
+              {ownerBadge === "owner"
+                ? "Members see an OWNER badge on your messages and profile."
+                : ownerBadge === "admin"
+                  ? "You'll appear as an admin. You keep full owner control; only the label changes."
+                  : "You'll appear like any other member, with no badge. You keep full owner control."}
+            </Text>
+          </>
+        )}
 
         <Pressable style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}

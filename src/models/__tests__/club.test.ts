@@ -1,4 +1,5 @@
 import {
+  displayRole,
   canAddChannel,
   clubGrantsAdFree,
   eventGoingCount,
@@ -133,5 +134,19 @@ describe("canAddChannel", () => {
   it("treats no club as free", () => {
     expect(canAddChannel(null, 0, now)).toBe(true);
     expect(canAddChannel(undefined, 1, now)).toBe(false);
+  });
+});
+
+describe("displayRole", () => {
+  it("shows the owner as chosen, and never changes anyone else", () => {
+    expect(displayRole("owner", undefined)).toBe("owner");
+    expect(displayRole("owner", {})).toBe("owner");
+    expect(displayRole("owner", { ownerBadge: "owner" })).toBe("owner");
+    expect(displayRole("owner", { ownerBadge: "admin" })).toBe("admin");
+    expect(displayRole("owner", { ownerBadge: "none" })).toBe("member");
+    for (const r of ["admin", "coach", "member"] as const) {
+      expect(displayRole(r, { ownerBadge: "none" })).toBe(r);
+      expect(displayRole(r, { ownerBadge: "admin" })).toBe(r);
+    }
   });
 });
