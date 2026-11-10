@@ -5,6 +5,7 @@ import { ActivityIndicator, SectionList, StyleSheet, Text, View } from "react-na
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { currentUser } from "@/services/auth";
 import { useClub } from "@/services/clubStore";
+import { readCache, writeCache } from "@/services/localCache";
 import { getUpcomingEvents, getPastEvents } from "@/services/clubService";
 import { eventGoingCount, type ClubEvent } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
@@ -30,12 +31,38 @@ export default function EventsScreen() {
   const [loading, setLoading] = useState(true);
 
   const clubId = club?.id;
+  const uid = currentUser()?.uid;
   useEffect(() => {
     if (!clubId) return;
+    let cancelled = false;
+    let fresh = false;
+    const cacheName = `events:${clubId}`;
+    // Last-known list first so the screen isn't a spinner; the fetch replaces it.
+    if (uid) {
+      void readCache<{ upcoming: ClubEvent[]; past: ClubEvent[] }>(uid, cacheName).then((c) => {
+        if (cancelled || fresh || !c) return;
+        setUpcoming(c.upcoming);
+        setPast(c.past);
+        setLoading(false);
+      });
+    }
     Promise.all([getUpcomingEvents(clubId, 20), getPastEvents(clubId, 20)])
-      .then(([u, p]) => { setUpcoming(u); setPast(p); })
-      .finally(() => setLoading(false));
-  }, [clubId]);
+      .then(([u, p]) => {
+        if (cancelled) return;
+        fresh = true;
+        setUpcoming(u);
+        setPast(p);
+        if (uid) writeCache(uid, cacheName, { upcoming: u, past: p });
+      })
+      // Offline: keep whatever the cache showed.
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clubId, uid]);
 
   const isAdmin = role === "owner" || role === "admin" || role === "coach";
 
