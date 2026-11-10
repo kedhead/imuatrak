@@ -65,7 +65,9 @@ export default function NavBar() {
   return (
     <nav className="navbar">
       <Link href="/" className="navbar-logo">
-        ImuaTrak
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-mark.png" alt="" width={30} height={30} className="navbar-mark" />
+        <span>ImuaTrak</span>
       </Link>
 
       <div className="navbar-links">
@@ -102,7 +104,7 @@ export default function NavBar() {
                 >
                   Messages
                   {dmUnread > 0 && (
-                    <span style={{ marginLeft: 6, background: "var(--blue-bright)", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 800, padding: "1px 6px" }}>
+                    <span style={{ marginLeft: 6, background: "var(--coral)", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 800, padding: "1px 6px" }}>
                       {dmUnread > 9 ? "9+" : dmUnread}
                     </span>
                   )}
@@ -130,9 +132,19 @@ export default function NavBar() {
                 )}
               </>
             ) : (
-              <Link href="/login" className="btn" style={{ fontSize: 14, padding: "8px 18px" }}>
-                Sign in
-              </Link>
+              <>
+                {pathname === "/" && (
+                  <>
+                    <a href="#track" className="navbar-link navbar-section">Features</a>
+                    <a href="#clubs" className="navbar-link navbar-section">Clubs</a>
+                    <a href="#plans" className="navbar-link navbar-section">Plans</a>
+                    <a href="#faq" className="navbar-link navbar-section">FAQ</a>
+                  </>
+                )}
+                <Link href="/login" className="btn" style={{ fontSize: 14, padding: "8px 18px" }}>
+                  Sign in
+                </Link>
+              </>
             )}
           </>
         )}

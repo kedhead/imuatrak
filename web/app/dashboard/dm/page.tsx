@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/lib/auth";
@@ -13,7 +13,7 @@ import {
   subscribeDmUnread,
   toggleDmReaction,
 } from "@/lib/firebase";
-import type { DmMessage, DmThread } from "@/lib/clubTypes";
+import { dmThreadTitle, groupMemberSummary, type DmMessage, type DmThread } from "@/lib/clubTypes";
 
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
@@ -70,11 +70,8 @@ export default function DmPage() {
   }, [messages.length, activeId]);
 
   const activeThread = threads.find((t) => t.id === activeId) ?? null;
-  const otherUid = useMemo(
-    () => activeThread?.participants.find((p) => p !== user?.uid) ?? "",
-    [activeThread, user?.uid],
-  );
-  const otherName = activeThread?.participantNames?.[otherUid] ?? "Member";
+  const isGroup = !!activeThread?.isGroup;
+  const title = activeThread ? dmThreadTitle(activeThread, user?.uid) : "";
 
   const onSend = async () => {
     const content = text.trim();
@@ -148,12 +145,12 @@ export default function DmPage() {
           </p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 260px) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
+        <div className="dm-grid">
           {/* Thread list */}
           <div className="card" style={{ padding: 8, position: "sticky", top: 16 }}>
             {threads.map((t) => {
-              const uid = t.participants.find((p) => p !== user.uid) ?? "";
-              const name = t.participantNames?.[uid] ?? "Member";
+              const uid = t.isGroup ? "" : (t.participants.find((p) => p !== user.uid) ?? "");
+              const name = dmThreadTitle(t, user.uid);
               const count = unread[t.id] ?? 0;
               return (
                 <button
@@ -174,17 +171,19 @@ export default function DmPage() {
                     color: "inherit",
                   }}
                 >
-                  <Avatar uri={t.participantAvatars?.[uid]} name={name} uid={uid} size={36} />
+                  {t.isGroup ? <GroupAvatar size={36} /> : (
+                    <Avatar uri={t.participantAvatars?.[uid]} name={name} uid={uid} size={36} />
+                  )}
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: "block", fontWeight: count > 0 ? 800 : 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {name}
                     </span>
                     <span style={{ display: "block", fontSize: 12, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {t.lastMessagePreview ?? "No messages yet"}
+                      {t.lastMessagePreview || (t.isGroup ? groupMemberSummary(t, user.uid) : "No messages yet")}
                     </span>
                   </span>
                   {count > 0 && (
-                    <span style={{ background: "var(--blue-bright)", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 800, padding: "1px 6px" }}>
+                    <span style={{ background: "var(--coral)", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 800, padding: "1px 6px" }}>
                       {count > 9 ? "9+" : count}
                     </span>
                   )}
@@ -195,14 +194,19 @@ export default function DmPage() {
 
           {/* Conversation */}
           <div className="card" style={{ display: "flex", flexDirection: "column", height: "70vh", padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)", fontWeight: 700 }}>
-              {activeThread ? otherName : "Select a conversation"}
+            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
+              <div style={{ fontWeight: 700 }}>{activeThread ? title : "Select a conversation"}</div>
+              {activeThread && isGroup && (
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                  {activeThread.participants.length} people · {groupMemberSummary(activeThread, user.uid)} · only members can see this
+                </div>
+              )}
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 6 }}>
               {activeThread && messages.length === 0 && (
                 <p style={{ color: "var(--muted)", textAlign: "center", marginTop: 24 }}>
-                  No messages yet. Say hi to {otherName}.
+                  No messages yet. Say hi{isGroup ? "" : ` to ${title}`}.
                 </p>
               )}
               {messages.map((m) => (
@@ -211,9 +215,8 @@ export default function DmPage() {
                   message={m}
                   isMe={m.authorId === user.uid}
                   myUid={user.uid}
-                  avatarUrl={
-                    m.authorId === otherUid ? activeThread?.participantAvatars?.[m.authorId] : undefined
-                  }
+                  avatarUrl={activeThread?.participantAvatars?.[m.authorId]}
+                  showName={isGroup}
                   onToggleReaction={(emoji) => onToggleReaction(m, emoji)}
                   onDelete={() => onDelete(m)}
                 />
@@ -233,7 +236,7 @@ export default function DmPage() {
                       void onSend();
                     }
                   }}
-                  placeholder={`Message ${otherName}…`}
+                  placeholder={`Message ${title}…`}
                   rows={1}
                   maxLength={1000}
                   style={{
@@ -284,11 +287,34 @@ const linkBtn: React.CSSProperties = {
   padding: 0,
 };
 
+function GroupAvatar({ size }: { size: number }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        flexShrink: 0,
+        display: "grid",
+        placeItems: "center",
+        background: "#2E86C1",
+        color: "#fff",
+      }}
+    >
+      <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4zm8 0c-.3 0-.7 0-1.1.1 1.3.9 2.1 2.2 2.1 3.9v2h7v-2c0-2.7-5.3-4-8-4z" />
+      </svg>
+    </span>
+  );
+}
+
 function MessageRow({
   message,
   isMe,
   myUid,
   avatarUrl,
+  showName,
   onToggleReaction,
   onDelete,
 }: {
@@ -296,6 +322,8 @@ function MessageRow({
   isMe: boolean;
   myUid: string;
   avatarUrl?: string;
+  /** Group chats: label whose message it is. */
+  showName?: boolean;
   onToggleReaction: (emoji: string) => void;
   onDelete: () => void;
 }) {
@@ -317,6 +345,11 @@ function MessageRow({
         <Avatar uri={avatarUrl} name={message.authorName} uid={message.authorId} size={28} />
       )}
       <div style={{ maxWidth: "78%", minWidth: 0, position: "relative" }}>
+        {showName && !isMe && (
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", margin: "0 0 2px 4px" }}>
+            {message.authorName}
+          </div>
+        )}
         <div
           style={{
             borderRadius: 14,
