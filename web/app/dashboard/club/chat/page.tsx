@@ -29,12 +29,16 @@ import type { Club, ClubChannel, ClubMember, ClubMessage, MemberRole } from "@/l
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
 // Matches the app's chat roles: members stay unstyled so the feed reads clean.
-const ROLE_META: Record<MemberRole, { label: string; color: string; bubbleBg: string } | null> = {
-  owner: { label: "OWNER", color: "#FFC24B", bubbleBg: "#FFF7E6" },
-  admin: { label: "ADMIN", color: "#FF6B5E", bubbleBg: "#FFF0EE" },
-  coach: { label: "COACH", color: "#1FB6A6", bubbleBg: "#E9F9F6" },
+// The bubble is a tint of the role colour over the theme's card colour, so the
+// text (which inherits the theme's ink) stays readable in light AND dark mode;
+// fixed pastel backgrounds turned staff messages white-on-pink in dark mode.
+const ROLE_META: Record<MemberRole, { label: string; color: string } | null> = {
+  owner: { label: "OWNER", color: "#FFC24B" },
+  admin: { label: "ADMIN", color: "#FF6B5E" },
+  coach: { label: "COACH", color: "#1FB6A6" },
   member: null,
 };
+const roleBubbleBg = (color: string) => `color-mix(in srgb, ${color} 16%, var(--card))`;
 
 const IMAGE_LINK = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp)(?:\?\S*)?/gi;
 const ANY_LINK = /(https?:\/\/\S+)/g;
@@ -578,7 +582,7 @@ function MessageRow({
           style={{
             borderRadius: 14,
             padding: "8px 12px",
-            background: isMe ? "#0E5FA5" : roleMeta ? roleMeta.bubbleBg : "var(--line)",
+            background: isMe ? "#0E5FA5" : roleMeta ? roleBubbleBg(roleMeta.color) : "var(--line)",
             color: isMe ? "#fff" : "inherit",
             borderLeft: !isMe && roleMeta ? `3px solid ${roleMeta.color}` : undefined,
           }}
@@ -591,7 +595,7 @@ function MessageRow({
 
           {!isMe && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: roleMeta?.color ?? "var(--muted)" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: roleMeta ? `color-mix(in srgb, ${roleMeta.color} 75%, var(--ink))` : "var(--muted)" }}>
                 {message.authorName}
               </span>
               {roleMeta && (
