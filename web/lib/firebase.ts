@@ -703,6 +703,35 @@ export async function openDmThread(otherUid: string): Promise<string> {
   return data.threadId;
 }
 
+/** Start a group chat (club plan). Server-checked: club members only, 2+ others. */
+export async function createGroupChat(clubId: string, name: string, memberUids: string[]): Promise<string> {
+  const fn = httpsCallable<{ clubId: string; name: string; memberUids: string[] }, { threadId: string }>(
+    getFunctions(firebaseApp),
+    "createGroupChat",
+  );
+  const { data } = await fn({ clubId, name, memberUids });
+  return data.threadId;
+}
+
+type GroupAction =
+  | { action: "rename"; name: string }
+  | { action: "add"; memberUids: string[] }
+  | { action: "leave" };
+
+async function updateGroupChat(threadId: string, a: GroupAction): Promise<void> {
+  const fn = httpsCallable<{ threadId: string } & GroupAction, { ok: boolean }>(
+    getFunctions(firebaseApp),
+    "updateGroupChat",
+  );
+  await fn({ threadId, ...a });
+}
+
+export const renameGroupChat = (threadId: string, name: string) =>
+  updateGroupChat(threadId, { action: "rename", name });
+export const addGroupMembers = (threadId: string, memberUids: string[]) =>
+  updateGroupChat(threadId, { action: "add", memberUids });
+export const leaveGroupChat = (threadId: string) => updateGroupChat(threadId, { action: "leave" });
+
 export async function sendDmMessage(
   threadId: string,
   uid: string,

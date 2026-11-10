@@ -4,8 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/lib/auth";
+import { GroupChatDialog } from "@/components/GroupChatDialog";
 import {
+  addGroupMembers,
+  createGroupChat,
   deleteDmMessage,
+  getClubMembers,
+  getUserClub,
+  leaveGroupChat,
+  renameGroupChat,
   markDmRead,
   sendDmMessage,
   subscribeDmMessages,
@@ -13,7 +20,7 @@ import {
   subscribeDmUnread,
   toggleDmReaction,
 } from "@/lib/firebase";
-import { dmThreadTitle, groupMemberSummary, type DmMessage, type DmThread } from "@/lib/clubTypes";
+import { dmThreadTitle, groupMemberSummary, type Club, type ClubMember, type DmMessage, type DmThread } from "@/lib/clubTypes";
 
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
@@ -27,6 +34,10 @@ export default function DmPage() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Active club + roster, for starting group chats.
+  const [club, setClub] = useState<Club | null>(null);
+  const [members, setMembers] = useState<ClubMember[]>([]);
+  const [dialog, setDialog] = useState<null | { mode: "create" } | { mode: "add"; members: ClubMember[] }>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Deep link from the members list. Read off window rather than
@@ -52,6 +63,50 @@ export default function DmPage() {
     if (!user) return;
     return subscribeDmUnread(user.uid, setUnread);
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    void getUserClub(user.uid).then((r) => {
+      if (!r) return;
+      setClub(r.club);
+      void getClubMembers(r.club.id).then(setMembers).catch(() => undefined);
+    });
+  }, [user]);
+
+  // Same rule as the server's clubIsPaidOrTrialing: groups are a club-plan feature.
+  const clubHasPlan =
+    !!club &&
+    (club.subscriptionStatus === "active" ||
+      (club.subscriptionStatus === "trial" && !!club.trialEndsAt && club.trialEndsAt > new Date().toISOString()));
+
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+
+  const renameGroup = async () => {
+    if (!activeThread) return;
+    const next = window.prompt("Rename group", activeThread.name ?? "");
+    if (next == null || !next.trim() || next.trim() === activeThread.name) return;
+    await renameGroupChat(activeThread.id, next.trim()).catch(fail);
+  };
+
+  const openAddPeople = async () => {
+    if (!activeThread?.clubId) return;
+    try {
+      const roster = activeThread.clubId === club?.id ? members : await getClubMembers(activeThread.clubId);
+      setDialog({ mode: "add", members: roster });
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  const leaveGroup = async () => {
+    if (!activeThread || !window.confirm(`Leave ${dmThreadTitle(activeThread, user?.uid)}? You won't get its messages any more. Someone in the group can add you back.`)) return;
+    try {
+      await leaveGroupChat(activeThread.id);
+      setActiveId(null);
+    } catch (e) {
+      fail(e);
+    }
+  };
 
   useEffect(() => {
     if (!activeId) return;
@@ -123,7 +178,37 @@ export default function DmPage() {
 
   return (
     <main className="container">
-      <h1 style={{ margin: "0 0 16px", fontSize: 28, fontWeight: 800 }}>Messages</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800 }}>Messages</h1>
+        {club && (
+          clubHasPlan ? (
+            <button onClick={() => setDialog({ mode: "create" })} style={newGroupBtn}>
+              + New group
+            </button>
+          ) : (
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>Group chats come with the club plan</span>
+          )
+        )}
+      </div>
+
+      {dialog && club && user && (
+        <GroupChatDialog
+          mode={dialog.mode}
+          myUid={user.uid}
+          members={dialog.mode === "add" ? dialog.members : members}
+          existing={dialog.mode === "add" ? activeThread?.participants ?? [] : []}
+          onClose={() => setDialog(null)}
+          onSubmit={async (name, uids) => {
+            if (dialog.mode === "create") {
+              const id = await createGroupChat(club.id, name, uids);
+              setActiveId(id);
+            } else if (activeThread) {
+              await addGroupMembers(activeThread.id, uids);
+            }
+            setDialog(null);
+          }}
+        />
+      )}
 
       {error && (
         <div className="card" style={{ marginBottom: 12, borderLeft: "4px solid #ef4444", display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -194,11 +279,20 @@ export default function DmPage() {
 
           {/* Conversation */}
           <div className="card" style={{ display: "flex", flexDirection: "column", height: "70vh", padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
-              <div style={{ fontWeight: 700 }}>{activeThread ? title : "Select a conversation"}</div>
+            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)", display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700 }}>{activeThread ? title : "Select a conversation"}</div>
+                {activeThread && isGroup && (
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                    {activeThread.participants.length} people · {groupMemberSummary(activeThread, user.uid)} · 🔒 only members can see this
+                  </div>
+                )}
+              </div>
               {activeThread && isGroup && (
-                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                  {activeThread.participants.length} people · {groupMemberSummary(activeThread, user.uid)} · only members can see this
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button style={headerBtn} onClick={() => void renameGroup()}>Rename</button>
+                  {activeThread.clubId && <button style={headerBtn} onClick={() => void openAddPeople()}>Add people</button>}
+                  <button style={{ ...headerBtn, color: "var(--danger)" }} onClick={() => void leaveGroup()}>Leave</button>
                 </div>
               )}
             </div>
@@ -277,6 +371,28 @@ export default function DmPage() {
     </main>
   );
 }
+
+const newGroupBtn: React.CSSProperties = {
+  background: "var(--blue)",
+  color: "#fff",
+  border: "none",
+  borderRadius: 10,
+  padding: "8px 14px",
+  fontWeight: 700,
+  fontSize: 13,
+  cursor: "pointer",
+};
+
+const headerBtn: React.CSSProperties = {
+  background: "transparent",
+  color: "var(--ink)",
+  border: "1px solid var(--line)",
+  borderRadius: 8,
+  padding: "4px 10px",
+  fontWeight: 600,
+  fontSize: 12,
+  cursor: "pointer",
+};
 
 const linkBtn: React.CSSProperties = {
   border: "none",

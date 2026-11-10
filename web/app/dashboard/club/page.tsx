@@ -24,7 +24,8 @@ export default function ClubDashboard() {
 
   const { club, role } = ctx;
   const isAdmin = role === "owner" || role === "admin";
-  const subColor = club.subscriptionStatus === "active" ? "var(--teal)" : club.subscriptionStatus === "trial" ? "var(--blue-bright)" : "#ef4444";
+  const isStaff = isAdmin || role === "coach";
+  const subColor = club.subscriptionStatus === "active" ? "var(--success)" : club.subscriptionStatus === "trial" ? "var(--blue-bright)" : "#ef4444";
 
   return (
     <main className="container">
@@ -73,7 +74,9 @@ export default function ClubDashboard() {
         <NavCard href="/dashboard/club/chat" label="Chat" icon="💬" desc="Club channels" />
         <NavCard href="/dashboard/club/gallery" label="Gallery" icon="📷" desc="Club photos" />
         <NavCard href="/dashboard/club/members" label="Members" icon="👥" desc={`${club.memberCount} member${club.memberCount !== 1 ? "s" : ""}`} />
-        <NavCard href="/dashboard/club/events" label="Events" icon="📅" desc="Schedule & manage" />
+        <NavCard href="/dashboard/club/events" label="Events" icon="📅" desc="Calendar, RSVPs & sign-up sheets" />
+        <NavCard href="/dashboard/club/surveys" label="Surveys" icon="📋" desc={isStaff ? "Ask the club, see results" : "Have your say"} />
+        <NavCard href="/dashboard/dm" label="Messages" icon="✉️" desc="DMs & group chats" />
         <NavCard href="/dashboard/club/posts" label="News Feed" icon="📣" desc="Announcements & posts" />
         {isAdmin && <NavCard href="/dashboard/club/settings" label="Settings" icon="⚙️" desc="Edit club & billing" />}
       </div>
