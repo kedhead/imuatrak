@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { getUserClub, getClubEvents, createClubEvent, updateClubEvent, bulkCreateClubEvents, deleteClubEvent, rsvpClubEvent } from "@/lib/firebase";
-import type { ClubEvent, EventType, MemberRole, RsvpStatus } from "@/lib/clubTypes";
+import { getUserClub, getClubEvents, getClubMembers, createClubEvent, updateClubEvent, bulkCreateClubEvents, deleteClubEvent, rsvpClubEvent } from "@/lib/firebase";
+import type { ClubEvent, ClubMember, EventType, MemberRole, RsvpStatus } from "@/lib/clubTypes";
+import { SignupSheet } from "@/components/SignupSheet";
 
 const TYPE_COLOR: Record<EventType, string> = {
   practice: "var(--blue-bright)",
@@ -24,6 +25,20 @@ export default function EventsPage() {
   const [events, setEvents] = useState<ClubEvent[]>([]);
   const [tab, setTab] = useState<"list" | "single" | "bulk">("list");
   const [editingEvent, setEditingEvent] = useState<ClubEvent | null>(null);
+  const [members, setMembers] = useState<ClubMember[]>([]);
+  // Events whose sign-up sheet is expanded. Opened via ?event=… deep links too.
+  const [sheetsOpen, setSheetsOpen] = useState<Set<string>>(new Set());
+  const toggleSheet = (id: string) =>
+    setSheetsOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("event");
+    if (id) setSheetsOpen(new Set([id]));
+  }, []);
 
   const canManage = myRole === "owner" || myRole === "admin" || myRole === "coach";
   const now = new Date().toISOString();
@@ -37,6 +52,7 @@ export default function EventsPage() {
       setClubId(ctx.club.id);
       setMyRole(ctx.role);
       getClubEvents(ctx.club.id).then(setEvents);
+      getClubMembers(ctx.club.id).then(setMembers).catch(() => undefined);
     });
   }, [user]);
 
@@ -65,6 +81,13 @@ export default function EventsPage() {
   };
 
   if (loading) return <div className="container"><p style={{ color: "var(--muted)" }}>Loading…</p></div>;
+
+  const myName = members.find((m) => m.uid === user?.uid)?.displayName ?? user?.displayName ?? "A member";
+  const renderSheet = (eventId: string) =>
+    clubId && user ? (
+      <SignupSheet clubId={clubId} eventId={eventId} uid={user.uid} myName={myName} isStaff={canManage} members={members} />
+    ) : null;
+  const sheetProps = { sheetsOpen, onToggleSheet: toggleSheet, renderSheet };
 
   return (
     <main className="container" style={{ paddingBottom: 80 }}>
@@ -116,10 +139,10 @@ export default function EventsPage() {
       {tab === "list" && (
         <>
           {upcoming.length > 0 && (
-            <EventSection title="Upcoming" events={upcoming} canManage={canManage} onDelete={handleDelete} onEdit={setEditingEvent} uid={user?.uid} onRsvp={handleRsvp} />
+            <EventSection title="Upcoming" events={upcoming} canManage={canManage} onDelete={handleDelete} onEdit={setEditingEvent} uid={user?.uid} onRsvp={handleRsvp} {...sheetProps} />
           )}
           {past.length > 0 && (
-            <EventSection title="Past" events={past} canManage={canManage} onDelete={handleDelete} onEdit={setEditingEvent} muted uid={user?.uid} onRsvp={handleRsvp} />
+            <EventSection title="Past" events={past} canManage={canManage} onDelete={handleDelete} onEdit={setEditingEvent} muted uid={user?.uid} onRsvp={handleRsvp} {...sheetProps} />
           )}
           {events.length === 0 && (
             <div className="card" style={{ textAlign: "center", padding: 56, color: "var(--muted)" }}>
@@ -143,8 +166,11 @@ const RSVP_OPTIONS: { status: RsvpStatus; label: string; color: string }[] = [
 ];
 
 function EventSection({
-  title, events, canManage, onDelete, onEdit, muted, uid, onRsvp,
+  title, events, canManage, onDelete, onEdit, muted, uid, onRsvp, sheetsOpen, onToggleSheet, renderSheet,
 }: {
+  sheetsOpen: Set<string>;
+  onToggleSheet: (eventId: string) => void;
+  renderSheet: (eventId: string) => React.ReactNode;
   title: string; events: ClubEvent[]; canManage: boolean;
   onDelete: (id: string, title: string) => void;
   onEdit: (event: ClubEvent) => void;
@@ -160,7 +186,8 @@ function EventSection({
           const goingCount = e.rsvps.filter((r) => r.status === "going").length;
           const myRsvp = uid ? e.rsvps.find((r) => r.uid === uid)?.status : undefined;
           return (
-            <div key={e.id} className="card" style={{ opacity: muted ? 0.7 : 1, display: "grid", gridTemplateColumns: "4px 1fr auto", gap: 0, padding: 0, overflow: "hidden" }}>
+            <div key={e.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <div style={{ opacity: muted ? 0.7 : 1, display: "grid", gridTemplateColumns: "4px 1fr auto", gap: 0 }}>
               <div style={{ background: TYPE_COLOR[e.type] }} />
               <div style={{ padding: "14px 16px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
@@ -178,7 +205,7 @@ function EventSection({
                 </div>
                 {/* RSVP buttons */}
                 {uid && (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                     {RSVP_OPTIONS.map(({ status, label, color }) => {
                       const active = myRsvp === status;
                       return (
@@ -196,6 +223,18 @@ function EventSection({
                         </button>
                       );
                     })}
+                    <button
+                      onClick={() => onToggleSheet(e.id)}
+                      style={{
+                        fontSize: 12, padding: "4px 12px", borderRadius: 20, cursor: "pointer", fontWeight: 600,
+                        border: `1px solid ${sheetsOpen.has(e.id) ? "var(--aqua)" : "var(--line)"}`,
+                        background: "transparent",
+                        color: sheetsOpen.has(e.id) ? "var(--aqua)" : "var(--muted)",
+                        marginLeft: "auto",
+                      }}
+                    >
+                      📝 Sign-up sheet {sheetsOpen.has(e.id) ? "▴" : "▾"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -215,6 +254,10 @@ function EventSection({
                   </button>
                 </div>
               )}
+            </div>
+            {sheetsOpen.has(e.id) && (
+              <div style={{ borderTop: "1px solid var(--line)", padding: "14px 16px" }}>{renderSheet(e.id)}</div>
+            )}
             </div>
           );
         })}

@@ -103,7 +103,7 @@ export default function ClubSettingsPage() {
   if (!club) return <div className="container"><p style={{ color: "var(--muted)" }}>No club found. <Link href="/dashboard/club" style={{ color: "var(--blue-bright)" }}>← Back</Link></p></div>;
   if (!isAdmin) return <div className="container"><p style={{ color: "var(--muted)" }}>Admin access required.</p></div>;
 
-  const subColor = club.subscriptionStatus === "active" ? "var(--teal)" : club.subscriptionStatus === "trial" ? "var(--blue-bright)" : "#ef4444";
+  const subColor = club.subscriptionStatus === "active" ? "var(--success)" : club.subscriptionStatus === "trial" ? "var(--blue-bright)" : "#ef4444";
   const displayLogo = logoPreview ?? (logoUrl || null);
 
   return (
@@ -257,7 +257,7 @@ export default function ClubSettingsPage() {
               style={{ background: "var(--blue-bright)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", fontWeight: 700, cursor: "pointer", fontSize: 15 }}>
               {saving ? "Saving…" : "Save Changes"}
             </button>
-            {saved && <span style={{ color: "var(--teal)", fontWeight: 600, fontSize: 14 }}>✓ Saved</span>}
+            {saved && <span style={{ color: "var(--success)", fontWeight: 600, fontSize: 14 }}>✓ Saved</span>}
           </div>
         </form>
       </div>
