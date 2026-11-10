@@ -388,6 +388,7 @@ export async function updateClub(
   updates: Partial<Pick<Club, "name" | "description" | "location" | "logoUrl" | "websiteUrl">> & {
     /** deleteField() clears it — "keep all" is stored as absent, not 0. */
     chatRetentionDays?: number | ReturnType<typeof deleteField>;
+    ownerBadge?: string | ReturnType<typeof deleteField>;
   },
 ): Promise<void> {
   const docRef = doc(db, "clubs", clubId);
@@ -398,6 +399,7 @@ export async function updateClub(
   if (updates.logoUrl !== undefined) payload.logoUrl = updates.logoUrl;
   if (updates.websiteUrl !== undefined) payload.websiteUrl = updates.websiteUrl;
   if (updates.chatRetentionDays !== undefined) payload.chatRetentionDays = updates.chatRetentionDays;
+  if (updates.ownerBadge !== undefined) payload.ownerBadge = updates.ownerBadge;
   if (Object.keys(payload).length > 0) await updateDoc(docRef, payload as Record<string, unknown> & object);
 }
 

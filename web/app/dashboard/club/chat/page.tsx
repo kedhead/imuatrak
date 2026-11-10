@@ -24,7 +24,7 @@ import {
   resolveMentions,
   type MentionTarget,
 } from "@/lib/mentions";
-import type { Club, ClubChannel, ClubMember, ClubMessage, MemberRole } from "@/lib/clubTypes";
+import { displayRole, type Club, type ClubChannel, type ClubMember, type ClubMessage, type MemberRole } from "@/lib/clubTypes";
 
 const REACTION_EMOJI = ["👍", "❤️", "😂", "🤙", "🔥", "😮"];
 
@@ -121,6 +121,11 @@ export default function ClubChatPage() {
   }, [members]);
 
   const myRole = user ? roleByUid.get(user.uid) : undefined;
+  // What to SHOW: the club may present its owner as an admin or plain member.
+  const shownRole = (uid: string) => {
+    const r = roleByUid.get(uid);
+    return r ? displayRole(r, club && club !== "none" ? club : null) : undefined;
+  };
   const canModerate = myRole === "owner" || myRole === "admin";
 
   // Who can be @-mentioned: everyone for a public channel, only its members
@@ -364,7 +369,7 @@ export default function ClubChatPage() {
                 key={m.id}
                 message={m}
                 isMe={m.authorId === user.uid}
-                role={roleByUid.get(m.authorId)}
+                role={shownRole(m.authorId)}
                 avatarUrl={avatarByUid.get(m.authorId)}
                 myUid={user.uid}
                 uploading={uploadingId === m.id}
@@ -426,7 +431,7 @@ export default function ClubChatPage() {
                     }}
                     style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", color: "inherit" }}
                   >
-                    <Avatar uri={avatarByUid.get(t.uid)} name={t.name} uid={t.uid} role={roleByUid.get(t.uid)} size={24} />
+                    <Avatar uri={avatarByUid.get(t.uid)} name={t.name} uid={t.uid} role={shownRole(t.uid)} size={24} />
                     <span style={{ fontSize: 14 }}>{t.name}</span>
                   </button>
                 ))}

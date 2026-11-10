@@ -20,6 +20,7 @@ import {
   isBirthdayToday,
   paddleSideLabel,
   type MemberRole,
+  displayRole,
 } from "@/models/club";
 import { currentUser } from "@/services/auth";
 import { useClub } from "@/services/clubStore";
@@ -129,8 +130,8 @@ export default function MemberProfileScreen() {
           {member.displayName}
           {isBirthdayToday(member.birthday) ? "  🎂" : ""}
         </Text>
-        <View style={[styles.roleChip, { backgroundColor: ROLE_COLOR[member.role] }]}>
-          <Text style={styles.roleChipText}>{ROLE_LABEL[member.role].toUpperCase()}</Text>
+        <View style={[styles.roleChip, { backgroundColor: ROLE_COLOR[displayRole(member.role, club)] }]}>
+          <Text style={styles.roleChipText}>{ROLE_LABEL[displayRole(member.role, club)].toUpperCase()}</Text>
         </View>
 
         <View style={styles.card}>

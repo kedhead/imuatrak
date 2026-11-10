@@ -48,7 +48,7 @@ import {
 } from "@/services/mentions";
 import { extractImageUrls, LinkifiedText } from "@/ui/LinkifiedText";
 import { useClub } from "@/services/clubStore";
-import type { ClubChannel, ClubMember, ClubMessage, MemberRole } from "@/models/club";
+import { displayRole, type ClubChannel, type ClubMember, type ClubMessage, type MemberRole } from "@/models/club";
 import { AdBanner } from "@/ui/AdBanner";
 import { Avatar } from "@/ui/Avatar";
 import { formatMessageTime } from "@/ui/format";
@@ -146,6 +146,7 @@ export default function ChannelChatScreen() {
     return map;
   }, [members]);
   const myRole = user ? roleByUid.get(user.uid) : undefined;
+  const ownerBadge = club?.ownerBadge;
 
   // Who can be @-mentioned: the whole roster for a public channel, only the
   // channel's own members for a private one — offering someone who can't read
@@ -479,7 +480,11 @@ export default function ChannelChatScreen() {
             <MessageBubble
               message={item}
               isMe={item.authorId === user?.uid}
-              role={roleByUid.get(item.authorId)}
+              role={(() => {
+                const r = roleByUid.get(item.authorId);
+                // Badge only: the club may show its owner as an admin or plain.
+                return r ? displayRole(r, { ownerBadge }) : undefined;
+              })()}
               avatarUrl={avatarByUid.get(item.authorId)}
               uploading={uploadingId === item.id}
               myUid={user?.uid}

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/lib/auth";
 import { getUserClub, getClubMembers, openDmThread, subscribeDmUnread, updateMemberRole, removeClubMember } from "@/lib/firebase";
-import type { ClubMember, MemberRole } from "@/lib/clubTypes";
+import { displayRole, type ClubMember, type MemberRole, type OwnerBadge } from "@/lib/clubTypes";
 
 const ROLES: MemberRole[] = ["owner", "admin", "coach", "member"];
 const ROLE_ORDER: Record<MemberRole, number> = { owner: 0, admin: 1, coach: 2, member: 3 };
@@ -14,6 +14,7 @@ const ROLE_ORDER: Record<MemberRole, number> = { owner: 0, admin: 1, coach: 2, m
 export default function MembersPage() {
   const { user, loading } = useAuth();
   const [clubId, setClubId] = useState<string | null>(null);
+  const [ownerBadge, setOwnerBadge] = useState<OwnerBadge | undefined>(undefined);
   const [myRole, setMyRole] = useState<MemberRole | null>(null);
   const [members, setMembers] = useState<ClubMember[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export default function MembersPage() {
     getUserClub(user.uid).then((ctx) => {
       if (!ctx) return;
       setClubId(ctx.club.id);
+      setOwnerBadge(ctx.club.ownerBadge);
       setMyRole(ctx.role);
       getClubMembers(ctx.club.id).then((m) =>
         setMembers(m.sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role])),
@@ -107,7 +109,7 @@ export default function MembersPage() {
               <tr key={m.uid} style={{ borderTop: "1px solid var(--line)" }}>
                 <td style={td}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <Avatar uri={m.avatarUrl} name={m.displayName} uid={m.uid} role={m.role} size={32} />
+                    <Avatar uri={m.avatarUrl} name={m.displayName} uid={m.uid} role={displayRole(m.role, { ownerBadge })} size={32} />
                     <span style={{ fontWeight: 600 }}>{m.displayName}</span>
                     {m.uid === user?.uid ? (
                       <span style={{ fontSize: 11, background: "#EBF3FB", color: "var(--blue-bright)", borderRadius: 8, padding: "2px 7px", fontWeight: 700 }}>You</span>
@@ -146,7 +148,7 @@ export default function MembersPage() {
                       ))}
                     </select>
                   ) : (
-                    <span style={{ textTransform: "capitalize", color: "var(--muted)" }}>{m.role}</span>
+                    <span style={{ textTransform: "capitalize", color: "var(--muted)" }}>{displayRole(m.role, { ownerBadge })}</span>
                   )}
                 </td>
                 <td style={{ ...td, color: "var(--muted)" }}>{new Date(m.joinedAt).toLocaleDateString()}</td>

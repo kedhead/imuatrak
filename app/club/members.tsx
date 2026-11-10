@@ -23,6 +23,7 @@ import {
   paddleSideLabel,
   type ClubMember,
   type MemberRole,
+  displayRole,
 } from "@/models/club";
 import { Avatar } from "@/ui/Avatar";
 import { colors, spacing, radii } from "@/ui/theme";
@@ -137,14 +138,14 @@ export default function MembersScreen() {
             onPress={() => router.push(`/club/member/${item.uid}` as never)}
             onLongPress={() => handleLongPress(item)}
           >
-            <Avatar uri={item.avatarUrl} name={item.displayName} uid={item.uid} role={item.role} size={40} />
+            <Avatar uri={item.avatarUrl} name={item.displayName} uid={item.uid} role={displayRole(item.role, club)} size={40} />
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>
                 {item.displayName}
                 {isBirthdayToday(item.birthday) ? "  🎂" : ""}
               </Text>
               <Text style={styles.role}>
-                {ROLE_LABEL[item.role]}
+                {ROLE_LABEL[displayRole(item.role, club)]}
                 {paddleSideLabel(item.paddleSide) ? ` · ${paddleSideLabel(item.paddleSide)} side` : ""}
               </Text>
             </View>

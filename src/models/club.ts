@@ -49,7 +49,39 @@ export interface Club {
    * is deleted. Pinned messages are never swept.
    */
   chatRetentionDays?: number;
+  /**
+   * How the owner appears to the club (chat badge, roster, profile). Some
+   * clubs' app owner isn't the club's real owner, so they can show as an
+   * admin or with no badge. Display only — permissions use the real role.
+   * Absent means "owner".
+   */
+  ownerBadge?: OwnerBadge;
   createdAt: string;
+}
+
+export type OwnerBadge = "owner" | "admin" | "none";
+
+export const OWNER_BADGE_OPTIONS: { value: OwnerBadge; label: string }[] = [
+  { value: "owner", label: "Owner" },
+  { value: "admin", label: "Admin" },
+  { value: "none", label: "No badge" },
+];
+
+/** The role to SHOW for someone, honouring the club's ownerBadge choice.
+ *  Never use it for permission checks. */
+export function displayRole(
+  role: MemberRole,
+  club: { ownerBadge?: OwnerBadge } | null | undefined,
+): MemberRole {
+  if (role !== "owner") return role;
+  switch (club?.ownerBadge) {
+    case "admin":
+      return "admin";
+    case "none":
+      return "member";
+    default:
+      return "owner";
+  }
 }
 
 /** Retention choices offered in club settings. 0 means keep everything. */
