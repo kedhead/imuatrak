@@ -51,6 +51,7 @@ import type {
   SurveyResponse,
   UserClubs,
 } from "@/models/club";
+import { withGuestAdded, withRsvp } from "@/models/club";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -502,18 +503,7 @@ export async function setRsvp(
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
   const event = snap.data() as Omit<ClubEvent, "id">;
-  const existing = event.rsvps.find((r) => r.uid === uid);
-  const rsvps = event.rsvps.filter((r) => r.uid !== uid);
-  // Guests survive status flip-flops (going → maybe → going) unless the
-  // caller passes an explicit new list; they only count while "going".
-  const keptGuests = guests ?? existing?.guests;
-  rsvps.push({
-    uid,
-    status,
-    updatedAt: new Date().toISOString(),
-    ...(keptGuests && keptGuests.length > 0 ? { guests: keptGuests } : {}),
-  });
-  await updateDoc(ref, { rsvps });
+  await updateDoc(ref, { rsvps: withRsvp(event.rsvps, uid, status, guests) });
 }
 
 /**
@@ -534,16 +524,7 @@ export async function addEventGuest(
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
   const event = snap.data() as Omit<ClubEvent, "id">;
-  const existing = event.rsvps.find((r) => r.uid === uid);
-  const guests = [...(existing?.guests ?? []), name];
-  const rsvps = event.rsvps.filter((r) => r.uid !== uid);
-  rsvps.push({
-    uid,
-    status: "going",
-    updatedAt: new Date().toISOString(),
-    guests,
-  });
-  await updateDoc(ref, { rsvps });
+  await updateDoc(ref, { rsvps: withGuestAdded(event.rsvps, uid, name) });
 }
 
 // ── Sign-up sheets ───────────────────────────────────────────────────────────
@@ -992,21 +973,30 @@ export async function updatePost(clubId: string, postId: string, content: string
   });
 }
 
+/**
+ * Like or unlike a post. Pass `want` to SET the state (what an optimistic UI
+ * already shows) rather than flip whatever the server has: if the two agree
+ * already (e.g. a double tap, or liked on another device) nothing is written,
+ * so the count can't drift.
+ */
 export async function toggleLike(
   clubId: string,
   postId: string,
   uid: string,
+  want?: boolean,
 ): Promise<{ liked: boolean }> {
   const ref = doc(db, "clubs", clubId, "posts", postId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return { liked: false };
   const data = snap.data() as { likedBy?: string[] };
   const alreadyLiked = (data.likedBy ?? []).includes(uid);
+  const target = want ?? !alreadyLiked;
+  if (target === alreadyLiked) return { liked: alreadyLiked };
   await updateDoc(ref, {
-    likedBy: alreadyLiked ? arrayRemove(uid) : arrayUnion(uid),
-    likeCount: increment(alreadyLiked ? -1 : 1),
+    likedBy: target ? arrayUnion(uid) : arrayRemove(uid),
+    likeCount: increment(target ? 1 : -1),
   });
-  return { liked: !alreadyLiked };
+  return { liked: target };
 }
 
 export async function getComments(clubId: string, postId: string): Promise<ClubComment[]> {

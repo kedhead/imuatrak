@@ -38,6 +38,8 @@ import {
   inferBoatType,
   isGuestStillGoing,
   paddleSideLabel,
+  withGuestAdded,
+  withRsvp,
   seatableGuests,
   BOAT_SPECS,
   BOAT_TYPES,
@@ -196,14 +198,37 @@ function EventDetail({
       .finally(() => setLoading(false));
   }, [clubId, eventId]);
 
-  const handleRsvp = async (status: RsvpStatus) => {
-    if (!clubId || !eventId || !me) return;
+  /**
+   * Show a change immediately, save it underneath, then take the server's
+   * copy as the truth. If the save fails, put the screen back and say so.
+   * These taps used to wait on a read, a write and a re-read (three round
+   * trips) before anything on screen moved.
+   */
+  const applyOptimistic = async (next: ClubEvent, save: () => Promise<void>) => {
+    const before = event;
+    setEvent(next);
     setRsvpLoading(true);
-    await setRsvp(clubId, eventId, me.uid, status);
-    const updated = await getEvent(clubId, eventId);
-    setEvent(updated);
-    if (updated) void syncEventReminders(updated, status === "going");
-    setRsvpLoading(false);
+    try {
+      await save();
+      const fresh = await getEvent(clubId, eventId).catch(() => null);
+      if (fresh) setEvent(fresh);
+      return fresh ?? next;
+    } catch (e) {
+      setEvent(before);
+      Alert.alert("Couldn't save", e instanceof Error ? e.message : "Check your connection and try again.");
+      return null;
+    } finally {
+      setRsvpLoading(false);
+    }
+  };
+
+  const handleRsvp = async (status: RsvpStatus) => {
+    if (!clubId || !eventId || !me || !event) return;
+    const saved = await applyOptimistic(
+      { ...event, rsvps: withRsvp(event.rsvps, me.uid, status) },
+      () => setRsvp(clubId, eventId, me.uid, status),
+    );
+    if (saved) void syncEventReminders(saved, status === "going");
   };
 
   const handleAddGuest = async () => {
@@ -215,23 +240,23 @@ function EventDetail({
     }
     setGuestModal(false);
     setGuestName("");
-    setRsvpLoading(true);
-    // Append server-side so adding a second guest can never overwrite the
-    // first with a stale client list. Members can bring as many as capacity
-    // allows.
-    await addEventGuest(clubId, eventId, me.uid, name);
-    setEvent(await getEvent(clubId, eventId));
-    setRsvpLoading(false);
+    // The save appends server-side, so adding a second guest can never
+    // overwrite the first with a stale client list. Members can bring as
+    // many as capacity allows.
+    await applyOptimistic(
+      { ...event, rsvps: withGuestAdded(event.rsvps, me.uid, name) },
+      () => addEventGuest(clubId, eventId, me.uid, name),
+    );
   };
 
   const handleRemoveGuest = async (index: number) => {
-    if (!clubId || !eventId || !me || myRsvp === null) return;
-    setRsvpLoading(true);
+    if (!clubId || !eventId || !me || !event || myRsvp === null) return;
     const next = myGuests.filter((_, i) => i !== index);
     // Explicit empty array clears the stored guest list.
-    await setRsvp(clubId, eventId, me.uid, myRsvp, next);
-    setEvent(await getEvent(clubId, eventId));
-    setRsvpLoading(false);
+    await applyOptimistic(
+      { ...event, rsvps: withRsvp(event.rsvps, me.uid, myRsvp, next) },
+      () => setRsvp(clubId, eventId, me.uid, myRsvp, next),
+    );
   };
 
   const handleDelete = () => {
@@ -259,9 +284,9 @@ function EventDetail({
       occupant,
     );
     setAssignTarget(null);
-    await updateBoatAssignments(clubId, eventId, boats);
-    const updated = await getEvent(clubId, eventId);
-    setEvent(updated);
+    await applyOptimistic({ ...event, boatAssignments: boats }, () =>
+      updateBoatAssignments(clubId, eventId, boats),
+    );
   };
 
   const handleAddBoat = async () => {
@@ -278,9 +303,9 @@ function EventDetail({
       boatType,
       seats: Array.from({ length: seatCount }, (_, i) => ({ seatNumber: i + 1, uid: null })),
     });
-    await updateBoatAssignments(clubId, eventId, boats);
-    const updated = await getEvent(clubId, eventId);
-    setEvent(updated);
+    await applyOptimistic({ ...event, boatAssignments: boats }, () =>
+      updateBoatAssignments(clubId, eventId, boats),
+    );
   };
 
   const memberByUid = (uid: string): ClubMember | undefined => members.find((m) => m.uid === uid);
@@ -375,7 +400,6 @@ function EventDetail({
                     styles.rsvpBtn,
                     myRsvp === s && { backgroundColor: TYPE_COLOR[event.type] ?? colors.ocean, borderColor: "transparent" },
                     s === "going" && atCapacity && styles.rsvpBtnDisabled,
-                    rsvpLoading && { opacity: 0.5 },
                   ]}
                   onPress={() => handleRsvp(s)}
                   disabled={rsvpLoading || (s === "going" && atCapacity)}

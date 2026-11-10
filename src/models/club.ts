@@ -1044,3 +1044,36 @@ export function isDmThreadHidden(
   if (!hiddenAt || unread > 0) return false;
   return (t.lastMessageAt ?? t.createdAt) <= hiddenAt;
 }
+
+// ── RSVP edits ──────────────────────────────────────────────────────────────
+// Pure "what the rsvps array looks like after this tap". Shared by the event
+// screen (to update instantly, before the save lands) and clubService (which
+// applies the same change to the server's copy), so the two can't disagree.
+
+/** Set a member's RSVP. Guests survive status flip-flops (going → maybe →
+ *  going) unless an explicit new list is passed; they only count while going. */
+export function withRsvp(
+  rsvps: EventRsvp[],
+  uid: string,
+  status: RsvpStatus,
+  guests?: string[],
+  now: string = new Date().toISOString(),
+): EventRsvp[] {
+  const existing = rsvps.find((r) => r.uid === uid);
+  const kept = guests ?? existing?.guests;
+  return [
+    ...rsvps.filter((r) => r.uid !== uid),
+    { uid, status, updatedAt: now, ...(kept && kept.length > 0 ? { guests: kept } : {}) },
+  ];
+}
+
+/** Add one guest to a member's RSVP. Bringing a guest implies you're going. */
+export function withGuestAdded(
+  rsvps: EventRsvp[],
+  uid: string,
+  name: string,
+  now: string = new Date().toISOString(),
+): EventRsvp[] {
+  const existing = rsvps.find((r) => r.uid === uid);
+  return withRsvp(rsvps, uid, "going", [...(existing?.guests ?? []), name], now);
+}

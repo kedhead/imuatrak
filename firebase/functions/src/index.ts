@@ -42,6 +42,14 @@ setGlobalOptions({
   timeoutSeconds: 60,
 });
 
+// Functions scale to zero when idle, and the first call after a quiet spell
+// waits a few seconds for a cold start. For the handful of calls a paddler is
+// actively WAITING on, that reads as the app stalling, so those keep one
+// instance warm. Each warm instance is billed while idle (a few dollars a
+// month), so this list is deliberately short: add to it only for calls that
+// block the screen, and delete a line to stop paying for it.
+const KEEP_WARM = { minInstances: 1 } as const;
+
 // ---------------------------------------------------------------------------
 // Push-notification fan-out helpers.
 //
@@ -321,7 +329,8 @@ function channelMediaPath(
   return `clubs/${clubId}/channels/${channelId}/messages/${messageId}/${key}.${ext}`;
 }
 
-export const createChannelUploadUrl = onCall(async (request) => {
+// Warm: sending a chat photo waits on this, then on finalizeChannelMedia.
+export const createChannelUploadUrl = onCall(KEEP_WARM, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
 
@@ -354,7 +363,7 @@ export const createChannelUploadUrl = onCall(async (request) => {
   return { uploadUrl };
 });
 
-export const finalizeChannelMedia = onCall(async (request) => {
+export const finalizeChannelMedia = onCall(KEEP_WARM, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
 
@@ -1947,7 +1956,8 @@ export const uploadDmMedia = onCall({ memory: "512MiB" }, async (request) => {
   return { mediaUrl };
 });
 
-export const openDmThread = onCall(async (request) => {
+// Warm: tapping "Message" on a teammate waits on this before the chat opens.
+export const openDmThread = onCall(KEEP_WARM, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
 

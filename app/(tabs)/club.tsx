@@ -23,6 +23,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
+import { readCache, writeCache } from "@/services/localCache";
 import { getPosts, createPost, deletePost, updatePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment, uploadPostMedia } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
 import { useClubUnreadCount, useDmUnreadCount } from "@/services/unread";
@@ -43,6 +44,21 @@ import { NativeAdCard } from "@/ui/NativeAdCard";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ZoomableImage } from "@/ui/ZoomableImage";
+
+/** Last-known feed for a club, kept on the phone (see services/localCache). */
+interface FeedCache {
+  posts: ClubPost[];
+  events: ClubEvent[];
+}
+
+async function loadFeed(clubId: string): Promise<FeedCache> {
+  const [p, events] = await Promise.all([getPosts(clubId), getUpcomingEvents(clubId, 3)]);
+  // Photo posts share this collection but belong to the gallery, not the
+  // updates feed. Filtered here rather than in the query: a Firestore "!="
+  // filter also excludes documents missing the field, which would hide
+  // every post written before the photo type existed.
+  return { posts: p.filter((post) => post.type !== "photo"), events };
+}
 
 const SCREEN_W = Dimensions.get("window").width;
 const SCREEN_H = Dimensions.get("window").height;
@@ -174,18 +190,39 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const members = useClub((s) => s.members);
   const birthdayNames = members.filter((m) => isBirthdayToday(m.birthday)).map((m) => m.displayName);
 
+  const uid = user?.uid;
+  const showFeed = (feed: FeedCache) => {
+    setPosts(feed.posts);
+    setEvents(feed.events);
+    if (uid) writeCache<FeedCache>(uid, `feed:${clubId}`, feed);
+  };
+
   useEffect(() => {
-    const load = async () => {
-      const [p, e] = await Promise.all([getPosts(clubId), getUpcomingEvents(clubId, 3)]);
-      // Photo posts share this collection but belong to the gallery, not the
-      // updates feed. Filtered here rather than in the query: a Firestore "!="
-      // filter also excludes documents missing the field, which would hide
-      // every post written before the photo type existed.
-      setPosts(p.filter((post) => post.type !== "photo"));
-      setEvents(e);
+    let cancelled = false;
+    let fresh = false;
+    // Last-known feed first, so the tab isn't blank while the network
+    // answers; the fetch below replaces it (and wins if it lands first).
+    if (uid) {
+      void readCache<FeedCache>(uid, `feed:${clubId}`).then((c) => {
+        if (cancelled || fresh || !c) return;
+        setPosts(c.posts);
+        setEvents(c.events);
+      });
+    }
+    void loadFeed(clubId)
+      .then((feed) => {
+        if (cancelled) return;
+        fresh = true;
+        setPosts(feed.posts);
+        setEvents(feed.events);
+        if (uid) writeCache<FeedCache>(uid, `feed:${clubId}`, feed);
+      })
+      // Offline with a cached feed on screen is fine; nothing to report.
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
     };
-    void load();
-  }, [clubId]);
+  }, [clubId, uid]);
 
   const onPickPostImages = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -245,10 +282,14 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    const [p, e] = await Promise.all([getPosts(clubId), getUpcomingEvents(clubId, 3)]);
-    setPosts(p.filter((post) => post.type !== "photo"));
-    setEvents(e);
-    setRefreshing(false);
+    // finally: a failed pull-to-refresh used to leave the spinner stuck.
+    try {
+      showFeed(await loadFeed(clubId));
+    } catch {
+      // Keep what's on screen.
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleEdited = (postId: string, content: string) => {
@@ -598,10 +639,16 @@ function PostCard({
 
   const handleLike = async () => {
     if (!currentUserId || liking) return;
+    // Show it immediately; the save happens underneath. The heart used to
+    // wait on a read and a write before it changed.
+    const want = !liked;
+    onLikeChange(post.id, want ? 1 : -1, want);
     setLiking(true);
     try {
-      const result = await toggleLike(clubId, post.id, currentUserId);
-      onLikeChange(post.id, result.liked ? 1 : -1, result.liked);
+      await toggleLike(clubId, post.id, currentUserId, want);
+    } catch {
+      // Didn't save (offline, or the post is gone): put it back.
+      onLikeChange(post.id, want ? -1 : 1, !want);
     } finally {
       setLiking(false);
     }

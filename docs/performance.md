@@ -121,3 +121,52 @@ decision, not a bug; noted so it is a choice rather than an accident.
 Three dead imports flagged by eslint (`club/chat`, `(tabs)/club`,
 `ui/AnimatedSplash`). No runtime cost worth measuring — Metro tree-shakes — but
 they are noise in a lint run that otherwise has to be read carefully.
+
+---
+
+# Follow-up — 2026-11-10: "things stall, then load"
+
+Reported on iPhone: taps and screens lag, sometimes stall for seconds, then
+load. Found by reading the code, not by profiling on a device. Firestore
+itself is not the problem; how the app uses it was.
+
+## 8. Nothing was cached between screens or launches — FIXED (JS, OTA)
+
+The Firebase JS SDK has no persistent cache on React Native (it needs
+IndexedDB), and most screens use one-shot reads, so every screen opened blank
+and waited on the network. `services/localCache.ts` now keeps last-known data
+in AsyncStorage (per account, wiped on sign-out, ignored after 14 days) and
+screens paint it first, then refresh:
+
+- club store (`club`, `role`, `members`, `userClubs`, `myClubs`): launch no
+  longer waits on three sequential round trips; a failed refresh with cached
+  data on screen stays quiet instead of showing the error screen
+- club feed (posts + upcoming events) and the Events list
+
+Display only: rules still enforce everything, so a stale cached role can show
+a button but not make the write succeed.
+
+## 9. Taps waited for the server — FIXED (JS, OTA)
+
+RSVP, add/remove guest, seat assignment and add-boat each did read → write →
+re-read before the screen moved. They now update immediately
+(`applyOptimistic` in `app/club/event/[id].tsx`, using the shared
+`withRsvp` / `withGuestAdded`), save underneath, then take the server's copy;
+a failed save puts the screen back with an alert. Likes do the same
+(`toggleLike(..., want)` sets rather than flips, so a double tap can't drift
+the count).
+
+## 10. Cold starts on calls people wait on — FIXED (server, costs money)
+
+`KEEP_WARM` (`minInstances: 1`) on `openDmThread`, `createChannelUploadUrl`
+and `finalizeChannelMedia`. Each warm instance bills while idle; check the
+Cloud Run line in billing after a month and trim the list if it isn't worth
+it. Still cold: `uploadDmMedia`, `uploadPostMedia`, `uploadAvatar`,
+`createGroupChat`, and the push triggers (item 6).
+
+## Still open
+
+- Item 3 (expo-image + resize-on-upload): the cause of slow pictures. Native,
+  planned for 1.0.9.
+- Other one-shot screens (gallery, members' profiles, surveys list) could take
+  the same cache-first treatment.
