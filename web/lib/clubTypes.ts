@@ -153,13 +153,36 @@ export function parseHashtags(caption: string): string[] {
 // applied to DMs would let club admins read their members' private messages.
 
 export interface DmThread {
-  /** Exactly two uids, sorted — the thread id is these joined with "__". */
+  /** Two uids (sorted) for a direct message — the thread id is these joined
+   *  with "__". 3+ for a group chat, which has its own id. */
   participants: string[];
+  /** Group chats (club plan, created in the app via createGroupChat). As
+   *  private as a DM: only participants can read them. */
+  isGroup?: boolean;
+  name?: string;
+  clubId?: string;
+  createdBy?: string;
   participantNames: Record<string, string>;
   participantAvatars?: Record<string, string>;
   lastMessageAt?: string;
   lastMessagePreview?: string;
   createdAt: string;
+}
+
+/** Same rules as dmThreadTitle in src/models/club.ts. */
+export function dmThreadTitle(t: DmThread, myUid: string | undefined): string {
+  if (t.isGroup) return t.name?.trim() || "Group chat";
+  const other = t.participants.find((p) => p !== myUid);
+  return (other && t.participantNames?.[other]) || "Member";
+}
+
+/** "Kai, Noa and 3 others" — the people in a group besides you. */
+export function groupMemberSummary(t: DmThread, myUid: string | undefined): string {
+  const names = t.participants
+    .filter((p) => p !== myUid)
+    .map((p) => (t.participantNames?.[p] ?? "Member").split(" ")[0]!);
+  if (names.length <= 3) return names.length === 0 ? "Just you" : names.join(", ").replace(/, ([^,]*)$/, " and $1");
+  return `${names.slice(0, 2).join(", ")} and ${names.length - 2} others`;
 }
 
 export interface DmMessage {
