@@ -36,6 +36,8 @@ import {
   setMessagePinned,
   toggleMessageReaction,
   updateChannelMessage,
+  setChannelMuted,
+  subscribeChannelMuted,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
 import {
@@ -100,15 +102,55 @@ export default function ChannelChatScreen() {
     void getChannel(club.id, channelId).then(setChannel);
   }, [club?.id, channelId]);
 
-  // Set header title once channel is loaded
+  // This person's alert setting for the channel (users/{uid}/channelPreferences).
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    if (!user || !channelId) return;
+    return subscribeChannelMuted(user.uid, channelId, setMuted);
+  }, [user?.uid, channelId]);
+
+  const toggleMuted = useCallback(() => {
+    if (!user || !channelId) return;
+    const next = !muted;
+    setMuted(next); // optimistic; the snapshot confirms
+    void setChannelMuted(user.uid, channelId, next).catch(() => {
+      setMuted(!next);
+      Alert.alert("Couldn't change notifications", "Please try again.");
+    });
+    if (next) {
+      Alert.alert(
+        "Channel muted",
+        "You won't get alerts for this channel. You'll still be notified if someone @mentions you, and unread messages still show.",
+      );
+    }
+  }, [user?.uid, channelId, muted]);
+
+  // Header: channel title, plus the bell that mutes this channel's alerts.
   useEffect(() => {
     if (!channel) return;
     const title =
       channel.iconType === "emoji"
         ? `${channel.icon} ${channel.name}`
         : channel.name;
-    navigation.setOptions({ title });
-  }, [channel, navigation]);
+    navigation.setOptions({
+      title,
+      headerRight: () => (
+        <Pressable
+          onPress={toggleMuted}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={muted ? "Unmute channel notifications" : "Mute channel notifications"}
+          style={{ paddingHorizontal: spacing.sm }}
+        >
+          <Ionicons
+            name={muted ? "notifications-off" : "notifications-outline"}
+            size={22}
+            color={muted ? colors.muted : colors.ocean}
+          />
+        </Pressable>
+      ),
+    });
+  }, [channel, navigation, muted, toggleMuted]);
 
   useEffect(() => {
     if (!club || !channelId) return;

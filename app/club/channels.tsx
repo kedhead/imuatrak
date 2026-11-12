@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -14,6 +15,7 @@ import { currentUser } from "@/services/auth";
 import {
   subscribeChannels,
   getChannelPreferences,
+  setChannelMuted,
   markChannelRead,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
@@ -87,6 +89,36 @@ export default function ChannelsScreen() {
     }, [user?.uid]),
   );
 
+  // Long-press a channel to mute or unmute its alerts (same switch as the
+  // bell inside the channel). @mentions still come through when muted.
+  const toggleMute = (ch: ClubChannel) => {
+    if (!user) return;
+    const muted = prefs.get(ch.id)?.muteNotifications === true;
+    Alert.alert(
+      muted ? `Unmute #${ch.name}?` : `Mute #${ch.name}?`,
+      muted
+        ? "You'll get alerts for new messages again."
+        : "No alerts for new messages. You'll still be notified if someone @mentions you, and unread messages still show.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: muted ? "Unmute" : "Mute",
+          onPress: () => {
+            setPrefs((prev) => {
+              const next = new Map(prev);
+              next.set(ch.id, { ...(prev.get(ch.id) ?? { lastReadAt: "" }), muteNotifications: !muted });
+              return next;
+            });
+            void setChannelMuted(user.uid, ch.id, !muted).catch(() => {
+              Alert.alert("Couldn't change notifications", "Please try again.");
+              void getChannelPreferences(user.uid).then(setPrefs);
+            });
+          },
+        },
+      ],
+    );
+  };
+
   const handleChannelPress = async (channelId: string) => {
     if (user) await markChannelRead(user.uid, channelId).then(setAppBadge).catch(() => undefined);
     router.push(`/club/chat/${channelId}` as never);
@@ -139,6 +171,7 @@ export default function ChannelsScreen() {
               channel={item}
               pref={prefs.get(item.id)}
               onPress={() => void handleChannelPress(item.id)}
+              onLongPress={() => toggleMute(item)}
             />
           )}
           ListFooterComponent={
@@ -209,17 +242,19 @@ function ChannelRow({
   channel,
   pref,
   onPress,
+  onLongPress,
 }: {
   channel: ClubChannel;
   pref?: ChannelPreference;
   onPress: () => void;
+  onLongPress?: () => void;
 }) {
   const hasUnread =
     channel.lastMessageAt &&
     (!pref?.lastReadAt || channel.lastMessageAt > pref.lastReadAt);
 
   return (
-    <Pressable style={styles.row} onPress={onPress}>
+    <Pressable style={styles.row} onPress={onPress} onLongPress={onLongPress} delayLongPress={350}>
       <ChannelIcon channel={channel} size={40} />
       <View style={styles.rowInfo}>
         <View style={styles.rowTitleRow}>
@@ -241,6 +276,15 @@ function ChannelRow({
           ) : null}
         </View>
       </View>
+      {pref?.muteNotifications && (
+        <Ionicons
+          name="notifications-off"
+          size={14}
+          color={colors.muted}
+          style={{ marginRight: 6 }}
+          accessibilityLabel="Muted"
+        />
+      )}
       {hasUnread && <View style={styles.unreadDot} />}
       <Ionicons name="chevron-forward" size={16} color={colors.muted} />
     </Pressable>

@@ -1354,6 +1354,32 @@ export async function setChannelPreference(
 }
 
 /**
+ * Mute or unmute push alerts for one channel. Server side,
+ * onChannelMessageCreate skips muted recipients (unless they're @-mentioned)
+ * but still counts their unread, so the dot and badge keep working.
+ */
+export async function setChannelMuted(uid: string, channelId: string, muted: boolean): Promise<void> {
+  await setDoc(
+    doc(db, "users", uid, "channelPreferences", channelId),
+    { muteNotifications: muted },
+    { merge: true },
+  );
+}
+
+/** Live mute state for one channel (false when there's no preference yet). */
+export function subscribeChannelMuted(
+  uid: string,
+  channelId: string,
+  onMuted: (muted: boolean) => void,
+): () => void {
+  return onSnapshot(
+    doc(db, "users", uid, "channelPreferences", channelId),
+    (snap) => onMuted(snap.data()?.muteNotifications === true),
+    () => onMuted(false),
+  );
+}
+
+/**
  * Mark a channel read: stamp lastReadAt, zero this channel's unread count, and
  * subtract that amount from the user's global unread total (which drives the
  * app-icon badge). One transaction so the total can't drift. Returns the new

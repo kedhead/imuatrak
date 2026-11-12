@@ -646,6 +646,20 @@ export async function markChannelRead(uid: string, channelId: string): Promise<n
   });
 }
 
+/** Mute push alerts for one channel. Same field the app sets; the server
+ *  still sends @mentions and still counts unread for muted channels. */
+export async function setChannelMuted(uid: string, channelId: string, muted: boolean): Promise<void> {
+  await setDoc(doc(db, "users", uid, "channelPreferences", channelId), { muteNotifications: muted }, { merge: true });
+}
+
+export function subscribeChannelMuted(uid: string, channelId: string, onMuted: (muted: boolean) => void): () => void {
+  return onSnapshot(
+    doc(db, "users", uid, "channelPreferences", channelId),
+    (snap) => onMuted(snap.data()?.muteNotifications === true),
+    () => onMuted(false),
+  );
+}
+
 export function subscribeChannelUnread(
   uid: string,
   channelId: string,

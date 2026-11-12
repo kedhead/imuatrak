@@ -15,6 +15,8 @@ import {
   subscribeChannels,
   toggleMessageReaction,
   uploadChannelMedia,
+  setChannelMuted,
+  subscribeChannelMuted,
 } from "@/lib/firebase";
 import {
   applyMention,
@@ -105,6 +107,22 @@ export default function ClubChatPage() {
   }, [messages.length, activeId]);
 
   const activeChannel = channels.find((c) => c.id === activeId) ?? null;
+
+  // This person's alert setting for the open channel (shared with the app).
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    if (!user || !activeId) return;
+    return subscribeChannelMuted(user.uid, activeId, setMuted);
+  }, [user, activeId]);
+  const toggleMuted = () => {
+    if (!user || !activeId) return;
+    const next = !muted;
+    setMuted(next);
+    void setChannelMuted(user.uid, activeId, next).catch((e: Error) => {
+      setMuted(!next);
+      setError(e.message);
+    });
+  };
 
   const roleByUid = useMemo(() => {
     const map = new Map<string, MemberRole>();
@@ -358,6 +376,31 @@ export default function ClubChatPage() {
 
         {/* Message pane */}
         <div className="card" style={{ display: "flex", flexDirection: "column", height: "70vh", padding: 0, overflow: "hidden" }}>
+          {activeChannel && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
+              <div style={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {activeChannel.iconType === "emoji" ? `${activeChannel.icon} ` : "# "}
+                {activeChannel.name}
+              </div>
+              <button
+                onClick={toggleMuted}
+                title={muted ? "You won't get phone alerts for this channel, except @mentions" : "Stop phone alerts for this channel (you'll still get @mentions)"}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  border: "1px solid var(--line)",
+                  background: muted ? "var(--panel)" : "transparent",
+                  color: muted ? "var(--muted)" : "var(--ink)",
+                }}
+              >
+                {muted ? "🔕 Muted" : "🔔 Notifications on"}
+              </button>
+            </div>
+          )}
           <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 6 }}>
             {messages.length === 0 && (
               <p style={{ color: "var(--muted)", textAlign: "center", marginTop: 24 }}>
