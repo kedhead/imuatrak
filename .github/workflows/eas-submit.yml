@@ -1,0 +1,51 @@
+name: EAS Submit (stores)
+
+# Manually triggered from the Actions tab (or by Claude). Sends an existing
+# EAS build to the stores using the "production" submit profile in eas.json:
+# iOS → App Store Connect / TestFlight, Android → Play "alpha" track.
+# Leave build_id empty to submit the latest build for that platform.
+# Uses the same EXPO_TOKEN secret as the build and update workflows.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to submit"
+        type: choice
+        options: [ios, android]
+        default: ios
+      build_id:
+        description: "EAS build ID to submit (empty = latest build for the platform)"
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Submit to store
+        env:
+          PLATFORM: ${{ inputs.platform }}
+          BUILD_ID: ${{ inputs.build_id }}
+        run: |
+          if [ -n "$BUILD_ID" ]; then
+            if ! printf '%s' "$BUILD_ID" | grep -Eq '^[0-9a-f-]{36}$'; then
+              echo "build_id must be an EAS build UUID" >&2; exit 1
+            fi
+            eas submit --platform "$PLATFORM" --profile production --id "$BUILD_ID" --non-interactive --wait
+          else
+            eas submit --platform "$PLATFORM" --profile production --latest --non-interactive --wait
+          fi
