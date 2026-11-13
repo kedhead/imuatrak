@@ -5,6 +5,10 @@ import { shadow as shadows } from "./theme";
 // as the home-screen icon and the splash, so the brand mark matches
 // everywhere instead of an older hand-drawn SVG standing in for it.
 const ICON_ART = require("../../assets/icon.png");
+// The full logo on transparency (canoe, paddle, wave and IMUATRAK wordmark,
+// with its own glow): the same mark as the launch artwork.
+const LOGO_ART = require("../../assets/logo-transparent.png");
+const LOGO_ASPECT = 960 / 717;
 
 interface Props {
   size?: number;
@@ -38,3 +42,22 @@ export function Logo({ size = 96, shadow = "md", style }: Props) {
 const styles = StyleSheet.create({
   image: { overflow: "hidden" },
 });
+
+/**
+ * The full ImuaTrak logo on transparency, for dark brand surfaces (sign-in,
+ * email sign-in) right after the launch screen, which shows the same mark.
+ * `width` sets the size; height follows the artwork's aspect ratio.
+ */
+export function BrandLogo({ width = 280, style }: { width?: number; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View style={style}>
+      <Image
+        source={LOGO_ART}
+        style={{ width, height: width / LOGO_ASPECT }}
+        resizeMode="contain"
+        accessibilityRole="image"
+        accessibilityLabel="ImuaTrak"
+      />
+    </View>
+  );
+}
