@@ -1,80 +1,71 @@
-import { useEffect } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { useRef } from "react";
+import { Image, Platform, StyleSheet, View } from "react-native";
 import Animated, {
   Easing,
   FadeOut,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { Gradient } from "./Gradient";
-import { shadow } from "./theme";
 
-// The app icon's artwork (canoe, paddle and wordmark), the same image the
-// native splash shows first, so launch doesn't switch from the icon art to a
-// different mark when this overlay takes over.
-const ICON_ART = require("../../assets/icon.png");
-const TILE = 200;
+// Full-bleed launch artwork (sunrise, canoe and wordmark). On iOS the native
+// launch screen shows this same image (app.config.js → expo-splash-screen), so
+// the hand-off is invisible. On Android 12+ the native screen can only show
+// the logo on a solid colour, so the artwork fades up from that colour.
+const SPLASH_ART = require("../../assets/splash-art.jpg");
+/** The native Android splash background; matches the artwork's deep blue. */
+const SPLASH_BG = "#001D5B";
+
+// iOS's native screen is already this exact frame, so start fully shown there;
+// Android fades the artwork up from the logo-on-blue native screen.
+const START_OPACITY = Platform.OS === "ios" ? 1 : 0;
 
 /**
- * Branded animated splash shown over the app while it boots. The icon tile
- * scales in and then bobs gently; the whole overlay cross-fades out when
- * `hidden`.
+ * Branded splash shown over the app while it boots. The artwork drifts in
+ * slowly (starting from exactly the native frame), then the whole overlay
+ * cross-fades out when `hidden`. `onReady` fires once the artwork has drawn,
+ * which is when it's safe to drop the native splash without a blank frame.
  */
-export function AnimatedSplash({ hidden }: { hidden: boolean }) {
-  const scale = useSharedValue(0.6);
-  const bob = useSharedValue(0);
+export function AnimatedSplash({ onReady }: { hidden?: boolean; onReady?: () => void }) {
+  const opacity = useSharedValue(START_OPACITY);
+  const scale = useSharedValue(1);
+  const started = useRef(false);
 
-  useEffect(() => {
-    scale.value = withSequence(
-      withTiming(1.08, { duration: 480, easing: Easing.out(Easing.back(1.6)) }),
-      withTiming(1, { duration: 220 }),
-    );
-    bob.value = withDelay(
-      700,
-      withRepeat(withTiming(-6, { duration: 1400, easing: Easing.inOut(Easing.quad) }), -1, true),
-    );
-  }, [scale, bob]);
+  // Start once the artwork has actually drawn, then let the native splash go.
+  const onArtLoaded = () => {
+    if (started.current) return;
+    started.current = true;
+    opacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
+    scale.value = withTiming(1.05, { duration: 3000, easing: Easing.out(Easing.cubic) });
+    onReady?.();
+  };
 
-  const tileStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }, { translateY: bob.value }],
+  const artStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
   }));
 
-  if (hidden) {
-    return (
-      <Animated.View exiting={FadeOut.duration(450)} style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Gradient name="night" style={styles.fill}>
-          <Content tileStyle={tileStyle} />
-        </Gradient>
-      </Animated.View>
-    );
-  }
-
+  // One stable tree: the parent unmounts this when the app is ready, and the
+  // exiting animation cross-fades it out. (Swapping wrappers mid-way would
+  // remount the image and could blink.)
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Gradient name="night" style={styles.fill}>
-        <Content tileStyle={tileStyle} />
-      </Gradient>
-    </View>
-  );
-}
-
-function Content({ tileStyle }: { tileStyle: any }) {
-  return (
-    <Animated.View style={[styles.shadow, tileStyle]}>
-      <Image source={ICON_ART} style={styles.tile} resizeMode="cover" />
+    <Animated.View exiting={FadeOut.duration(450)} style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={styles.fill}>
+        <Animated.View style={[StyleSheet.absoluteFill, artStyle]}>
+          <Image
+            source={SPLASH_ART}
+            style={styles.art}
+            resizeMode="cover"
+            fadeDuration={0}
+            onLoadEnd={onArtLoaded}
+          />
+        </Animated.View>
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, alignItems: "center", justifyContent: "center" },
-  // The shadow sits on an unclipped wrapper; the image clips to the rounded
-  // corners (iOS can't draw a shadow on a view that clips its children).
-  shadow: { borderRadius: TILE * 0.225, ...shadow.lg },
-  // 22.5% corner radius approximates the iOS home-screen icon shape.
-  tile: { width: TILE, height: TILE, borderRadius: TILE * 0.225 },
+  fill: { flex: 1, backgroundColor: SPLASH_BG, overflow: "hidden" },
+  art: { width: "100%", height: "100%" },
 });
