@@ -88,14 +88,17 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // no device has, and an update would reach nobody. And do not retarget an
 // update at 1.0.6 or earlier from this code — it imports a native module
 // those builds lack.
-// 1.0.8 ships to BOTH stores from one commit, so the two platforms stay on the
-// same runtime and an OTA can't reach one and miss the other. The native
-// change is Android's (R8 code shrinking — Play flags DEX obfuscation below
-// 25%, fix-by Feb 2027); iOS rebuilds alongside it to stay in step.
-// Until 1.0.8 is live on BOTH stores, OTAs from this code target a build some
-// users don't have yet — see docs/backlog.md → "Enable R8" for the rollout.
-const IOS_RUNTIME_VERSION = "1.0.8";
-const ANDROID_RUNTIME_VERSION = "1.0.8";
+// Both platforms ship each version from one commit, so they stay on the same
+// runtime and an OTA can't reach one and miss the other.
+// 1.0.8: R8 code shrinking on Android (Play's DEX obfuscation warning).
+// 1.0.9: the new native launch screen (expo-splash-screen plugin: full-screen
+// sunrise artwork on iOS, plain artwork-blue on Android). No new native
+// modules or dependency changes.
+// Until 1.0.9 is live on BOTH stores, OTAs from this code target a build some
+// users don't have yet — fixes for 1.0.8 users must be published from a
+// commit that still says 1.0.8.
+const IOS_RUNTIME_VERSION = "1.0.9";
+const ANDROID_RUNTIME_VERSION = "1.0.9";
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
@@ -121,8 +124,8 @@ const config = {
   // this one, so this is 1.0.7. Set the runtime constants above to whatever
   // number you land on, in the same commit.
   //
-  // See the runtime comment above for what 1.0.7 carries and why.
-  version: "1.0.8",
+  // See the runtime comment above for what each version carries and why.
+  version: "1.0.9",
   orientation: "portrait",
   icon: "./assets/icon.png",
   // Every screen is styled with hardcoded light colors — there is no dark
