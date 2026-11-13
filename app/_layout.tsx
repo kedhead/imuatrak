@@ -33,6 +33,8 @@ Notifications.setNotificationHandler({
 
 void SplashScreen.preventAutoHideAsync();
 
+const hideNativeSplash = () => void SplashScreen.hideAsync();
+
 export default function RootLayout() {
   const loadSettings = useSettings((s) => s.load);
   const defaultCraft = useSettings((s) => s.defaultCraft);
@@ -64,10 +66,13 @@ export default function RootLayout() {
 
   useEffect(() => {
     void loadSettings();
-    // Hide the native (static) splash immediately; our animated one takes over.
-    void SplashScreen.hideAsync();
+    // The native splash is hidden by AnimatedSplash's onReady once its artwork
+    // has drawn (no blank frame between them). Backstop in case the image
+    // never reports, so the app can't get stuck behind the native splash.
+    const backstop = setTimeout(() => void SplashScreen.hideAsync(), 1500);
     // Drop bookkeeping for practice reminders whose events have passed.
     void pruneEventReminders();
+    return () => clearTimeout(backstop);
   }, [loadSettings]);
 
   useEffect(() => {
@@ -201,7 +206,7 @@ export default function RootLayout() {
           <Stack.Screen name="dm/[threadId]" options={{ headerShown: true, title: "" }} />
           <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false }} />
         </Stack>
-        {!splashHidden && <AnimatedSplash hidden={loaded} />}
+        {!splashHidden && <AnimatedSplash hidden={loaded} onReady={hideNativeSplash} />}
       </SafeAreaProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>

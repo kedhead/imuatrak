@@ -132,11 +132,6 @@ const config = {
   // system UI consistent with the app's own palette. Revisit if a real dark
   // theme is ever built.
   userInterfaceStyle: "light",
-  splash: {
-    image: "./assets/splash.png",
-    resizeMode: "contain",
-    backgroundColor: "#07314F",
-  },
   newArchEnabled: true,
   assetBundlePatterns: ["**/*"],
 
@@ -266,6 +261,26 @@ const config = {
 
   plugins: [
     "expo-router",
+    // Native launch screen (the frame shown before JS loads). Takes effect on
+    // the next native build, not via OTA. iOS shows the full sunrise artwork,
+    // matching the first frame of src/ui/AnimatedSplash so the hand-off is
+    // seamless. Android 12+ only allows a centred icon on a solid colour, so
+    // it gets the transparent logo on the artwork's deep blue.
+    [
+      "expo-splash-screen",
+      {
+        backgroundColor: "#001D5B",
+        image: "./assets/splash-logo.png",
+        // Android 12+ masks the icon to a 192dp circle: at 150dp the whole
+        // wide logo (wordmark included) fits inside it.
+        imageWidth: 150,
+        ios: {
+          image: "./assets/splash-ios.png",
+          enableFullScreenImage_legacy: true,
+          resizeMode: "cover",
+        },
+      },
+    ],
     "expo-notifications",
     // Bluetooth heart-rate straps (src/services/heartRateStrap.ts). Adds the
     // iOS Bluetooth usage string and the Android 12+ BLUETOOTH_SCAN /
