@@ -8,7 +8,6 @@ import {
   Alert,
   Dimensions,
   FlatList,
-  Image,
   Linking,
   Modal,
   Pressable,
@@ -19,6 +18,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -385,7 +385,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             {(club?.logoUrl || club?.websiteUrl) && (
               <View style={styles.identityRow}>
                 {club.logoUrl && (
-                  <Image source={{ uri: club.logoUrl }} style={styles.clubLogo} />
+                  <Image source={{ uri: club.logoUrl }} style={styles.clubLogo} cachePolicy="memory-disk" />
                 )}
                 {club.websiteUrl && (
                   <Pressable
@@ -690,7 +690,7 @@ function PostCard({
             a flyer cropped to a card is usually unreadable. */}
         {(post.mediaUrls ?? []).map((url) => (
           <Pressable key={url} onPress={() => setPhoto(url)} style={styles.postImageWrap}>
-            <Image source={{ uri: url }} style={styles.postImage} resizeMode="cover" />
+            <Image source={{ uri: url }} style={styles.postImage} contentFit="cover" cachePolicy="memory-disk" recyclingKey={url} transition={120} />
           </Pressable>
         ))}
         {post.type === "poll" && (

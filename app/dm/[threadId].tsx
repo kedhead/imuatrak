@@ -10,7 +10,6 @@ import {
   Alert,
   Dimensions,
   FlatList,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -20,6 +19,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -503,7 +503,7 @@ export default function DmThreadScreen() {
                       key={`${a.uri}-${i}`}
                       source={{ uri: a.uri }}
                       style={styles.previewThumb}
-                      resizeMode="cover"
+                      contentFit="cover"
                     />
                   ))}
                 </ScrollView>
@@ -702,7 +702,7 @@ function MediaGrid({
         onLongPress={onLongPress}
         delayLongPress={300}
       >
-        <Image source={{ uri: urls[0] }} style={styles.mediaImage} resizeMode="cover" />
+        <Image source={{ uri: urls[0] }} style={styles.mediaImage} contentFit="cover" cachePolicy="memory-disk" recyclingKey={urls[0]} transition={120} />
         {uploading && (
           <View style={styles.uploadingOverlay}>
             <ActivityIndicator color={colors.white} />
@@ -725,7 +725,7 @@ function MediaGrid({
             onLongPress={onLongPress}
             delayLongPress={300}
           >
-            <Image source={{ uri: u }} style={styles.gridImage} resizeMode="cover" />
+            <Image source={{ uri: u }} style={styles.gridImage} contentFit="cover" cachePolicy="memory-disk" recyclingKey={u} transition={120} />
             {i === shown.length - 1 && extra > 0 && (
               <View style={styles.gridMore}>
                 <Text style={styles.gridMoreText}>+{extra}</Text>

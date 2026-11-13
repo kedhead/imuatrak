@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import type { MemberRole } from "@/models/club";
 import { colors } from "./theme";
 
@@ -74,6 +75,11 @@ export function Avatar({
         source={{ uri }}
         style={[styles.image, dimensions]}
         onError={() => setFailed(true)}
+        // Avatars repeat across every list; keep decoded copies in memory and
+        // files on disk, and reset cleanly when a recycled row changes person.
+        cachePolicy="memory-disk"
+        recyclingKey={uri}
+        transition={100}
         accessibilityLabel={`${name}'s profile photo`}
       />
     );

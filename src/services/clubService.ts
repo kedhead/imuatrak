@@ -24,6 +24,7 @@ import {
   type FieldValue,
 } from "firebase/firestore";
 import * as FileSystem from "expo-file-system/legacy";
+import { prepareImageForUpload } from "./imageResize";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "./firebase";
 import type {
@@ -217,9 +218,11 @@ export async function syncMemberProfile(
  * uploadAvatar in firebase/functions) — the client only reads the file, for
  * the same Blob reason uploadMessageMedia goes server-side.
  */
-export async function uploadAvatar(localUri: string, mimeType: string): Promise<string> {
+export async function uploadAvatar(pickedUri: string, pickedType: string): Promise<string> {
   const user = auth.currentUser;
   if (!user) throw new Error("not signed in");
+  // Avatars show at most ~100pt; 1024px is plenty and keeps the call small.
+  const { uri: localUri, mimeType } = await prepareImageForUpload(pickedUri, pickedType, 1024);
 
   const base64 = await FileSystem.readAsStringAsync(localUri, {
     encoding: FileSystem.EncodingType.Base64,
@@ -1262,13 +1265,15 @@ export async function uploadMessageMedia(
   clubId: string,
   channelId: string,
   messageId: string,
-  localUri: string,
-  mimeType: string,
+  pickedUri: string,
+  pickedType: string,
   /** "media" (default, single → mediaUrl) or "media-N" (multi → mediaUrls[]). */
   fileKey: string = "media",
 ): Promise<string> {
   const user = auth.currentUser;
   if (!user) throw new Error("not signed in");
+  // Photos are shrunk to screen size first; videos pass through untouched.
+  const { uri: localUri, mimeType } = await prepareImageForUpload(pickedUri, pickedType);
 
   // Guard against pathologically large uploads (a full-length 4K clip). The
   // signed-URL path below has no hard ceiling, but streaming hundreds of MB
@@ -1464,10 +1469,11 @@ export async function getGalleryPosts(clubId: string, maxItems = 60): Promise<Cl
 export async function uploadPostMedia(
   clubId: string,
   postId: string,
-  localUri: string,
-  mimeType: string,
+  pickedUri: string,
+  pickedType: string,
   fileKey: string = "media",
 ): Promise<string> {
+  const { uri: localUri, mimeType } = await prepareImageForUpload(pickedUri, pickedType);
   const base64 = await FileSystem.readAsStringAsync(localUri, {
     encoding: FileSystem.EncodingType.Base64,
   });

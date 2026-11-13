@@ -8,7 +8,6 @@ import {
   Alert,
   Dimensions,
   FlatList,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -17,6 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -242,7 +242,7 @@ export default function GalleryScreen() {
           contentContainerStyle={{ gap: GAP }}
           renderItem={({ item, index }) => (
             <Pressable onPress={() => setViewerIndex(index)}>
-              <Image source={{ uri: item.url }} style={styles.tile} />
+              <Image source={{ uri: item.url }} style={styles.tile} cachePolicy="memory-disk" recyclingKey={item.url} transition={120} />
             </Pressable>
           )}
           ListEmptyComponent={empty}
@@ -511,7 +511,7 @@ function PhotoCard({
 
       {urls.length === 1 ? (
         <Pressable onPress={() => onOpenPhoto(urls[0]!)}>
-          <Image source={{ uri: urls[0]! }} style={styles.cardImage} />
+          <Image source={{ uri: urls[0]! }} style={styles.cardImage} cachePolicy="memory-disk" recyclingKey={urls[0]} transition={120} />
         </Pressable>
       ) : (
         <>
@@ -526,7 +526,7 @@ function PhotoCard({
             }
             renderItem={({ item }) => (
               <Pressable onPress={() => onOpenPhoto(item)}>
-                <Image source={{ uri: item }} style={styles.cardImage} />
+                <Image source={{ uri: item }} style={styles.cardImage} cachePolicy="memory-disk" recyclingKey={item} transition={120} />
               </Pressable>
             )}
           />

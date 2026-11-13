@@ -92,8 +92,10 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // runtime and an OTA can't reach one and miss the other.
 // 1.0.8: R8 code shrinking on Android (Play's DEX obfuscation warning).
 // 1.0.9: the new native launch screen (expo-splash-screen plugin: full-screen
-// sunrise artwork on iOS, plain artwork-blue on Android). No new native
-// modules or dependency changes.
+// sunrise artwork on iOS, plain artwork-blue on Android), plus two new native
+// modules: expo-image (cached, downsampled images) and expo-image-manipulator
+// (shrink photos before upload). JS from 1.0.9 on imports both, so it must
+// never be published to a 1.0.8 runtime.
 // Until 1.0.9 is live on BOTH stores, OTAs from this code target a build some
 // users don't have yet — fixes for 1.0.8 users must be published from a
 // commit that still says 1.0.8.

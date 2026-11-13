@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Image, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -179,7 +180,7 @@ export function ZoomableImage({
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View style={[{ width, height }, styles.page, animatedStyle]}>
-        <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+        <Image source={{ uri }} style={styles.image} contentFit="contain" cachePolicy="memory-disk" />
       </Animated.View>
     </GestureDetector>
   );
