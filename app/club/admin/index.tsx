@@ -6,7 +6,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Linking,
   Pressable,
   ScrollView,
@@ -15,12 +14,14 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { deleteField } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/services/firebase";
 import { useClub } from "@/services/clubStore";
 import { updateClub, leaveClub, countExpiringMessages, startClubTrial } from "@/services/clubService";
+import { prepareImageForUpload } from "@/services/imageResize";
 import { CHAT_RETENTION_OPTIONS, OWNER_BADGE_OPTIONS, type OwnerBadge } from "@/models/club";
 import { currentUser } from "@/services/auth";
 import { colors, spacing, radii } from "@/ui/theme";
@@ -66,9 +67,11 @@ export default function ClubAdminScreen() {
       quality: 0.7,
     });
     if (result.canceled || !result.assets[0]) return;
-    const uri = result.assets[0].uri;
+    const picked = result.assets[0];
     setUploadingLogo(true);
     try {
+      // Logos show small everywhere; 1024px keeps the upload quick.
+      const { uri } = await prepareImageForUpload(picked.uri, picked.mimeType ?? "image/jpeg", 1024);
       const user = currentUser();
       if (!user) throw new Error("Not signed in");
       const token = await user.getIdToken();
@@ -298,7 +301,7 @@ export default function ClubAdminScreen() {
         <Text style={styles.sectionLabel}>CLUB LOGO</Text>
         <Pressable style={styles.logoWrap} onPress={handlePickLogo} disabled={uploadingLogo}>
           {logoUrl ? (
-            <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+            <Image source={{ uri: logoUrl }} style={styles.logoImage} cachePolicy="memory-disk" />
           ) : (
             <View style={styles.logoPlaceholder}>
               <Ionicons name="image-outline" size={36} color={colors.muted} />

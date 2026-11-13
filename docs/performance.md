@@ -64,23 +64,28 @@ mention caret logic moved across unchanged.
 
 ---
 
-## 3. Images use React Native's `Image` — needs a build
-
-19 `<Image>` call sites, including `ui/Avatar.tsx`, which renders in every
-roster row, every chat bubble and every lineup seat.
+## 3. Images use React Native's `Image` — FIXED in 1.0.9 (native build)
 
 RN's `Image` on Android has **no disk cache** and **no downsampling**: a
-full-resolution Firebase photo is decoded at full size into a 220×160 bubble,
-and re-downloaded next launch. On a long chat scroll that is both memory
-pressure and avoidable network.
+full-resolution Firebase photo was decoded at full size into a 220×160
+bubble, and re-downloaded next launch.
 
-`expo-image` is in Expo's SDK 56 matrix (`~56.0.9`) and is a near drop-in
-(`contentFit` replaces `resizeMode`). It brings disk+memory caching,
-downsampling, and `placeholder`/`transition` for free.
+1.0.9 switches every remote image (avatars, chat and DM photos, gallery,
+feed posts, club logos, the zoom viewer) and the photo-picker previews to
+`expo-image` (`~58.0.16`, the SDK 58 matrix version), with
+`cachePolicy="memory-disk"`, a short `transition`, and `recyclingKey` on
+list items so recycled rows never flash the previous photo. The bundled
+splash/logo art and the AdMob icon stay on RN `Image`.
 
-It is a **native module**, so it cannot ship over OTA — queue it for the next
-build. Pin the exact matrix version; a caret range is how the 1.0.3 launch
-crash happened.
+Uploads are shrunk first (`src/services/imageResize.ts`, using
+`expo-image-manipulator`): photos over 2048 px (1024 px for avatars and club
+logos) are resized and saved as JPEG at 0.82. Videos, GIFs and anything
+already screen-sized go up untouched, and any failure falls back to the
+original. This also stops large photos failing the ~7 MB base64 callables
+(posts, DMs, avatars).
+
+Both are native modules: JS that imports them must only reach 1.0.9+
+binaries, which the 1.0.9 runtime version guarantees.
 
 ## 4. FlatList windowing is untuned
 

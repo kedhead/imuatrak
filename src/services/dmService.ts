@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import * as FileSystem from "expo-file-system/legacy";
+import { prepareImageForUpload } from "./imageResize";
 import { db, functions } from "./firebase";
 import type { DmMessage, DmThread } from "@/models/club";
 
@@ -163,10 +164,11 @@ export async function sendDmMessage(
 export async function uploadDmMedia(
   threadId: string,
   messageId: string,
-  localUri: string,
-  mimeType: string,
+  pickedUri: string,
+  pickedType: string,
   fileKey: string = "media",
 ): Promise<string> {
+  const { uri: localUri, mimeType } = await prepareImageForUpload(pickedUri, pickedType);
   const base64 = await FileSystem.readAsStringAsync(localUri, {
     encoding: FileSystem.EncodingType.Base64,
   });
