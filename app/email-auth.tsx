@@ -19,7 +19,7 @@ import {
   type AuthUser,
 } from "@/services/auth";
 import { Button } from "@/ui/Button";
-import { Logo } from "@/ui/Logo";
+import { BrandLogo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, spacing, type } from "@/ui/theme";
 
@@ -94,7 +94,7 @@ export default function EmailAuth() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.hero}>
-            <Logo size={96} />
+            <BrandLogo width={180} />
             <Text style={styles.title}>{signIn ? "Welcome back" : "Create your account"}</Text>
             <Text style={styles.subtitle}>
               {signIn

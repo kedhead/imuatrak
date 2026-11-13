@@ -2,7 +2,7 @@ import { GoogleSignin, isSuccessResponse } from "@react-native-google-signin/goo
 import * as AppleAuthentication from "expo-apple-authentication";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Platform, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
   Easing,
   FadeIn,
@@ -22,7 +22,7 @@ import {
   signInWithGoogleTokens,
 } from "@/services/auth";
 import { Button } from "@/ui/Button";
-import { Logo } from "@/ui/Logo";
+import { BrandLogo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, spacing, type } from "@/ui/theme";
 
@@ -42,6 +42,7 @@ const GOOGLE_CONFIGURED =
 export default function Onboarding() {
   const [appleAvailable, setAppleAvailable] = useState(false);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
 
   const bob = useSharedValue(0);
   useEffect(() => {
@@ -82,9 +83,9 @@ export default function Onboarding() {
       <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.lg }]}>
         <View style={styles.hero}>
           <Animated.View entering={FadeInDown.duration(700)} style={logoStyle}>
-            {/* Same art and size as the launch splash, so the mark carries
+            {/* The same logo as the launch artwork, so the mark carries
                 straight through. It includes the wordmark — no separate title. */}
-            <Logo size={200} shadow="lg" />
+            <BrandLogo width={Math.min(320, width * 0.8)} />
           </Animated.View>
           <Animated.Text entering={FadeIn.delay(450).duration(700)} style={styles.tag}>
             Track every paddle — distance, pace, stroke rate, and the whole journey forward.
