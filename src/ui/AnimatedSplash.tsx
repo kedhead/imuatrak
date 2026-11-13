@@ -10,14 +10,15 @@ import Animated, {
 
 // Full-bleed launch artwork (sunrise, canoe and wordmark). On iOS the native
 // launch screen shows this same image (app.config.js → expo-splash-screen), so
-// the hand-off is invisible. On Android 12+ the native screen can only show
-// the logo on a solid colour, so the artwork fades up from that colour.
+// the hand-off is invisible. Android 12+ can't show a full-screen image
+// natively, so its native screen is plain SPLASH_BG and the artwork fades up
+// from that colour.
 const SPLASH_ART = require("../../assets/splash-art.jpg");
 /** The native Android splash background; matches the artwork's deep blue. */
 const SPLASH_BG = "#001D5B";
 
 // iOS's native screen is already this exact frame, so start fully shown there;
-// Android fades the artwork up from the logo-on-blue native screen.
+// Android fades the artwork up from the plain-blue native screen.
 const START_OPACITY = Platform.OS === "ios" ? 1 : 0;
 
 /**

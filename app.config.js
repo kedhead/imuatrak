@@ -264,20 +264,22 @@ const config = {
     // Native launch screen (the frame shown before JS loads). Takes effect on
     // the next native build, not via OTA. iOS shows the full sunrise artwork,
     // matching the first frame of src/ui/AnimatedSplash so the hand-off is
-    // seamless. Android 12+ only allows a centred icon on a solid colour, so
-    // it gets the transparent logo on the artwork's deep blue.
+    // seamless. Android 12+ only allows an icon on a solid colour, so Android
+    // shows the artwork's deep blue with a TRANSPARENT icon (without one the
+    // system would draw the launcher icon), and AnimatedSplash fades the
+    // artwork up from that blue.
     [
       "expo-splash-screen",
       {
         backgroundColor: "#001D5B",
-        image: "./assets/splash-logo.png",
-        // Android 12+ masks the icon to a 192dp circle: at 150dp the whole
-        // wide logo (wordmark included) fits inside it.
-        imageWidth: 150,
         ios: {
           image: "./assets/splash-ios.png",
           enableFullScreenImage_legacy: true,
           resizeMode: "cover",
+        },
+        android: {
+          image: "./assets/splash-android-blank.png",
+          imageWidth: 150,
         },
       },
     ],
