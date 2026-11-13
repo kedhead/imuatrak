@@ -19,6 +19,10 @@ jobs:
           cache: "npm"
       - name: Install
         run: npm ci
+      - name: Native versions pinned
+        # Precompiled iOS frameworks crash at launch if a native package
+        # drifts past the installed expo-modules-core. See the script.
+        run: npm run check:native
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

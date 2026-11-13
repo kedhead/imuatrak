@@ -150,3 +150,39 @@ TEST ACCOUNT
 - [ ] Background-location screen recording attached to the reply / submission
 - [ ] Subscription product is "Ready to Submit" (localization, price, review
       screenshot all complete — no "Developer Action Needed")
+
+---
+
+## 5. What's New (release notes, per version)
+
+Same rules as the description: only what this build actually does, no other
+platforms in the App Store text. Google Play's field is capped at 500
+characters per language.
+
+### 1.0.9
+
+**App Store → version 1.0.9 → What's New in This Version:**
+```
+A faster, fresher ImuaTrak.
+
+• Faster photos everywhere: chat, messages, the gallery and the team feed load quickly and stay saved on your phone, so scrolling back doesn't download them again
+• Photos upload faster too, and large photos that sometimes failed to post now go through
+• Screens open instantly with your last-seen data while the latest loads, and taps like RSVPs respond right away
+• Mute a chatty channel: tap the bell in any channel to stop its alerts. You'll still be notified when someone @mentions you
+• Club owners can choose how they appear to the club: Owner, Admin, or no badge
+• A brand-new launch screen and sign-in look
+• Bug fixes and polish
+
+Running your club from a laptop? Sign-up sheets, surveys and group chats are now on imuatrak.app too.
+```
+
+**Google Play → release notes (en-US):**
+```
+• Faster photos: chat, messages, gallery and feed load quickly and stay saved
+• Faster, more reliable photo uploads
+• Screens open instantly; RSVPs and taps respond right away
+• Mute a chatty channel (you'll still get @mentions)
+• Club owners can show as Owner, Admin, or no badge
+• New launch screen and sign-in look
+• Bug fixes and polish
+```
