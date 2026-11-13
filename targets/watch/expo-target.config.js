@@ -7,7 +7,9 @@ module.exports = {
   // watchOS 10 keeps Series 4/5/SE1 supported. HKQuantityType(.distancePaddleSports)
   // is watchOS 11+ and is #available-guarded in WorkoutManager.swift.
   deploymentTarget: "10.0",
-  icon: "../../assets/icon.png",
+  // Own icon: the watch masks to a circle, so the logo sits smaller than on
+  // the iPhone icon to keep the wordmark clear of the edge.
+  icon: "../../assets/watch-icon.png",
   frameworks: [
     "SwiftUI",
     "WatchKit",

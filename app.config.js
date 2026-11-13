@@ -223,9 +223,15 @@ const config = {
         category: ["BROWSABLE", "DEFAULT"],
       },
     ],
+    // Launchers mask these layers to a circle/squircle/etc. and only show the
+    // middle 66%, so the foreground logo sits inside that safe zone on a
+    // transparent canvas over the ocean-gradient background. The monochrome
+    // layer (logo's line work) is used for Android 13+ themed icons.
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
-      backgroundColor: "#07314F",
+      backgroundImage: "./assets/adaptive-icon-background.png",
+      monochromeImage: "./assets/adaptive-icon-monochrome.png",
+      backgroundColor: "#001D5B",
     },
     config: {
       googleMaps: {
