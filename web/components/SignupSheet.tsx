@@ -247,9 +247,8 @@ export function SignupSheet({
                 }}
               >
                 <input
-                  autoFocus
                   style={input}
-                  placeholder="What are you bringing? (optional)"
+                  placeholder="Add a note (optional)"
                   maxLength={SIGNUP_NOTE_MAX}
                   value={editing.note}
                   onChange={(e) => setEditing({ ...editing, note: e.target.value })}
