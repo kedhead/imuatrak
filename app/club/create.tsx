@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
 import { createClub } from "@/services/clubService";
