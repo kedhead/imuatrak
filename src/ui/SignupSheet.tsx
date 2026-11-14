@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   SIGNUP_ITEMS_MAX,

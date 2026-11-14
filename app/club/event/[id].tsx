@@ -15,7 +15,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { deleteField } from "firebase/firestore";
 import { currentUser } from "@/services/auth";

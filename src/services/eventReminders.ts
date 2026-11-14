@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import type { ClubEvent } from "@/models/club";
 
 /**
@@ -15,6 +15,8 @@ import type { ClubEvent } from "@/models/club";
  */
 
 const KEY = "imuatrak.eventReminders";
+/** Set once we've asked an Android user for exact alarms, so we ask once. */
+const EXACT_ASKED_KEY = "imuatrak.exactAlarmAsked";
 const ANDROID_CHANNEL = "event-reminders";
 
 interface StoredReminder {
@@ -23,10 +25,54 @@ interface StoredReminder {
 }
 type ReminderMap = Record<string, StoredReminder>; // key = clubId:eventId
 
-const LEADS: { ms: number; label: string }[] = [
-  { ms: 24 * 60 * 60 * 1000, label: "tomorrow" },
-  { ms: 60 * 60 * 1000, label: "in 1 hour" },
+// The body names the day and clock time, never "in 1 hour": Android may
+// deliver a local notification late (see ensureExactAlarms), and "Today at
+// 9:00 AM" stays true where "Starts in 1 hour" arriving at 9:58 does not.
+const LEADS: { ms: number; day: "Tomorrow" | "Today" }[] = [
+  { ms: 24 * 60 * 60 * 1000, day: "Tomorrow" },
+  { ms: 60 * 60 * 1000, day: "Today" },
 ];
+
+/**
+ * Android only. Without the exact-alarm permission, Android schedules our
+ * reminders as inexact alarms that battery saving (Doze, and OEM policies on
+ * Samsung and others) can push back by an hour or more — a "starts in 1 hour"
+ * reminder arrived after practice began. Android 14+ denies the permission by
+ * default, so the first time someone RSVPs "going" we explain and open the
+ * system "Alarms & reminders" switch once.
+ *
+ * Builds whose manifest doesn't declare SCHEDULE_EXACT_ALARM (1.0.9 and
+ * earlier) report canAskAgain=false, so this is a no-op there and safe to OTA.
+ */
+async function ensureExactAlarms(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  try {
+    const current = await Notifications.getExactAlarmPermissionsAsync();
+    if (current.granted || !current.canAskAgain) return;
+    if ((await AsyncStorage.getItem(EXACT_ASKED_KEY)) === "1") return;
+    await AsyncStorage.setItem(EXACT_ASKED_KEY, "1");
+    await new Promise<void>((resolve) =>
+      Alert.alert(
+        "On-time practice reminders",
+        "To remind you an hour before practice right on time, ImuaTrak needs Android's \"Alarms & reminders\" permission. Without it, your phone may deliver reminders late to save battery.",
+        [
+          { text: "Not now", style: "cancel", onPress: () => resolve() },
+          {
+            text: "Allow",
+            onPress: () => {
+              void Notifications.requestExactAlarmPermissionsAsync()
+                .catch(() => undefined)
+                .finally(() => resolve());
+            },
+          },
+        ],
+        { cancelable: true, onDismiss: () => resolve() },
+      ),
+    );
+  } catch {
+    // Never let the permission dance block an RSVP.
+  }
+}
 
 async function readMap(): Promise<ReminderMap> {
   try {
@@ -91,6 +137,7 @@ export async function syncEventReminders(
 
   if (stored && stored.startAt === event.startAt) return; // Already in sync.
   if (!(await ensureReady())) return;
+  await ensureExactAlarms();
   if (stored) await cancelStored(map, key); // Time changed — reschedule.
 
   const start = new Date(event.startAt);
@@ -105,9 +152,11 @@ export async function syncEventReminders(
       const id = await Notifications.scheduleNotificationAsync({
         content: {
           title: event.title,
-          body: `Starts ${lead.label} — ${timeStr}${where}. See you on the water!`,
+          body: `${lead.day} at ${timeStr}${where}. See you on the water!`,
           sound: "default",
-          data: { clubId: event.clubId, eventId: event.id },
+          // startAt lets the foreground handler drop a reminder that arrives
+          // after the event already began.
+          data: { clubId: event.clubId, eventId: event.id, startAt: event.startAt, kind: "eventReminder" },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,

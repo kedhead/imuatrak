@@ -21,7 +21,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
@@ -505,7 +505,6 @@ export default function ChannelChatScreen() {
         // Header = status bar (safe-area top inset, varies by device) + 44pt
         // nav bar. The old hardcoded 88 was wrong on notched iPhones, so the
         // keyboard overlapped the newest chat bubbles.
-        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
         {/* Free clubs only (AdBanner renders nothing for ad-free members).
             At the top, away from the composer, so typing can't hit it. It sits
