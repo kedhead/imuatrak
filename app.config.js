@@ -256,6 +256,10 @@ const config = {
       // audio "hut" detection feature (Phase 3) is not built yet. Restore when
       // it ships.
       "POST_NOTIFICATIONS",
+      // Practice reminders are scheduled locally; without this, Android uses
+      // inexact alarms that battery saving can delay past the start time.
+      // Android 14+ still asks the user (see src/services/eventReminders.ts).
+      "SCHEDULE_EXACT_ALARM",
       "com.google.android.wearable.permission.RECEIVE_COMPLICATION_DATA",
     ],
     blockedPermissions: [

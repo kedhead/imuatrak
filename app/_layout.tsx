@@ -22,13 +22,20 @@ import { AnimatedSplash } from "@/ui/AnimatedSplash";
 import { colors } from "@/ui/theme";
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    // A practice reminder Android delivered after the practice already began
+    // is noise, not a reminder: don't show it while the app is open.
+    const data = notification.request.content.data as { kind?: string; startAt?: string } | undefined;
+    const stale =
+      data?.kind === "eventReminder" && typeof data.startAt === "string" && data.startAt <= new Date().toISOString();
+    return {
+      shouldShowAlert: !stale,
+      shouldPlaySound: !stale,
+      shouldSetBadge: false,
+      shouldShowBanner: !stale,
+      shouldShowList: !stale,
+    };
+  },
 });
 
 void SplashScreen.preventAutoHideAsync();
