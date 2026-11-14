@@ -109,11 +109,14 @@ const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID
 // modules: expo-image (cached, downsampled images) and expo-image-manipulator
 // (shrink photos before upload). JS from 1.0.9 on imports both, so it must
 // never be published to a 1.0.8 runtime.
-// Until 1.0.9 is live on BOTH stores, OTAs from this code target a build some
-// users don't have yet — fixes for 1.0.8 users must be published from a
-// commit that still says 1.0.8.
-const IOS_RUNTIME_VERSION = "1.0.9";
-const ANDROID_RUNTIME_VERSION = "1.0.9";
+// 1.0.10: Android push actually works (google-services.json now supplied via
+// the GOOGLE_SERVICES_JSON EAS file variable, and Android builds fail without
+// it), and SCHEDULE_EXACT_ALARM so practice reminders fire on time. No
+// dependency changes from 1.0.9.
+// Until 1.0.10 is live on BOTH stores, OTAs from this code target a build some
+// users don't have yet.
+const IOS_RUNTIME_VERSION = "1.0.10";
+const ANDROID_RUNTIME_VERSION = "1.0.10";
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
@@ -140,7 +143,7 @@ const config = {
   // number you land on, in the same commit.
   //
   // See the runtime comment above for what each version carries and why.
-  version: "1.0.9",
+  version: "1.0.10",
   orientation: "portrait",
   icon: "./assets/icon.png",
   // Every screen is styled with hardcoded light colors — there is no dark
