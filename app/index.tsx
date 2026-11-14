@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { isGuestMode, watchAuth } from "@/services/auth";
 import { getUserClubs } from "@/services/clubService";
-import { Logo } from "@/ui/Logo";
+import { BrandLogo } from "@/ui/Logo";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, spacing } from "@/ui/theme";
 
@@ -37,7 +37,9 @@ export default function Index() {
     return (
       <ScreenBackground gradient="night">
         <View style={styles.center}>
-          <Logo size={120} />
+          {/* Same mark as the launch artwork and the sign-in screen that
+              follows, so boot reads as one continuous logo. */}
+          <BrandLogo width={240} />
           <ActivityIndicator color={colors.white} style={{ marginTop: spacing.xl }} />
         </View>
       </ScreenBackground>
