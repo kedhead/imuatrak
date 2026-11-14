@@ -39,6 +39,11 @@ app from the beginning; `android.googleServicesFile` had never been set.
    - **Locally:** drop the file at the repo root; `app.config.js` finds it.
 4. **Rebuild.** This is compiled in — it cannot be delivered by OTA.
 
+> Since 1.0.10, `app.config.js` **fails any Android EAS build** that has no
+> `GOOGLE_SERVICES_JSON`, so a build can never again ship without push. If an
+> Android build fails with "missing google-services.json", add the variable on
+> expo.dev → Environment variables (type **File**, environment **production**).
+
 ### Android — FCM V1 credentials on Expo
 
 Separately from the client config, the Expo Push Service needs permission to
