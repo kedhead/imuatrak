@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import { clubGrantsAdFree, clubIsPro, type ClubMember } from "@/models/club";
 import { currentUser } from "@/services/auth";
 import { useClub } from "@/services/clubStore";

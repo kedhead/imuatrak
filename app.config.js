@@ -17,14 +17,27 @@
 // GOOGLE_SERVICES_JSON, which lands on the builder as a path. Locally, drop the
 // file at the repo root and it is picked up automatically.
 //
-// Left undefined when neither is available, which is exactly the old behaviour:
-// the build still succeeds, Android just gets no push. iOS does NOT need this —
+// Locally (and on CI machines that only *queue* builds) it may be undefined. On
+// EAS's Android build servers it must not be: shipping without it meant NO
+// Android user got push (members saw "Default FirebaseApp is not initialized"
+// in Settings → Notifications), silently, build after build. So an Android
+// EAS build without it now fails with instructions. iOS does NOT need this —
 // Expo talks to APNs directly.
 const googleServicesFile =
   process.env.GOOGLE_SERVICES_JSON ??
   (require("fs").existsSync(`${__dirname}/google-services.json`)
     ? "./google-services.json"
     : undefined);
+
+if (process.env.EAS_BUILD_PLATFORM === "android" && !googleServicesFile) {
+  throw new Error(
+    "Android build is missing google-services.json, so push notifications would not work.\n" +
+      "Add it on expo.dev → this project → Environment variables: name GOOGLE_SERVICES_JSON, " +
+      "type File, upload the google-services.json from Firebase Console (Project settings → " +
+      "Your apps → Android app app.imuatrak), enable it for the production environment. " +
+      "See docs/push-notifications.md.",
+  );
+}
 
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 const googleIosUrlScheme = GOOGLE_IOS_CLIENT_ID

@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser, updateDisplayName } from "@/services/auth";
 import { syncMemberDisplayName } from "@/services/clubService";
