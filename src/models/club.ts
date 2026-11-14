@@ -733,6 +733,13 @@ export const SIGNUP_TEMPLATES: readonly SignupTemplate[] = [
     ],
   },
   {
+    id: "rigging",
+    emoji: "🔧",
+    name: "Rig canoes",
+    blurb: "10 people to rig before practice",
+    items: [{ label: "Rig canoes", slots: 10 }],
+  },
+  {
     id: "snacks",
     emoji: "🍉",
     name: "Practice snacks",

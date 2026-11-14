@@ -403,11 +403,13 @@ export function SignupSheet({
                     {item.details ? <Text style={styles.modalHint}>{item.details}</Text> : null}
                     <TextInput
                       style={styles.input}
-                      placeholder="What are you bringing? (optional)"
+                      // Neutral wording: sheets cover jobs (rigging, setup) as
+                      // well as food, and the note is optional. No autofocus,
+                      // so signing up is one tap without the keyboard.
+                      placeholder="Add a note (optional)"
                       placeholderTextColor={colors.muted}
                       value={note}
                       onChangeText={setNote}
-                      autoFocus
                       maxLength={SIGNUP_NOTE_MAX}
                       returnKeyType="done"
                       onSubmitEditing={() => claim(item)}
