@@ -506,7 +506,7 @@ export default function ChannelChatScreen() {
             At the top, away from the composer, so typing can't hit it. It sits
             inside the KeyboardAvoidingView so the composer's position doesn't
             depend on whether an ad is showing. */}
-        <AdBanner aboveTabBar={false} />
+        <AdBanner placement="chat_top_banner" aboveTabBar={false} />
         <View style={styles.listWrap}>
         <FlatList
           data={reversed}

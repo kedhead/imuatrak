@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Platform, Text, View } from "react-native";
 import { BannerAd, BannerAdSize, TestIds } from "react-native-google-mobile-ads";
+import { useTrackingBannerAdProps } from "react-native-purchases-admob";
 import { clubGrantsAdFree } from "@/models/club";
 import { useAds } from "@/services/ads";
 import { useClub } from "@/services/clubStore";
@@ -21,12 +22,22 @@ const IS_DEV = __DEV__;
 // loaded ad renders entirely behind the tab bar and is never seen.
 const TAB_BAR_CLEARANCE = (Platform.OS === "ios" ? 24 : 16) + 68 + 8;
 
+/** RevenueCat ad-tracking placements. Stable names only — never dynamic values. */
+export type BannerPlacement = "stats_bottom_banner" | "chat_top_banner";
+
 /**
  * `aboveTabBar` (default true) lifts the banner clear of the floating tab bar,
  * for the bottom of a tab screen. Pass false where there's no tab bar, e.g.
- * at the top of a chat.
+ * at the top of a chat. `placement` names where it shows in RevenueCat's Ads
+ * dashboard.
  */
-export function AdBanner({ aboveTabBar = true }: { aboveTabBar?: boolean } = {}) {
+export function AdBanner({
+  placement,
+  aboveTabBar = true,
+}: {
+  placement: BannerPlacement;
+  aboveTabBar?: boolean;
+}) {
   const isAdFree = useSubscription((s) => s.isAdFree);
   const club = useClub((s) => s.club);
   const clubAdFree = clubGrantsAdFree(club);
@@ -35,6 +46,28 @@ export function AdBanner({ aboveTabBar = true }: { aboveTabBar?: boolean } = {})
   const [error, setError] = useState<string | null>(null);
   // The "Remove ads" link only appears once there's an ad for it to refer to.
   const [loaded, setLoaded] = useState(false);
+
+  // RevenueCat ad tracking (loaded / displayed / revenue / opened). The app's
+  // own callbacks go INTO the hook — passing them after the spread would
+  // replace the adapter's listeners. Called before the early return so hook
+  // order never changes.
+  const bannerProps = useTrackingBannerAdProps({
+    unitId: UNIT_ID,
+    size: BannerAdSize.ANCHORED_ADAPTIVE_BANNER,
+    requestOptions: { requestNonPersonalizedAdsOnly: !personalizedAds },
+    placement,
+    onAdFailedToLoad: (e) => {
+      setError(e.message);
+      setLoaded(false);
+      const code = (e as Error & { code?: string }).code;
+      recordAdResult(`failed: ${code ? `${code} — ` : ""}${e.message}`);
+    },
+    onAdLoaded: () => {
+      setError(null);
+      setLoaded(true);
+      recordAdResult("loaded");
+    },
+  });
 
   if (isAdFree || clubAdFree) return null;
 
@@ -45,22 +78,7 @@ export function AdBanner({ aboveTabBar = true }: { aboveTabBar?: boolean } = {})
           Ad error: {error}
         </Text>
       )}
-      <BannerAd
-        unitId={UNIT_ID}
-        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-        requestOptions={{ requestNonPersonalizedAdsOnly: !personalizedAds }}
-        onAdFailedToLoad={(e) => {
-          setError(e.message);
-          setLoaded(false);
-          const code = (e as Error & { code?: string }).code;
-          recordAdResult(`failed: ${code ? `${code} — ` : ""}${e.message}`);
-        }}
-        onAdLoaded={() => {
-          setError(null);
-          setLoaded(true);
-          recordAdResult("loaded");
-        }}
-      />
+      <BannerAd {...bannerProps} />
       {loaded && <RemoveAdsLink />}
     </View>
   );

@@ -124,7 +124,7 @@ export default function HomeTab() {
             index === Math.min(NATIVE_AD_AFTER, sessions.length - 1) ? (
               <View style={{ gap: spacing.md }}>
                 <SessionRow stored={item} units={units} index={index} />
-                <NativeAdCard />
+                <NativeAdCard placement="home_feed_native" />
               </View>
             ) : (
               <SessionRow stored={item} units={units} index={index} />
