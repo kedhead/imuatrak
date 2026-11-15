@@ -13,7 +13,7 @@ import { useSettings } from "@/services/settings";
 import { useRecorder } from "@/services/recorder";
 import { useAds } from "@/services/ads";
 import { useClub } from "@/services/clubStore";
-import { useSubscription } from "@/services/subscriptionStore";
+import { useSubscription, configurePurchases } from "@/services/subscriptionStore";
 import { currentUser, watchAuth } from "@/services/auth";
 import { setAppBadge, syncAppBadge } from "@/services/badge";
 import { pruneEventReminders } from "@/services/eventReminders";
@@ -62,6 +62,9 @@ export default function RootLayout() {
   // otherwise non-personalized ads — which need no permission.
   useEffect(() => {
     void (async () => {
+      // RevenueCat first: ad tracking (react-native-purchases-admob) skips
+      // every event from an ad that loads before Purchases is configured.
+      configurePurchases();
       try {
         await MobileAds().initialize();
       } catch {

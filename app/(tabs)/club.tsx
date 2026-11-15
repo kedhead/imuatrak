@@ -532,7 +532,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             {/* One native ad, after the third post (or the last, in a shorter
                 feed). Members of a club on a paid plan or trial never see it. */}
             {index === Math.min(NATIVE_AD_AFTER, posts.length - 1) && (
-              <NativeAdCard style={styles.postWrap} />
+              <NativeAdCard placement="club_feed_native" style={styles.postWrap} />
             )}
           </>
         )}

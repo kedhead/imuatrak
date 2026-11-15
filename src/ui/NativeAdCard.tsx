@@ -17,7 +17,9 @@ import {
   NativeMediaView,
   TestIds,
   useNativeAd,
+  type NativeAd,
 } from "react-native-google-mobile-ads";
+import { RevenueCatAdMob } from "react-native-purchases-admob";
 import { clubGrantsAdFree } from "@/models/club";
 import { useAds } from "@/services/ads";
 import { useClub } from "@/services/clubStore";
@@ -46,7 +48,20 @@ export const NATIVE_UNIT_ID = Platform.select({
  * list give the card the same margins as its rows; it applies only when the
  * card renders. A "Remove ads" link sits under the card, outside the ad view.
  */
-export function NativeAdCard({ style }: { style?: StyleProp<ViewStyle> }) {
+/** RevenueCat ad-tracking placements. Stable names only — never dynamic values. */
+export type NativeAdPlacement = "home_feed_native" | "club_feed_native";
+
+// Each loaded NativeAd is tracked exactly once, however often the card
+// re-renders or remounts: tracking twice would double every event.
+const trackedNativeAds = new WeakSet<NativeAd>();
+
+export function NativeAdCard({
+  placement,
+  style,
+}: {
+  placement: NativeAdPlacement;
+  style?: StyleProp<ViewStyle>;
+}) {
   const isAdFree = useSubscription((s) => s.isAdFree);
   const club = useClub((s) => s.club);
   const adFree = isAdFree || clubGrantsAdFree(club);
@@ -72,6 +87,20 @@ export function NativeAdCard({ style }: { style?: StyleProp<ViewStyle> }) {
     requestOptions,
     autoLoad: attRequested,
   });
+
+  // RevenueCat ad tracking: the hook hands us an already-loaded NativeAd, so
+  // track it once here — loaded is reported now; impression, click and paid
+  // listeners are added alongside the SDK's own (they're additive on RN).
+  const loadedAd = ad.status === "loaded" ? ad.nativeAd : null;
+  useEffect(() => {
+    if (!loadedAd || trackedNativeAds.has(loadedAd)) return;
+    trackedNativeAds.add(loadedAd);
+    try {
+      RevenueCatAdMob.trackNativeAd(loadedAd, { placement });
+    } catch {
+      // Tracking must never break the ad itself.
+    }
+  }, [loadedAd, placement]);
 
   useEffect(() => {
     if (ad.status === "loaded") recordNativeAdResult("loaded");

@@ -163,7 +163,7 @@ export default function StatsTab() {
           </>
         )}
       </ScrollView>
-      <AdBanner />
+      <AdBanner placement="stats_bottom_banner" />
     </ScreenBackground>
   );
 }

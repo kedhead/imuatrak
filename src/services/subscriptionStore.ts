@@ -88,6 +88,15 @@ export type OfferingsStatus = "idle" | "loading" | "ready" | "unavailable";
 
 // Configure RevenueCat at most once per app session.
 let configured = false;
+/**
+ * Configure RevenueCat (anonymous until initialize() logs the member in).
+ * Called at launch before AdMob starts, because RevenueCat ad tracking drops
+ * any ad event that happens before configure — and signed-out guests see ads
+ * too. Safe to call repeatedly.
+ */
+export function configurePurchases(): boolean {
+  return ensureConfigured();
+}
 function ensureConfigured(): boolean {
   if (!API_KEY) return false;
   if (!configured) {
