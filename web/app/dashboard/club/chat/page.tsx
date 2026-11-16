@@ -17,6 +17,7 @@ import {
   uploadChannelMedia,
   setChannelMuted,
   subscribeChannelMuted,
+  leaveChannel,
 } from "@/lib/firebase";
 import {
   applyMention,
@@ -399,6 +400,19 @@ export default function ClubChatPage() {
               >
                 {muted ? "🔕 Muted" : "🔔 Notifications on"}
               </button>
+              {activeChannel.isPrivate && user && activeChannel.memberIds?.includes(user.uid) && (
+                <button
+                  onClick={() => {
+                    if (!window.confirm(`Leave #${activeChannel.name}? It'll disappear from your list and you won't get its messages.`)) return;
+                    const id = activeChannel.id;
+                    setActiveId(null);
+                    void leaveChannel(clubId!, id, user.uid).catch((e: Error) => setError(e.message));
+                  }}
+                  style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999, cursor: "pointer", whiteSpace: "nowrap", border: "1px solid var(--line)", background: "transparent", color: "var(--danger)" }}
+                >
+                  Leave
+                </button>
+              )}
             </div>
           )}
           <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 6 }}>

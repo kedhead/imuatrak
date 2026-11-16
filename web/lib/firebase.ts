@@ -646,6 +646,11 @@ export async function markChannelRead(uid: string, channelId: string): Promise<n
   });
 }
 
+/** Take yourself out of a private channel (rules allow removing only your own uid). */
+export async function leaveChannel(clubId: string, channelId: string, uid: string): Promise<void> {
+  await updateDoc(doc(db, "clubs", clubId, "channels", channelId), { memberIds: arrayRemove(uid) });
+}
+
 /** Mute push alerts for one channel. Same field the app sets; the server
  *  still sends @mentions and still counts unread for muted channels. */
 export async function setChannelMuted(uid: string, channelId: string, muted: boolean): Promise<void> {

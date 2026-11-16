@@ -16,6 +16,7 @@ import {
   subscribeChannels,
   getChannelPreferences,
   setChannelMuted,
+  removeChannelMember,
   markChannelRead,
 } from "@/services/clubService";
 import { setAppBadge } from "@/services/badge";
@@ -41,6 +42,8 @@ export default function ChannelsScreen() {
   const router = useRouter();
 
   const [channels, setChannels] = useState<ClubChannel[]>([]);
+  // The club's total, private channels included, for the free-plan limit.
+  const [channelCount, setChannelCount] = useState(0);
   const [prefs, setPrefs] = useState<Map<string, ChannelPreference>>(new Map());
   const [loading, setLoading] = useState(true);
   // Direct messages and group chats, under the channels. They used to live
@@ -55,21 +58,18 @@ export default function ChannelsScreen() {
   const hiddenThreadCount = threads.length - visibleThreads.length;
 
   const isAdmin = role === "owner" || role === "admin";
-  // Admins see every channel (private ones included), so the visible count
-  // is the club's count wherever this matters.
-  const canAddChannels = canAddChannel(club, channels.length);
+  const canAddChannels = canAddChannel(club, channelCount);
 
   useEffect(() => {
     if (!club || !user) return;
     const unsub = subscribeChannels(club.id, (updated) => {
       const uid = user.uid;
-      const visible = updated.filter(
-        (ch) =>
-          !ch.isPrivate ||
-          ch.memberIds.includes(uid) ||
-          role === "owner" ||
-          role === "admin",
-      );
+      // A private channel is listed only for its members, whatever their role.
+      // Owners and admins used to see every private channel here, which put
+      // them "in" officer channels they weren't part of. They still manage all
+      // channels (and can add themselves) from Admin → Channels.
+      const visible = updated.filter((ch) => !ch.isPrivate || ch.memberIds.includes(uid));
+      setChannelCount(updated.length);
       setChannels(visible);
       setLoading(false);
     });
@@ -112,6 +112,36 @@ export default function ChannelsScreen() {
             void setChannelMuted(user.uid, ch.id, !muted).catch(() => {
               Alert.alert("Couldn't change notifications", "Please try again.");
               void getChannelPreferences(user.uid).then(setPrefs);
+            });
+          },
+        },
+        // Private channels: anyone in one can take themselves out (owners
+        // included — being the club owner doesn't mean belonging in every
+        // officer channel). An owner/admin can add people back from
+        // Admin → Channels.
+        ...(ch.isPrivate && ch.memberIds.includes(user.uid)
+          ? [{ text: "Leave channel", style: "destructive" as const, onPress: () => confirmLeave(ch) }]
+          : []),
+      ],
+    );
+  };
+
+  const confirmLeave = (ch: ClubChannel) => {
+    if (!user || !club) return;
+    Alert.alert(
+      `Leave #${ch.name}?`,
+      isAdmin
+        ? "It'll disappear from your channel list and you won't get its messages. You can add yourself back from Admin → Channels."
+        : "It'll disappear from your channel list and you won't get its messages. An admin can add you back.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Leave",
+          style: "destructive",
+          onPress: () => {
+            setChannels((prev) => prev.filter((c) => c.id !== ch.id));
+            void removeChannelMember(club.id, ch.id, user.uid).catch(() => {
+              Alert.alert("Couldn't leave the channel", "Please try again.");
             });
           },
         },
