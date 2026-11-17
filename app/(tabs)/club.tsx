@@ -17,9 +17,11 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollViewProps,
 } from "react-native";
 import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useClub } from "@/services/clubStore";
@@ -69,6 +71,13 @@ const EVENT_COLORS: Record<string, string> = {
   race: colors.coral,
   social: colors.teal,
 };
+
+// Scroll component for the club feed: keeps the focused composer in view
+// above the keyboard. Defined once at module level so FlatList doesn't
+// remount its scroll view on every render.
+const renderKeyboardAwareScroll = (props: ScrollViewProps) => (
+  <KeyboardAwareScrollView {...props} bottomOffset={24} />
+);
 
 export default function ClubTab() {
   const club = useClub((s) => s.club);
@@ -370,6 +379,13 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
         keyExtractor={(p) => p.id}
         onRefresh={handleRefresh}
         refreshing={refreshing}
+        // The post composer lives in this list's header. A plain FlatList
+        // never scrolls a focused input clear of the keyboard, so whether you
+        // could see what you typed depended on how far down the composer sat
+        // (birthday banner, survey card, attached photos). The keyboard
+        // controller's scroll view scrolls the focused input above it.
+        renderScrollComponent={renderKeyboardAwareScroll}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: 120 }}
         ListHeaderComponent={
           <>
