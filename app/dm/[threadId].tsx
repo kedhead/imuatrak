@@ -21,6 +21,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
+import { ChatKeyboardView } from "@/ui/ChatKeyboardView";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
@@ -308,10 +309,8 @@ export default function DmThreadScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior="padding"
-      >
+      {/* See src/ui/ChatKeyboardView: no position measuring, so no race. */}
+      <ChatKeyboardView style={styles.flex}>
         <View style={styles.listWrap}>
         <FlatList
           data={reversed}
@@ -352,7 +351,7 @@ export default function DmThreadScreen() {
         </View>
 
         <DmComposer sending={sending} onSend={onSend} onPickMedia={onPickMedia} />
-      </KeyboardAvoidingView>
+      </ChatKeyboardView>
 
       {actionTarget && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setActionTarget(null)}>

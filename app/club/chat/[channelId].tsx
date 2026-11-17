@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
+import { ChatKeyboardView } from "@/ui/ChatKeyboardView";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
@@ -495,16 +496,12 @@ export default function ChannelChatScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        // Padding on both platforms. The header above this screen is accounted
-        // for by automaticOffset (see src/ui/KeyboardAvoidingView), which
-        // measures the view's real position — no hand-tuned offsets.
-        behavior="padding"
-      >
+      {/* Composer above the keyboard without measuring the screen's position,
+          which raced the push animation on iOS (see src/ui/ChatKeyboardView). */}
+      <ChatKeyboardView style={styles.flex}>
         {/* Free clubs only (AdBanner renders nothing for ad-free members).
             At the top, away from the composer, so typing can't hit it. It sits
-            inside the KeyboardAvoidingView so the composer's position doesn't
+            inside the keyboard view so the composer's position doesn't
             depend on whether an ad is showing. */}
         <AdBanner placement="chat_top_banner" aboveTabBar={false} />
         <View style={styles.listWrap}>
@@ -561,7 +558,7 @@ export default function ChannelChatScreen() {
           onSend={onSend}
           onPickMedia={onPickMedia}
         />
-      </KeyboardAvoidingView>
+      </ChatKeyboardView>
 
       {/* Long-press action sheet: react / reply / delete */}
       {actionTarget && (
