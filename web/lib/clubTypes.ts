@@ -41,6 +41,8 @@ export interface ClubMember {
   displayName: string;
   avatarUrl?: string;
   joinedAt: string;
+  /** May manage club payments on top of their role (see web/lib/payments.ts). */
+  treasurer?: boolean;
 }
 
 export interface ClubEvent {

@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/lib/auth";
 import { getUserClub, getClubMembers, openDmThread, subscribeDmUnread, updateMemberRole, removeClubMember } from "@/lib/firebase";
 import { displayRole, type ClubMember, type MemberRole, type OwnerBadge } from "@/lib/clubTypes";
+import { setTreasurer } from "@/lib/payments";
 
 const ROLES: MemberRole[] = ["owner", "admin", "coach", "member"];
 const ROLE_ORDER: Record<MemberRole, number> = { owner: 0, admin: 1, coach: 2, member: 3 };
@@ -75,6 +76,25 @@ export default function MembersPage() {
         .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]),
     );
     setBusy(null);
+  };
+
+  /** Treasurer: manages club payments on top of their role. Same who-can-
+   *  manage-whom rule as roles: owner manages anyone but themselves, admins
+   *  manage coaches and members. */
+  const canSetTreasurer = (m: ClubMember) =>
+    isAdmin && m.role !== "owner" && (myRole === "owner" || m.role !== "admin");
+
+  const handleTreasurer = async (m: ClubMember, on: boolean) => {
+    if (!clubId) return;
+    setBusy(m.uid);
+    try {
+      await setTreasurer(clubId, m.uid, on);
+      setMembers((prev) => prev.map((x) => (x.uid === m.uid ? { ...x, treasurer: on || undefined } : x)));
+    } catch {
+      window.alert("Couldn't update. Please try again.");
+    } finally {
+      setBusy(null);
+    }
   };
 
   const handleRemove = async (uid: string, name: string) => {
@@ -150,6 +170,14 @@ export default function MembersPage() {
                   ) : (
                     <span style={{ textTransform: "capitalize", color: "var(--muted)" }}>{displayRole(m.role, { ownerBadge })}</span>
                   )}
+                  {canSetTreasurer(m) ? (
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", marginTop: 6, cursor: "pointer" }}>
+                      <input type="checkbox" checked={!!m.treasurer} disabled={busy === m.uid} onChange={(e) => void handleTreasurer(m, e.target.checked)} />
+                      💰 Treasurer
+                    </label>
+                  ) : m.treasurer ? (
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>💰 Treasurer</div>
+                  ) : null}
                 </td>
                 <td style={{ ...td, color: "var(--muted)" }}>{new Date(m.joinedAt).toLocaleDateString()}</td>
                 {isAdmin && (
