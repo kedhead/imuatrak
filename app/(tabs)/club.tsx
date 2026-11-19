@@ -41,7 +41,7 @@ import { GradientCard } from "@/ui/GradientCard";
 import { GradientHeader } from "@/ui/GradientHeader";
 import { RsvpBadge } from "@/ui/RsvpBadge";
 import { Logo } from "@/ui/Logo";
-import { OpenSurveysBanner } from "@/ui/OpenSurveysBanner";
+import { OpenSurveysBanner, useUnansweredSurveys } from "@/ui/OpenSurveysBanner";
 import { PayBanner } from "@/ui/PayBanner";
 import { ClubActionBar } from "@/ui/ClubActionBar";
 import { usePaySummary } from "@/ui/payments/usePaySummary";
@@ -333,6 +333,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   };
 
   const isAdmin = role === "owner" || role === "admin";
+  const unansweredSurveys = useUnansweredSurveys(club?.id);
   const pay = usePaySummary(club?.id, myUid, canManagePayments(role, myMember), clubIsPro(club));
   // The club feed is an announcements board, not an open wall: only staff
   // start threads. Everyone can still like, comment and vote in polls.
@@ -356,6 +357,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             Invite moved to the Members screen. */}
         <ClubActionBar
           chatUnread={chatUnread}
+          surveysUnanswered={unansweredSurveys.length}
           showStore={clubIsPro(club) || isAdmin}
           storeBadge={pay.toConfirm > 0 ? pay.toConfirm : !!pay.unpaidDues}
         />
@@ -404,9 +406,10 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
               </View>
             )}
 
-            <PayBanner unpaidDues={pay.unpaidDues} toConfirm={pay.toConfirm} />
+            {/* Surveys first: coaches rely on members seeing these. */}
+            <OpenSurveysBanner pending={unansweredSurveys} />
 
-            {club?.id && <OpenSurveysBanner clubId={club.id} />}
+            <PayBanner unpaidDues={pay.unpaidDues} toConfirm={pay.toConfirm} />
 
             {events.length > 0 && (
               <View style={styles.eventsStrip}>

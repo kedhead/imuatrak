@@ -23,10 +23,13 @@ interface Action {
  */
 export function ClubActionBar({
   chatUnread,
+  surveysUnanswered,
   showStore,
   storeBadge,
 }: {
   chatUnread: number;
+  /** Open surveys this member hasn't answered. */
+  surveysUnanswered: number;
   /** Pro clubs (and owners/admins of free clubs, who see the upgrade). */
   showStore: boolean;
   storeBadge?: number | boolean;
@@ -37,7 +40,7 @@ export function ClubActionBar({
     { key: "events", label: "Events", icon: "calendar-outline", href: "/club/events" },
     { key: "photos", label: "Photos", icon: "images-outline", href: "/club/gallery" },
     { key: "members", label: "Members", icon: "people-outline", href: "/club/members" },
-    { key: "surveys", label: "Surveys", icon: "clipboard-outline", href: "/club/surveys" },
+    { key: "surveys", label: "Surveys", icon: "clipboard-outline", activeIcon: "clipboard", href: "/club/surveys", badge: surveysUnanswered },
     ...(showStore
       ? [{ key: "store", label: "Store", icon: "card-outline", activeIcon: "card", href: "/club/pay", badge: storeBadge } as Action]
       : []),
