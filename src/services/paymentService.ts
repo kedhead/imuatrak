@@ -23,8 +23,8 @@ import type {
   PayOrder,
   PayOrderStatus,
 } from "@/models/payments";
-import { currentUser } from "./auth";
-import { db } from "./firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "./firebase";
 import { prepareImageForUpload } from "./imageResize";
 
 const methodsCol = (clubId: string) => collection(db, "clubs", clubId, "payMethods");
@@ -128,39 +128,20 @@ export async function deletePayMethod(clubId: string, id: string): Promise<void>
 }
 
 /**
- * Upload a payment QR code image and return its download URL. Same direct
- * REST upload as the club logo: the Firebase JS SDK can't build the Blob it
- * needs under Hermes.
+ * Upload a payment QR code image and return its download URL. Goes through
+ * the uploadPayQr Cloud Function, which checks the caller can manage
+ * payments (a direct Storage upload was refused in production).
  */
 export async function uploadPayQr(clubId: string, pickedUri: string, pickedType: string): Promise<string> {
   // QR codes need to stay sharp to scan, but never need to be huge.
   const { uri, mimeType } = await prepareImageForUpload(pickedUri, pickedType, 1200);
-  const user = currentUser();
-  if (!user) throw new Error("Not signed in");
-  const token = await user.getIdToken();
-  const bucket = "imuatrak.firebasestorage.app";
-  const ext = mimeType === "image/png" ? "png" : "jpg";
-  const path = `clubs/${clubId}/payments/qr-${Date.now()}.${ext}`;
-  const upload = await FileSystem.uploadAsync(
-    `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o` +
-      `?uploadType=media&name=${encodeURIComponent(path)}`,
-    uri,
-    {
-      httpMethod: "POST",
-      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": mimeType },
-    },
+  const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  const fn = httpsCallable<{ clubId: string; base64: string; contentType: string }, { url: string }>(
+    functions,
+    "uploadPayQr",
   );
-  if (upload.status < 200 || upload.status >= 300) {
-    throw new Error(`Upload failed (HTTP ${upload.status})`);
-  }
-  const meta = JSON.parse(upload.body) as { downloadTokens?: string };
-  const dl = meta.downloadTokens?.split(",")[0];
-  if (!dl) throw new Error("No download token in response");
-  return (
-    `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/` +
-    `${encodeURIComponent(path)}?alt=media&token=${dl}`
-  );
+  const { data } = await fn({ clubId, base64, contentType: mimeType });
+  return data.url;
 }
 
 // ── Items ────────────────────────────────────────────────────────────────────

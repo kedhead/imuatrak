@@ -2395,3 +2395,53 @@ export const onPayOrderWrite = onDocumentWritten(
     if (messages.length) await sendExpoPush(db, messages, owners);
   },
 );
+
+// ---------------------------------------------------------------------------
+// uploadPayQr — a club's payment QR code (e.g. their Zelle code).
+//
+// Server-side, like the other uploads. A direct client upload has to pass
+// storage.rules, whose role check reads the member doc across services; in
+// production that lookup denied staff with a 403. Checking the role here
+// with the Admin SDK avoids depending on it.
+// ---------------------------------------------------------------------------
+export const uploadPayQr = onCall({ memory: "512MiB" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign-in required");
+
+  const { clubId, base64, contentType } = request.data ?? {};
+  if (typeof clubId !== "string" || typeof base64 !== "string" || typeof contentType !== "string") {
+    throw new HttpsError("invalid-argument", "Missing upload fields");
+  }
+  if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(contentType)) {
+    throw new HttpsError("invalid-argument", "QR codes must be an image");
+  }
+
+  const db = getFirestore();
+  const member = (await db.doc(`clubs/${clubId}/members/${uid}`).get()).data() as
+    | { role?: string; treasurer?: boolean }
+    | undefined;
+  const canManage =
+    !!member && (["owner", "admin", "coach"].includes(member.role ?? "") || member.treasurer === true);
+  if (!canManage) {
+    throw new HttpsError("permission-denied", "Only coaches, admins and the treasurer can change payment options");
+  }
+
+  const buffer = Buffer.from(base64, "base64");
+  if (buffer.length === 0 || buffer.length > 2 * 1024 * 1024) {
+    throw new HttpsError("invalid-argument", "Image too large (max 2 MB)");
+  }
+
+  const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+  const path = `clubs/${clubId}/payments/qr-${Date.now()}.${ext}`;
+  const token = crypto.randomUUID();
+  const bucket = getStorage().bucket();
+  await bucket.file(path).save(buffer, {
+    contentType,
+    metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+  });
+
+  const url =
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+    `${encodeURIComponent(path)}?alt=media&token=${token}`;
+  return { url };
+});

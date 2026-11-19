@@ -23,9 +23,9 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import type { Club, ClubMember, MemberRole } from "./clubTypes";
-import { db, storage } from "./firebase";
+import { db, firebaseApp } from "./firebase";
 
 export type PayMethodKind = "zelle" | "venmo" | "paypal" | "cashapp" | "link" | "other";
 
@@ -426,14 +426,23 @@ export async function deletePayMethod(clubId: string, id: string): Promise<void>
   await deleteDoc(doc(methodsCol(clubId), id));
 }
 
-/** Upload a QR code image (storage rules: managers only, images < 2 MB). */
+/** Upload a QR code image via the uploadPayQr function (it checks the
+ *  caller may manage payments; images up to 2 MB). */
 export async function uploadPayQr(clubId: string, file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
-  if (file.size >= 2 * 1024 * 1024) throw new Error("That image is over 2 MB. Try a screenshot instead.");
-  const ext = file.type === "image/png" ? "png" : "jpg";
-  const r = ref(storage, `clubs/${clubId}/payments/qr-${Date.now()}.${ext}`);
-  await uploadBytes(r, file, { contentType: file.type });
-  return getDownloadURL(r);
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error("Choose a JPG, PNG or WebP image.");
+  if (file.size > 2 * 1024 * 1024) throw new Error("That image is over 2 MB. Try a screenshot instead.");
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+    r.onerror = () => reject(new Error("Couldn't read that file."));
+    r.readAsDataURL(file);
+  });
+  const fn = httpsCallable<{ clubId: string; base64: string; contentType: string }, { url: string }>(
+    getFunctions(firebaseApp),
+    "uploadPayQr",
+  );
+  const { data } = await fn({ clubId, base64, contentType: file.type });
+  return data.url;
 }
 
 export interface PayItemDraft {
