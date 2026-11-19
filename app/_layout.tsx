@@ -145,6 +145,16 @@ export default function RootLayout() {
       const data = response.notification.request.content.data as Record<string, unknown>;
       if (typeof data?.channelId === "string") {
         router.push(`/club/chat/${data.channelId}` as never);
+      } else if (data?.screen === "payments") {
+        // "Payment to confirm" (treasurers) and "Payment confirmed" (member).
+        const goPay = () => router.push((data.manage ? "/club/pay/manage" : "/club/pay") as never);
+        const uid = currentUser()?.uid;
+        const clubId = typeof data.clubId === "string" ? data.clubId : null;
+        if (clubId && uid && useClub.getState().club?.id !== clubId) {
+          void useClub.getState().setActiveClub(clubId, uid).then(goPay, goPay);
+        } else {
+          goPay();
+        }
       } else if (data?.screen === "dm" && typeof data.threadId === "string") {
         // DM and group-chat pushes carry the thread; tapping one used to open
         // the app and go nowhere.
@@ -200,6 +210,9 @@ export default function RootLayout() {
           <Stack.Screen name="club/event/[id]" options={{ headerShown: true, title: "Event" }} />
           <Stack.Screen name="club/events" options={{ headerShown: true, title: "Events" }} />
           <Stack.Screen name="club/surveys" options={{ headerShown: true, title: "Surveys" }} />
+          <Stack.Screen name="club/pay/index" options={{ headerShown: true, title: "Dues & Store" }} />
+          <Stack.Screen name="club/pay/[itemId]" options={{ headerShown: true, title: "Pay" }} />
+          <Stack.Screen name="club/pay/manage" options={{ headerShown: true, title: "Treasurer tools" }} />
           <Stack.Screen name="club/survey/[id]" options={{ headerShown: true, title: "Survey" }} />
           <Stack.Screen name="club/survey-edit/[id]" options={{ headerShown: true, title: "Survey" }} />
           <Stack.Screen name="club/survey-results/[id]" options={{ headerShown: true, title: "Results" }} />

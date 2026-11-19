@@ -162,6 +162,11 @@ export interface ClubMember {
   birthday?: string;
   /** Preferred paddling side. Absent means not set. */
   paddleSide?: PaddleSide;
+  /** Club treasurer: may set up payments and see and confirm everyone's,
+   *  on top of their normal role. A flag rather than a role so a treasurer
+   *  can be a plain member or a coach, and so older app versions (which only
+   *  know the four roles) keep working. Set by owners/admins only. */
+  treasurer?: boolean;
 }
 
 /** Short label for a paddling side, or null when unset. */

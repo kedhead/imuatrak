@@ -29,7 +29,7 @@ import { readCache, writeCache } from "@/services/localCache";
 import { getPosts, createPost, deletePost, updatePost, votePoll, getUpcomingEvents, toggleLike, getComments, addComment, uploadPostMedia } from "@/services/clubService";
 import { currentUser } from "@/services/auth";
 import { useClubUnreadCount, useDmUnreadCount } from "@/services/unread";
-import { isBirthdayToday } from "@/models/club";
+import { clubIsPro, isBirthdayToday } from "@/models/club";
 import type { ClubPost, ClubEvent, ClubComment, PollOption } from "@/models/club";
 import { AnimatedPressable } from "@/ui/AnimatedPressable";
 import { LinkifiedText } from "@/ui/LinkifiedText";
@@ -42,6 +42,8 @@ import { GradientHeader } from "@/ui/GradientHeader";
 import { RsvpBadge } from "@/ui/RsvpBadge";
 import { Logo } from "@/ui/Logo";
 import { OpenSurveysBanner } from "@/ui/OpenSurveysBanner";
+import { PayBanner } from "@/ui/PayBanner";
+import { canManagePayments } from "@/models/payments";
 import { NativeAdCard } from "@/ui/NativeAdCard";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
@@ -200,6 +202,8 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   const birthdayNames = members.filter((m) => isBirthdayToday(m.birthday)).map((m) => m.displayName);
 
   const uid = user?.uid;
+  const myUid = uid;
+  const myMember = members.find((m) => m.uid === uid);
   const showFeed = (feed: FeedCache) => {
     setPosts(feed.posts);
     setEvents(feed.events);
@@ -419,6 +423,10 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
 
             {club?.id && (
               <OpenSurveysBanner clubId={club.id} isStaff={isAdmin || role === "coach"} />
+            )}
+
+            {club?.id && myUid && clubIsPro(club) && (
+              <PayBanner clubId={club.id} uid={myUid} isManager={canManagePayments(role, myMember)} />
             )}
 
             {events.length > 0 && (
