@@ -21,6 +21,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
+import { PastePhotoChip, useClipboardPhoto } from "@/ui/ClipboardPhoto";
 import { ChatKeyboardView } from "@/ui/ChatKeyboardView";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -161,6 +162,10 @@ export default function DmThreadScreen() {
     setPendingMedia({ assets: result.assets, caption: draft });
     return true;
   }, [threadId, user]);
+
+  const onPastePhoto = useCallback((asset: ImagePicker.ImagePickerAsset, draft: string) => {
+    setPendingMedia({ assets: [asset], caption: draft });
+  }, []);
 
   const sendPendingMedia = async () => {
     if (!threadId || !user || !pendingMedia) return;
@@ -350,7 +355,7 @@ export default function DmThreadScreen() {
         )}
         </View>
 
-        <DmComposer sending={sending} onSend={onSend} onPickMedia={onPickMedia} />
+        <DmComposer sending={sending} onSend={onSend} onPickMedia={onPickMedia} onPastePhoto={onPastePhoto} />
       </ChatKeyboardView>
 
       {actionTarget && (
@@ -538,14 +543,17 @@ const DmComposer = memo(function DmComposer({
   sending,
   onSend,
   onPickMedia,
+  onPastePhoto,
 }: {
   sending: boolean;
   /** Returns whether the send was accepted; the draft is cleared only then. */
   onSend: (content: string) => boolean;
   /** Receives the draft as the caption; resolves whether photos were staged. */
   onPickMedia: (draft: string) => Promise<boolean>;
+  onPastePhoto: (asset: ImagePicker.ImagePickerAsset, draft: string) => void;
 }) {
   const [text, setText] = useState("");
+  const clip = useClipboardPhoto();
 
   const send = () => {
     const content = text.trim();
@@ -558,12 +566,22 @@ const DmComposer = memo(function DmComposer({
   };
 
   return (
+    <>
+    <PastePhotoChip
+      visible={clip.hasPhoto}
+      onPaste={(asset) => {
+        const draft = text.trim();
+        onPastePhoto(asset, draft);
+        if (draft) setText("");
+      }}
+    />
     <View style={styles.composer}>
       <Pressable onPress={pickMedia} hitSlop={8} style={styles.mediaBtn}>
         <Ionicons name="image-outline" size={26} color={colors.ocean} />
       </Pressable>
       <TextInput
         style={styles.input}
+        onFocus={clip.recheck}
         value={text}
         onChangeText={setText}
         placeholder="Message..."
@@ -584,6 +602,7 @@ const DmComposer = memo(function DmComposer({
         )}
       </Pressable>
     </View>
+    </>
   );
 });
 

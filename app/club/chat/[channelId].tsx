@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
+import { PastePhotoChip, useClipboardPhoto } from "@/ui/ClipboardPhoto";
 import { ChatKeyboardView } from "@/ui/ChatKeyboardView";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -421,6 +422,11 @@ export default function ChannelChatScreen() {
     return true;
   }, [club, channelId, user]);
 
+  // A photo pasted from the clipboard goes through the same caption preview.
+  const onPastePhoto = useCallback((asset: ImagePicker.ImagePickerAsset, draft: string) => {
+    setPendingMedia({ assets: [asset], caption: draft });
+  }, []);
+
   const sendPendingMedia = async () => {
     if (!club || !channelId || !user || !pendingMedia) return;
     const { assets, caption } = pendingMedia;
@@ -557,6 +563,7 @@ export default function ChannelChatScreen() {
           sending={sending}
           onSend={onSend}
           onPickMedia={onPickMedia}
+          onPastePhoto={onPastePhoto}
         />
       </ChatKeyboardView>
 
@@ -850,6 +857,7 @@ const ChatComposer = memo(function ChatComposer({
   sending,
   onSend,
   onPickMedia,
+  onPastePhoto,
 }: {
   mentionTargets: MentionTarget[];
   myUid?: string;
@@ -858,8 +866,10 @@ const ChatComposer = memo(function ChatComposer({
   onSend: (content: string) => boolean;
   /** Receives the draft as the caption; resolves whether media was staged. */
   onPickMedia: (draft: string) => Promise<boolean>;
+  onPastePhoto: (asset: ImagePicker.ImagePickerAsset, draft: string) => void;
 }) {
   const [text, setText] = useState("");
+  const clip = useClipboardPhoto();
   // Caret position, tracked so the @-autocomplete knows which token is being
   // typed rather than always looking at the end of the message.
   const [cursor, setCursor] = useState(0);
@@ -948,6 +958,14 @@ const ChatComposer = memo(function ChatComposer({
         </View>
       )}
 
+      <PastePhotoChip
+        visible={clip.hasPhoto}
+        onPaste={(asset) => {
+          const draft = text.trim();
+          onPastePhoto(asset, draft);
+          if (draft) setText("");
+        }}
+      />
       <View style={styles.composer}>
         <Pressable onPress={pickMedia} hitSlop={8} style={styles.mediaBtn}>
           <Ionicons name="image-outline" size={26} color={colors.ocean} />
@@ -957,6 +975,7 @@ const ChatComposer = memo(function ChatComposer({
         </Pressable>
         <TextInput
           ref={inputRef}
+          onFocus={clip.recheck}
           style={styles.input}
           value={text}
           onChangeText={(next) => {
