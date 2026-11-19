@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { isSurveyOpen, surveyWhen, type Survey } from "@/models/club";
@@ -11,23 +11,30 @@ import { Gradient } from "./Gradient";
 import { colors, radii, shadow, spacing, type } from "./theme";
 
 /**
- * "📋 End of season survey · Take it" on the club home feed, for open
- * surveys this member hasn't answered. Hidden once they have, so it nudges
- * without nagging. All surveys (and creating them) are behind the header's
- * Surveys button.
+ * Open surveys this member hasn't answered yet, live. Read once on the club
+ * home and shared by the orange card below and the badge on the header's
+ * Surveys button, so the two always agree.
  */
-export function OpenSurveysBanner({ clubId }: { clubId: string }) {
-  const router = useRouter();
+export function useUnansweredSurveys(clubId: string | undefined): Survey[] {
   const [surveys, setSurveys] = useState<Survey[]>([]);
   // surveyId → answered? Filled asynchronously; unknown counts as not shown.
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
 
-  useEffect(() => subscribeSurveys(clubId, setSurveys, () => setSurveys([])), [clubId]);
+  useEffect(() => {
+    if (!clubId) return;
+    return subscribeSurveys(clubId, setSurveys, () => setSurveys([]));
+  }, [clubId]);
+
+  // Answering writes only the response, not the survey doc, so the
+  // subscription above doesn't fire. Re-check whenever the club home comes
+  // back into view (e.g. after taking a survey) so the badge and card clear.
+  const [focusTick, setFocusTick] = useState(0);
+  useFocusEffect(useCallback(() => setFocusTick((n) => n + 1), []));
 
   useEffect(() => {
     const uid = currentUser()?.uid;
     const open = surveys.filter((s) => isSurveyOpen(s));
-    if (!uid || open.length === 0) return;
+    if (!clubId || !uid || open.length === 0) return;
     let cancelled = false;
     void Promise.all(
       open.map(async (s) => [s.id, (await getMySurveyResponse(clubId, s, uid)).submitted] as const),
@@ -39,12 +46,20 @@ export function OpenSurveysBanner({ clubId }: { clubId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [clubId, surveys]);
+  }, [clubId, surveys, focusTick]);
 
-  const pending = surveys.filter((s) => isSurveyOpen(s) && answered[s.id] === false);
+  return surveys.filter((s) => isSurveyOpen(s) && answered[s.id] === false);
+}
+
+/**
+ * "📋 End of season survey · Take it" on the club home feed, for open
+ * surveys this member hasn't answered. Hidden once they have, so it nudges
+ * without nagging. All surveys (and creating them) are behind the header's
+ * Surveys button, which also carries the unanswered count.
+ */
+export function OpenSurveysBanner({ pending }: { pending: Survey[] }) {
+  const router = useRouter();
   const first = pending[0];
-  // Nothing unanswered: no card. Staff reach surveys from the header's
-  // Surveys button.
   if (!first) return null;
   const more = pending.length - 1;
 
