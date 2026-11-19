@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
@@ -190,7 +191,10 @@ export function MethodEditor({
                   {uploading ? (
                     <ActivityIndicator color={colors.ocean} />
                   ) : (
-                    <Button title={qrUrl ? "Replace QR" : "Upload QR"} variant="outline" onPress={pickQr} />
+                    <Pressable style={styles.qrBtn} onPress={pickQr} hitSlop={6}>
+                      <Ionicons name="qr-code-outline" size={18} color={colors.ocean} />
+                      <Text style={styles.qrBtnText}>{qrUrl ? "Replace QR" : "Upload QR"}</Text>
+                    </Pressable>
                   )}
                   {qrUrl && !uploading && (
                     <Pressable onPress={() => setQrUrl(undefined)} hitSlop={8}>
@@ -226,5 +230,19 @@ const styles = StyleSheet.create({
   qrRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.sm },
   qr: { width: 110, height: 110, borderRadius: radii.md, backgroundColor: colors.white },
   qrBtns: { flex: 1, gap: spacing.sm, alignItems: "flex-start" },
+  // A compact pill, not <Button>: Button's inner view is flex: 1, which in
+  // this unbounded scroll sheet grew it to fill the screen.
+  qrBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    borderWidth: 1.5,
+    borderColor: colors.ocean,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.white,
+  },
+  qrBtnText: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ocean },
   remove: { fontSize: type.size.sm, color: colors.danger, fontWeight: type.weight.bold },
 });
