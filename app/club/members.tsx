@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { currentUser } from "@/services/auth";
@@ -142,6 +142,23 @@ export default function MembersScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
+      {/* Invite lives here now, not in the crowded club header. Any member
+          can invite — recruiting happens at the beach. */}
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push("/club/invite" as never)}
+              hitSlop={10}
+              style={styles.inviteBtn}
+              accessibilityLabel="Invite members"
+            >
+              <Ionicons name="person-add-outline" size={16} color={colors.white} />
+              <Text style={styles.inviteText}>Invite</Text>
+            </Pressable>
+          ),
+        }}
+      />
       <FlatList
         data={sorted}
         keyExtractor={(m) => m.uid}
@@ -209,6 +226,16 @@ export default function MembersScreen() {
 }
 
 const styles = StyleSheet.create({
+  inviteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.ocean,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+  },
+  inviteText: { color: colors.white, fontSize: 14, fontWeight: "700" },
   container: { flex: 1, backgroundColor: colors.bg },
   list: { padding: spacing.lg, gap: spacing.sm },
   row: { flexDirection: "row", alignItems: "center", backgroundColor: colors.card, borderRadius: radii.md, padding: spacing.md, gap: spacing.md },

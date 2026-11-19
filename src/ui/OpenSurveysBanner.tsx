@@ -13,10 +13,10 @@ import { colors, radii, shadow, spacing, type } from "./theme";
 /**
  * "📋 End of season survey · Take it" on the club home feed, for open
  * surveys this member hasn't answered. Hidden once they have, so it nudges
- * without nagging. Surveys live behind this card rather than another header
- * icon — the club header is already full on small phones.
+ * without nagging. All surveys (and creating them) are behind the header's
+ * Surveys button.
  */
-export function OpenSurveysBanner({ clubId, isStaff }: { clubId: string; isStaff: boolean }) {
+export function OpenSurveysBanner({ clubId }: { clubId: string }) {
   const router = useRouter();
   const [surveys, setSurveys] = useState<Survey[]>([]);
   // surveyId → answered? Filled asynchronously; unknown counts as not shown.
@@ -43,21 +43,9 @@ export function OpenSurveysBanner({ clubId, isStaff }: { clubId: string; isStaff
 
   const pending = surveys.filter((s) => isSurveyOpen(s) && answered[s.id] === false);
   const first = pending[0];
-  if (!first) {
-    // Staff (coaches included — they can't open Club Settings) always get a
-    // quiet way in, to create surveys and check results.
-    if (!isStaff) return null;
-    const openCount = surveys.filter((s) => isSurveyOpen(s)).length;
-    return (
-      <AnimatedPressable style={styles.link} onPress={() => router.push("/club/surveys" as never)}>
-        <Ionicons name="clipboard-outline" size={16} color={colors.ocean} />
-        <Text style={styles.linkText}>
-          Surveys{openCount > 0 ? ` · ${openCount} open` : ""}
-        </Text>
-        <Ionicons name="chevron-forward" size={14} color={colors.muted} style={styles.linkChevron} />
-      </AnimatedPressable>
-    );
-  }
+  // Nothing unanswered: no card. Staff reach surveys from the header's
+  // Surveys button.
+  if (!first) return null;
   const more = pending.length - 1;
 
   return (
@@ -115,18 +103,4 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   ctaText: { fontSize: type.size.sm, fontWeight: type.weight.heavy, color: colors.sunset },
-  link: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    backgroundColor: colors.card,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    ...shadow.sm,
-  },
-  linkText: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.ocean },
-  linkChevron: { marginLeft: "auto" },
 });

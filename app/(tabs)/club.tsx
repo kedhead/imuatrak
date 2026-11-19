@@ -43,6 +43,8 @@ import { RsvpBadge } from "@/ui/RsvpBadge";
 import { Logo } from "@/ui/Logo";
 import { OpenSurveysBanner } from "@/ui/OpenSurveysBanner";
 import { PayBanner } from "@/ui/PayBanner";
+import { ClubActionBar } from "@/ui/ClubActionBar";
+import { usePaySummary } from "@/ui/payments/usePaySummary";
 import { canManagePayments } from "@/models/payments";
 import { NativeAdCard } from "@/ui/NativeAdCard";
 import { ScreenBackground } from "@/ui/ScreenBackground";
@@ -331,6 +333,7 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
   };
 
   const isAdmin = role === "owner" || role === "admin";
+  const pay = usePaySummary(club?.id, myUid, canManagePayments(role, myMember), clubIsPro(club));
   // The club feed is an announcements board, not an open wall: only staff
   // start threads. Everyone can still like, comment and vote in polls.
   const canPost = isAdmin || role === "coach";
@@ -342,41 +345,21 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
         subtitle={myClubs.length > 1 ? "Tap to switch clubs" : "Your paddling crew"}
         onTitlePress={() => setSwitcherOpen(true)}
         right={
-          <>
-            <Pressable onPress={() => router.push("/club/channels" as never)} hitSlop={8}>
-              <Ionicons
-                name={chatUnread > 0 ? "chatbubbles" : "chatbubbles-outline"}
-                size={23}
-                color={chatUnread > 0 ? colors.gold : colors.white}
-              />
-              {chatUnread > 0 && (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>{chatUnread > 9 ? "9+" : chatUnread}</Text>
-                </View>
-              )}
+          isAdmin ? (
+            <Pressable onPress={() => router.push("/club/admin")} hitSlop={10} accessibilityLabel="Club settings">
+              <Ionicons name="settings-sharp" size={22} color={colors.white} />
             </Pressable>
-            <Pressable onPress={() => router.push("/club/gallery" as never)} hitSlop={8}>
-              <Ionicons name="images-outline" size={23} color={colors.white} />
-            </Pressable>
-            <Pressable onPress={() => router.push("/club/events" as never)} hitSlop={8}>
-              <Ionicons name="calendar-outline" size={23} color={colors.white} />
-            </Pressable>
-            <Pressable onPress={() => router.push("/club/members")} hitSlop={8}>
-              <Ionicons name="people" size={24} color={colors.white} />
-            </Pressable>
-            {/* Any member can invite — recruiting happens at the beach, not
-                in the admin screen. */}
-            <Pressable onPress={() => router.push("/club/invite" as never)} hitSlop={8}>
-              <Ionicons name="person-add-outline" size={22} color={colors.white} />
-            </Pressable>
-            {isAdmin && (
-              <Pressable onPress={() => router.push("/club/admin")} hitSlop={8}>
-                <Ionicons name="settings-sharp" size={22} color={colors.white} />
-              </Pressable>
-            )}
-          </>
+          ) : undefined
         }
-      />
+      >
+        {/* Shortcuts under the name, edge to edge, so a long club name fits.
+            Invite moved to the Members screen. */}
+        <ClubActionBar
+          chatUnread={chatUnread}
+          showStore={clubIsPro(club) || isAdmin}
+          storeBadge={pay.toConfirm > 0 ? pay.toConfirm : !!pay.unpaidDues}
+        />
+      </GradientHeader>
 
       <FlatList
         data={posts}
@@ -421,13 +404,9 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
               </View>
             )}
 
-            {club?.id && (
-              <OpenSurveysBanner clubId={club.id} isStaff={isAdmin || role === "coach"} />
-            )}
+            <PayBanner unpaidDues={pay.unpaidDues} toConfirm={pay.toConfirm} />
 
-            {club?.id && myUid && clubIsPro(club) && (
-              <PayBanner clubId={club.id} uid={myUid} isManager={canManagePayments(role, myMember)} />
-            )}
+            {club?.id && <OpenSurveysBanner clubId={club.id} />}
 
             {events.length > 0 && (
               <View style={styles.eventsStrip}>
@@ -1175,25 +1154,6 @@ const styles = StyleSheet.create({
   eventTitle: { fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ink, marginTop: spacing.xs },
   eventDateRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   eventDate: { fontSize: type.size.xs, color: colors.muted },
-  // Unread chat indicator on the header icon. Sits on the icon's top-right
-  // corner; the negative offsets keep it from widening the icon row.
-  unreadBadge: {
-    position: "absolute",
-    top: -5,
-    right: -7,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    backgroundColor: colors.coral,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  unreadBadgeText: {
-    color: colors.white,
-    fontSize: 10,
-    fontWeight: type.weight.heavy,
-  },
   composerWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.sm },
   composerRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
   draftThumbs: { gap: spacing.sm, paddingBottom: spacing.sm },
