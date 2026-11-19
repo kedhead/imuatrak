@@ -332,6 +332,14 @@ export default function ClubAdminScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: "auto" }} />
         </Pressable>
 
+        {/* Payments */}
+        <Text style={styles.sectionLabel}>DUES & STORE</Text>
+        <Pressable style={styles.inviteBtn} onPress={() => router.push("/club/pay/manage" as never)}>
+          <Ionicons name="card-outline" size={18} color={colors.blue} />
+          <Text style={styles.inviteBtnText}>Payments, dues & merch</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: "auto" }} />
+        </Pressable>
+
         {/* Channels */}
         <Text style={styles.sectionLabel}>CHANNELS</Text>
         <Pressable style={styles.inviteBtn} onPress={() => router.push("/club/admin/channels" as never)}>

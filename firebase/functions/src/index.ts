@@ -1,11 +1,12 @@
 import * as crypto from "crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore, FieldValue, type QueryDocumentSnapshot } from "firebase-admin/firestore";
+import { getFirestore, FieldPath, FieldValue, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
-import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentDeleted, onDocumentWritten } from "firebase-functions/v2/firestore";
+import { payPushFor, soldDeltas, type OrderSnapshot } from "./payOrders";
 import { chunkPushMessages } from "./pushChunks";
 import {
   GroupChatInputError,
@@ -98,7 +99,8 @@ interface ExpoPushMessage {
   title: string;
   body: string;
   sound: string;
-  badge: number;
+  /** Omit to leave the app icon's badge as it is. */
+  badge?: number;
   priority: string;
   data: Record<string, string>;
 }
@@ -2327,3 +2329,69 @@ export const migrateMessagesToGeneralChannel = onCall(async (request) => {
 // Secret Manager, NOTHING deploys. See the header of revenuecat.ts.
 // ---------------------------------------------------------------------------
 export { revenuecatWebhook, syncClubPlan } from "./revenuecat";
+
+// ---------------------------------------------------------------------------
+// Club payments. ImuaTrak never handles money: members record "I paid" and a
+// treasurer confirms. This trigger keeps each item's `sold` counts (what the
+// stock display subtracts) in step with orders, and sends the two pushes that
+// save the treasurer chasing: "payment to confirm" and "payment confirmed".
+// ---------------------------------------------------------------------------
+export const onPayOrderWrite = onDocumentWritten(
+  { document: "clubs/{clubId}/payOrders/{orderId}", maxInstances: 5 },
+  async (event) => {
+    const { clubId } = event.params;
+    const before = event.data?.before.exists ? (event.data.before.data() as OrderSnapshot) : undefined;
+    const after = event.data?.after.exists ? (event.data.after.data() as OrderSnapshot) : undefined;
+    const db = getFirestore();
+
+    // Stock. Field paths are built from the option text; FieldPath keeps
+    // sizes like "2XL" or "Youth M" from being parsed as nested paths.
+    for (const [itemId, perOption] of soldDeltas(before, after)) {
+      const ref = db.doc(`clubs/${clubId}/payItems/${itemId}`);
+      const pairs: unknown[] = [];
+      for (const [key, delta] of perOption) {
+        pairs.push(new FieldPath("sold", key), FieldValue.increment(delta));
+      }
+      const [firstField, firstValue, ...rest] = pairs;
+      if (!firstField) continue;
+      // The item may have been deleted since; its counts no longer matter.
+      await ref.update(firstField as FieldPath, firstValue, ...rest).catch(() => undefined);
+    }
+
+    const push = payPushFor(before, after);
+    if (!push) return;
+
+    let recipients: string[];
+    if (push.to === "member") {
+      recipients = [push.uid];
+    } else {
+      // Treasurers if the club has named any, otherwise the owner and admins.
+      // Coaches can manage payments too, but aren't pinged for every one.
+      const members = db.collection(`clubs/${clubId}/members`);
+      const treasurers = await members.where("treasurer", "==", true).get();
+      const snap = treasurers.empty
+        ? await members.where("role", "in", ["owner", "admin"]).get()
+        : treasurers;
+      recipients = snap.docs.map((d) => d.id).filter((uid) => uid !== after?.uid);
+    }
+    if (recipients.length === 0) return;
+
+    const messages: ExpoPushMessage[] = [];
+    const owners: string[] = [];
+    for (const uid of recipients) {
+      const userSnap = await db.doc(`users/${uid}`).get();
+      const tokens = expoTokensFrom(userSnap.data()) ?? (await legacyExpoTokens(db, uid));
+      if (tokens.length === 0) continue;
+      messages.push({
+        to: tokens,
+        title: push.title,
+        body: push.body,
+        sound: "default",
+        priority: "high",
+        data: { screen: "payments", clubId, ...(push.to === "managers" ? { manage: "1" } : {}) },
+      });
+      owners.push(uid);
+    }
+    if (messages.length) await sendExpoPush(db, messages, owners);
+  },
+);

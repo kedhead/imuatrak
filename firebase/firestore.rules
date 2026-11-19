@@ -228,7 +228,9 @@ service cloud.firestore {
         // role change can grant "owner" (that's a transfer-ownership flow).
         allow update: if (isOwner(uid)
               && request.resource.data.role == resource.data.role
-              && request.resource.data.uid == resource.data.uid)
+              && request.resource.data.uid == resource.data.uid
+              // Treasurer is granted by owners/admins, never self-assigned.
+              && request.resource.data.get("treasurer", false) == resource.data.get("treasurer", false))
           || (!isOwner(uid)
               && canManageMember(clubId, resource.data.role)
               && request.resource.data.role != "owner"
@@ -320,6 +322,119 @@ service cloud.firestore {
                 && resource.data.get("writeIn", false) == true
                 && resource.data.createdBy == request.auth.uid);
         }
+      }
+
+      // ── Payments (dues and merch) ──────────────────────────────────────────
+      // ImuaTrak never handles money: the club lists how it takes payment and
+      // what members pay for; members record "I paid" and a treasurer
+      // confirms. Managers are staff plus anyone flagged treasurer.
+      function canManagePayments() {
+        return isClubMember(clubId) && (
+          getClubMember(clubId).role in ["owner", "admin", "coach"]
+          || getClubMember(clubId).get("treasurer", false) == true);
+      }
+
+      match /payMethods/{methodId} {
+        function validMethod(d) {
+          return d.keys().hasAll(["kind", "order", "createdAt"])
+            && d.keys().hasOnly(["kind", "handle", "url", "qrUrl", "instructions", "label", "order", "createdAt"])
+            && d.kind in ["zelle", "venmo", "paypal", "cashapp", "link", "other"]
+            && (!("handle" in d) || (d.handle is string && d.handle.size() <= 100))
+            && (!("url" in d) || (d.url is string && d.url.size() <= 500))
+            && (!("qrUrl" in d) || (d.qrUrl is string && d.qrUrl.size() <= 1000))
+            && (!("instructions" in d) || (d.instructions is string && d.instructions.size() <= 300))
+            && (!("label" in d) || (d.label is string && d.label.size() <= 40))
+            && d.order is int
+            && d.createdAt is string;
+        }
+        allow read: if isClubMember(clubId);
+        allow create, update: if canManagePayments() && validMethod(request.resource.data);
+        allow delete: if canManagePayments();
+      }
+
+      match /payItems/{itemId} {
+        function validItem(d) {
+          return d.keys().hasAll(["title", "kind", "priceCents", "active", "order", "createdBy", "createdAt"])
+            && d.keys().hasOnly(["title", "description", "kind", "priceCents", "options", "stock",
+                                 "sold", "active", "order", "createdBy", "createdAt"])
+            && d.title is string && d.title.size() > 0 && d.title.size() <= 60
+            && (!("description" in d) || (d.description is string && d.description.size() <= 300))
+            && d.kind in ["dues", "merch", "other"]
+            && d.priceCents is int && d.priceCents >= 0 && d.priceCents <= 1000000
+            && (!("options" in d) || (d.options is list && d.options.size() <= 12))
+            && (!("stock" in d) || (d.stock is map && d.stock.size() <= 13))
+            && d.active is bool
+            && d.order is int
+            && d.createdAt is string;
+        }
+        allow read: if isClubMember(clubId);
+        // `sold` is kept by the onPayOrderWrite function; clients never set it.
+        allow create: if canManagePayments()
+          && validItem(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid
+          && !("sold" in request.resource.data);
+        allow update: if canManagePayments()
+          && validItem(request.resource.data)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.get("sold", null) == resource.data.get("sold", null);
+        allow delete: if canManagePayments();
+      }
+
+      match /payOrders/{orderId} {
+        function validOrder(d) {
+          return d.keys().hasAll(["uid", "name", "itemId", "itemTitle", "itemKind", "qty",
+                                  "unitCents", "totalCents", "method", "status", "createdAt", "updatedAt"])
+            && d.keys().hasOnly(["uid", "name", "itemId", "itemTitle", "itemKind", "option", "qty",
+                                 "unitCents", "totalCents", "method", "status", "note", "recordedBy",
+                                 "createdAt", "updatedAt", "confirmedAt", "confirmedBy"])
+            && d.uid is string
+            && d.name is string && d.name.size() <= 100
+            && d.itemId is string
+            && d.itemTitle is string && d.itemTitle.size() <= 60
+            && d.itemKind in ["dues", "merch", "other"]
+            && (!("option" in d) || (d.option is string && d.option.size() <= 20))
+            && d.qty is int && d.qty >= 1 && d.qty <= 20
+            && d.unitCents is int && d.unitCents >= 0
+            && d.totalCents == d.unitCents * d.qty
+            && d.method is string && d.method.size() <= 20
+            && d.status in ["pending", "confirmed", "cancelled"]
+            && (!("note" in d) || (d.note is string && d.note.size() <= 120))
+            && d.createdAt is string
+            && d.updatedAt is string;
+        }
+
+        // Your own orders, or everyone's for a treasurer. A member's list
+        // query must filter on uid == their own for this to allow it.
+        allow read: if canManagePayments()
+          || (isClubMember(clubId) && resource.data.uid == request.auth.uid);
+
+        allow create: if validOrder(request.resource.data) && (
+          // A member saying "I paid": for themselves, pending, at the item's
+          // real price.
+          (isClubMember(clubId)
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.status == "pending"
+            && !request.resource.data.keys().hasAny(["recordedBy", "confirmedAt", "confirmedBy"])
+            && request.resource.data.unitCents
+                 == get(/databases/$(database)/documents/clubs/$(clubId)/payItems/$(request.resource.data.itemId)).data.priceCents)
+          // A treasurer recording one for someone (cash at practice).
+          || (canManagePayments()
+            && request.resource.data.recordedBy == request.auth.uid)
+        );
+
+        allow update: if validOrder(request.resource.data)
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.itemId == resource.data.itemId
+          && (
+            canManagePayments()
+            // A member may cancel their own while it's still pending.
+            || (resource.data.uid == request.auth.uid
+                && resource.data.status == "pending"
+                && request.resource.data.status == "cancelled"
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"]))
+          );
+
+        allow delete: if canManagePayments();
       }
 
       // ── Surveys (end-of-season questionnaires, race debriefs, polls) ───────

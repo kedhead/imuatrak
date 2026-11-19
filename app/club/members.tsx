@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { currentUser } from "@/services/auth";
 import { removeMember, updateMemberRole } from "@/services/clubService";
+import { setTreasurer } from "@/services/paymentService";
 import { openDmThread } from "@/services/dmService";
 import { useClub } from "@/services/clubStore";
 import { useSubscription } from "@/services/subscriptionStore";
@@ -111,6 +112,19 @@ export default function MembersScreen() {
     if (member.role !== "admin") options.push({ text: "Promote to Admin", onPress: setRole("admin") });
     if (member.role !== "coach") options.push({ text: "Make Coach", onPress: setRole("coach") });
     if (member.role !== "member") options.push({ text: "Demote to Member", onPress: setRole("member") });
+    // Treasurer sits on top of the role: a plain member can collect dues
+    // without getting admin powers.
+    options.push({
+      text: member.treasurer ? "Remove Treasurer" : "💰 Make Treasurer",
+      onPress: async () => {
+        try {
+          await setTreasurer(club.id, member.uid, !member.treasurer);
+          if (me) await switchClub(club.id, me.uid);
+        } catch {
+          Alert.alert("Couldn't update", "Please try again.");
+        }
+      },
+    });
     options.push({
       text: "Remove from Club",
       style: "destructive",
@@ -146,6 +160,7 @@ export default function MembersScreen() {
               </Text>
               <Text style={styles.role}>
                 {ROLE_LABEL[displayRole(item.role, club)]}
+                {item.treasurer ? " · 💰 Treasurer" : ""}
                 {paddleSideLabel(item.paddleSide) ? ` · ${paddleSideLabel(item.paddleSide)} side` : ""}
               </Text>
             </View>
@@ -185,7 +200,7 @@ export default function MembersScreen() {
         )}
         ListFooterComponent={
           <Text style={styles.hint}>
-            {isAdmin ? "Long-press a member to change their role." : ""}
+            {isAdmin ? "Long-press a member to change their role or make them treasurer." : ""}
           </Text>
         }
       />
