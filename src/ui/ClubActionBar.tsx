@@ -18,8 +18,8 @@ interface Action {
 /**
  * The club home's shortcuts (up to seven), spread edge to edge under the club name: labeled
  * so new members can tell what's what, and moved off the title row so a long
- * club name fits. Invite lives on the Members screen; Settings stays by the
- * title.
+ * club name fits. Members (and Invite, on its screen) and Settings sit in the
+ * header's top-right corner.
  */
 export function ClubActionBar({
   chatUnread,
@@ -42,7 +42,6 @@ export function ClubActionBar({
     { key: "chat", label: "Chat", icon: "chatbubbles-outline", activeIcon: "chatbubbles", href: "/club/channels", badge: chatUnread },
     { key: "events", label: "Events", icon: "calendar-outline", href: "/club/events" },
     { key: "photos", label: "Photos", icon: "images-outline", href: "/club/gallery" },
-    { key: "members", label: "Members", icon: "people-outline", href: "/club/members" },
     { key: "surveys", label: "Surveys", icon: "clipboard-outline", activeIcon: "clipboard", href: "/club/surveys", badge: surveysUnanswered },
     ...(showTraining
       ? [{ key: "training", label: "Train", icon: "barbell-outline", href: "/club/training" } as Action]
