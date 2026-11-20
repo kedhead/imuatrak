@@ -347,11 +347,18 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
         subtitle={myClubs.length > 1 ? "Tap to switch clubs" : "Your paddling crew"}
         onTitlePress={() => setSwitcherOpen(true)}
         right={
-          isAdmin ? (
-            <Pressable onPress={() => router.push("/club/admin")} hitSlop={10} accessibilityLabel="Club settings">
-              <Ionicons name="settings-sharp" size={22} color={colors.white} />
+          <>
+            {/* Members lives up here (not in the action bar) to give the bar's
+                labeled shortcuts more room. */}
+            <Pressable onPress={() => router.push("/club/members")} hitSlop={10} accessibilityLabel="Members">
+              <Ionicons name="people" size={24} color={colors.white} />
             </Pressable>
-          ) : undefined
+            {isAdmin && (
+              <Pressable onPress={() => router.push("/club/admin")} hitSlop={10} accessibilityLabel="Club settings">
+                <Ionicons name="settings-sharp" size={22} color={colors.white} />
+              </Pressable>
+            )}
+          </>
         }
       >
         {/* Shortcuts under the name, edge to edge, so a long club name fits.
