@@ -16,7 +16,7 @@ interface Action {
 }
 
 /**
- * The club home's shortcuts, spread edge to edge under the club name: labeled
+ * The club home's shortcuts (up to seven), spread edge to edge under the club name: labeled
  * so new members can tell what's what, and moved off the title row so a long
  * club name fits. Invite lives on the Members screen; Settings stays by the
  * title.
@@ -25,6 +25,7 @@ export function ClubActionBar({
   chatUnread,
   surveysUnanswered,
   showStore,
+  showTraining,
   storeBadge,
 }: {
   chatUnread: number;
@@ -32,6 +33,8 @@ export function ClubActionBar({
   surveysUnanswered: number;
   /** Pro clubs (and owners/admins of free clubs, who see the upgrade). */
   showStore: boolean;
+  /** Training log — Pro clubs. */
+  showTraining: boolean;
   storeBadge?: number | boolean;
 }) {
   const router = useRouter();
@@ -41,6 +44,9 @@ export function ClubActionBar({
     { key: "photos", label: "Photos", icon: "images-outline", href: "/club/gallery" },
     { key: "members", label: "Members", icon: "people-outline", href: "/club/members" },
     { key: "surveys", label: "Surveys", icon: "clipboard-outline", activeIcon: "clipboard", href: "/club/surveys", badge: surveysUnanswered },
+    ...(showTraining
+      ? [{ key: "training", label: "Train", icon: "barbell-outline", href: "/club/training" } as Action]
+      : []),
     ...(showStore
       ? [{ key: "store", label: "Store", icon: "card-outline", activeIcon: "card", href: "/club/pay", badge: storeBadge } as Action]
       : []),
@@ -87,7 +93,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: spacing.lg,
-    marginHorizontal: -spacing.xs,
+    // Slightly wider than the header padding so seven tiles fit on a 375pt phone.
+    marginHorizontal: -spacing.sm,
   },
   item: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 2 },
   iconWrap: {
