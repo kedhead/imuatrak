@@ -44,6 +44,7 @@ import { Logo } from "@/ui/Logo";
 import { OpenSurveysBanner, useUnansweredSurveys } from "@/ui/OpenSurveysBanner";
 import { PayBanner } from "@/ui/PayBanner";
 import { ClubActionBar } from "@/ui/ClubActionBar";
+import { PollVotersSheet } from "@/ui/PollVoters";
 import { usePaySummary } from "@/ui/payments/usePaySummary";
 import { canManagePayments } from "@/models/payments";
 import { NativeAdCard } from "@/ui/NativeAdCard";
@@ -1051,6 +1052,12 @@ function PollCard({
 }) {
   const [localVotes, setLocalVotes] = useState<Record<string, string[]>>(post.pollVotes ?? {});
   const [voting, setVoting] = useState(false);
+  const [showVoters, setShowVoters] = useState(false);
+  // Staff (who post polls) can see who voted for what. Votes are stored by
+  // uid already; this just puts names to them.
+  const role = useClub((st) => st.role);
+  const members = useClub((st) => st.members);
+  const isStaff = role === "owner" || role === "admin" || role === "coach";
 
   const options = post.pollOptions ?? [];
   const multi = post.pollMultipleChoice ?? false;
@@ -1121,6 +1128,22 @@ function PollCard({
         {multi ? " · Multiple choice" : ""}
         {isExpired ? " · Closed" : post.pollEndsAt ? ` · Ends ${new Date(post.pollEndsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}
       </Text>
+      {isStaff && (
+        <Pressable onPress={() => setShowVoters(true)} hitSlop={8} style={styles.pollVotersLink}>
+          <Ionicons name="people-outline" size={14} color={colors.ocean} />
+          <Text style={styles.pollVotersText}>See who voted</Text>
+        </Pressable>
+      )}
+      {isStaff && (
+        <PollVotersSheet
+          visible={showVoters}
+          question={post.content}
+          options={options}
+          votes={localVotes}
+          members={members}
+          onClose={() => setShowVoters(false)}
+        />
+      )}
     </View>
   );
 }
@@ -1239,4 +1262,6 @@ const styles = StyleSheet.create({
   pollOptionText: { flex: 1, fontSize: type.size.sm, color: colors.ink },
   pollPct: { fontSize: type.size.xs, color: colors.muted, fontWeight: type.weight.bold, minWidth: 32, textAlign: "right" },
   pollMeta: { fontSize: type.size.xs, color: colors.muted, marginTop: 2 },
+  pollVotersLink: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginTop: spacing.xs },
+  pollVotersText: { fontSize: type.size.sm, fontWeight: type.weight.bold, color: colors.ocean },
 });
