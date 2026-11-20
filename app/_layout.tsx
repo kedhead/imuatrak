@@ -145,9 +145,12 @@ export default function RootLayout() {
       const data = response.notification.request.content.data as Record<string, unknown>;
       if (typeof data?.channelId === "string") {
         router.push(`/club/chat/${data.channelId}` as never);
-      } else if (data?.screen === "payments") {
-        // "Payment to confirm" (treasurers) and "Payment confirmed" (member).
-        const goPay = () => router.push((data.manage ? "/club/pay/manage" : "/club/pay") as never);
+      } else if (data?.screen === "payments" || data?.screen === "training") {
+        // Payments ("to confirm" / "confirmed") and the Sunday training nudge.
+        const goPay = () =>
+          router.push(
+            (data.screen === "training" ? "/club/training" : data.manage ? "/club/pay/manage" : "/club/pay") as never,
+          );
         const uid = currentUser()?.uid;
         const clubId = typeof data.clubId === "string" ? data.clubId : null;
         if (clubId && uid && useClub.getState().club?.id !== clubId) {
@@ -213,6 +216,7 @@ export default function RootLayout() {
           <Stack.Screen name="club/pay/index" options={{ headerShown: true, title: "Dues & Store" }} />
           <Stack.Screen name="club/pay/[itemId]" options={{ headerShown: true, title: "Pay" }} />
           <Stack.Screen name="club/pay/manage" options={{ headerShown: true, title: "Treasurer tools" }} />
+          <Stack.Screen name="club/training" options={{ headerShown: true, title: "Training" }} />
           <Stack.Screen name="club/survey/[id]" options={{ headerShown: true, title: "Survey" }} />
           <Stack.Screen name="club/survey-edit/[id]" options={{ headerShown: true, title: "Survey" }} />
           <Stack.Screen name="club/survey-results/[id]" options={{ headerShown: true, title: "Results" }} />

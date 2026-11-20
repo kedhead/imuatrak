@@ -44,6 +44,7 @@ import { Logo } from "@/ui/Logo";
 import { OpenSurveysBanner, useUnansweredSurveys } from "@/ui/OpenSurveysBanner";
 import { PayBanner } from "@/ui/PayBanner";
 import { ClubActionBar } from "@/ui/ClubActionBar";
+import { TrainingBanner } from "@/ui/TrainingBanner";
 import { PollVotersSheet } from "@/ui/PollVoters";
 import { usePaySummary } from "@/ui/payments/usePaySummary";
 import { canManagePayments } from "@/models/payments";
@@ -411,6 +412,8 @@ function ClubHomeScreen({ clubId, clubName }: { clubId: string; clubName: string
             <OpenSurveysBanner pending={unansweredSurveys} />
 
             <PayBanner unpaidDues={pay.unpaidDues} toConfirm={pay.toConfirm} />
+
+            {club?.id && clubIsPro(club) && <TrainingBanner clubId={club.id} />}
 
             {events.length > 0 && (
               <View style={styles.eventsStrip}>
