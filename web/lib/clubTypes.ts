@@ -122,8 +122,21 @@ export interface ClubPost {
   tags?: string[];
   /** Uids of members tagged in the photo ("who's in this shot"). */
   taggedUids?: string[];
+  // Poll fields — present only when type === "poll" (mirrors src/models/club.ts).
+  pollOptions?: PollOption[];
+  /** key = option index as a string, value = voter uids. */
+  pollVotes?: Record<string, string[]>;
+  pollMultipleChoice?: boolean;
+  pollEndsAt?: string;
   createdAt: string;
 }
+
+export interface PollOption {
+  text: string;
+}
+
+/** The app allows 2–4 options per poll. */
+export const POLL_MAX_OPTIONS = 4;
 
 /** Caps how many tags one photo post carries. */
 export const MAX_POST_TAGS = 10;
