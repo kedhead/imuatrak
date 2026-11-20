@@ -7,6 +7,7 @@ import { setGlobalOptions } from "firebase-functions/v2";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentDeleted, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { payPushFor, soldDeltas, type OrderSnapshot } from "./payOrders";
+import { weekStart, workoutDeltas, type WorkoutSnapshot } from "./workouts";
 import { chunkPushMessages } from "./pushChunks";
 import {
   GroupChatInputError,
@@ -2445,3 +2446,95 @@ export const uploadPayQr = onCall({ memory: "512MiB" }, async (request) => {
     `${encodeURIComponent(path)}?alt=media&token=${token}`;
   return { url };
 });
+
+// ---------------------------------------------------------------------------
+// Training log. Members' workout entries are private to them and staff; the
+// weekly leaderboard everyone sees lives in workoutWeeks/{monday}, kept here
+// so members never need to read each other's entries.
+// ---------------------------------------------------------------------------
+export const onWorkoutWrite = onDocumentWritten(
+  { document: "clubs/{clubId}/workouts/{workoutId}", maxInstances: 5 },
+  async (event) => {
+    const { clubId } = event.params;
+    const before = event.data?.before.exists ? (event.data.before.data() as WorkoutSnapshot) : undefined;
+    const after = event.data?.after.exists ? (event.data.after.data() as WorkoutSnapshot) : undefined;
+    const db = getFirestore();
+    for (const d of workoutDeltas(before, after)) {
+      await db.doc(`clubs/${clubId}/workoutWeeks/${d.week}`).set(
+        {
+          totals: {
+            [d.uid]: {
+              count: FieldValue.increment(d.count),
+              minutes: FieldValue.increment(d.minutes),
+              ...(d.name ? { name: d.name } : {}),
+            },
+          },
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+    }
+  },
+);
+
+/** Today's date (YYYY-MM-DD) in Hawaiʻi, where the clubs paddle. */
+function hawaiiToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Honolulu" }).format(new Date());
+}
+
+function addDaysIso(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Sunday-evening nudge for people who use the Training log: anyone in a Pro
+ * club who logged something in the previous four weeks but nothing this
+ * week. People who've never logged are never pinged — it stays opt-in.
+ */
+export const remindWorkoutLogs = onSchedule(
+  { schedule: "0 17 * * 0", timeZone: "Pacific/Honolulu" },
+  async () => {
+    const db = getFirestore();
+    const thisWeek = weekStart(hawaiiToday());
+    const recentWeeks = [1, 2, 3, 4].map((n) => addDaysIso(thisWeek, -7 * n));
+
+    const clubs = await db.collection("clubs").where("subscriptionStatus", "in", ["active", "trial"]).get();
+    for (const club of clubs.docs) {
+      if (!clubIsPaidOrTrialing(club.data() as { subscriptionStatus?: string; trialEndsAt?: string })) continue;
+      const weekDocs = await db.getAll(
+        ...[thisWeek, ...recentWeeks].map((w) => db.doc(`clubs/${club.id}/workoutWeeks/${w}`)),
+      );
+      type Totals = Record<string, { count?: number }>;
+      const totalsOf = (i: number) => ((weekDocs[i]?.data() as { totals?: Totals } | undefined)?.totals ?? {});
+      const loggedThisWeek = new Set(Object.entries(totalsOf(0)).filter(([, t]) => (t.count ?? 0) > 0).map(([u]) => u));
+      const recent = new Set<string>();
+      for (let i = 1; i < weekDocs.length; i++) {
+        for (const [u, t] of Object.entries(totalsOf(i))) if ((t.count ?? 0) > 0) recent.add(u);
+      }
+      const due = [...recent].filter((u) => !loggedThisWeek.has(u));
+      if (due.length === 0) continue;
+
+      const clubName = (club.data() as { name?: string }).name ?? "your club";
+      const messages: ExpoPushMessage[] = [];
+      const owners: string[] = [];
+      for (const uid of due) {
+        // Still a member?
+        if (!(await db.doc(`clubs/${club.id}/members/${uid}`).get()).exists) continue;
+        const userSnap = await db.doc(`users/${uid}`).get();
+        const tokens = expoTokensFrom(userSnap.data()) ?? (await legacyExpoTokens(db, uid));
+        if (tokens.length === 0) continue;
+        messages.push({
+          to: tokens,
+          title: "💪 Log your week?",
+          body: `Add this week's workouts to the ${clubName} leaderboard before it resets tomorrow.`,
+          sound: "default",
+          priority: "high",
+          data: { screen: "training", clubId: club.id },
+        });
+        owners.push(uid);
+      }
+      if (messages.length) await sendExpoPush(db, messages, owners);
+    }
+  },
+);

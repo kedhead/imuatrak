@@ -437,6 +437,40 @@ service cloud.firestore {
         allow delete: if canManagePayments();
       }
 
+      // ── Training log (workouts + weekly leaderboard) ──────────────────────
+      // Members log their own workouts. Staff see everyone's entries (type,
+      // notes); members see only their own. The leaderboard everyone sees is
+      // workoutWeeks/, totals kept server-side by onWorkoutWrite.
+      match /workouts/{workoutId} {
+        function validWorkout(d) {
+          return d.keys().hasAll(["uid", "name", "kind", "minutes", "date", "createdAt"])
+            && d.keys().hasOnly(["uid", "name", "kind", "minutes", "date", "note", "sessionId", "createdAt"])
+            && d.name is string && d.name.size() <= 100
+            && d.kind in ["paddle", "gym", "run", "bike", "swim", "yoga", "other"]
+            && d.minutes is int && d.minutes >= 1 && d.minutes <= 600
+            && d.date is string && d.date.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+            && (!("note" in d) || (d.note is string && d.note.size() <= 200))
+            && (!("sessionId" in d) || (d.sessionId is string && d.sessionId.size() <= 128))
+            && d.createdAt is string;
+        }
+        allow read: if hasClubRole(clubId, ["owner", "admin", "coach"])
+          || (isClubMember(clubId) && resource.data.uid == request.auth.uid);
+        allow create: if isClubMember(clubId)
+          && request.resource.data.uid == request.auth.uid
+          && validWorkout(request.resource.data);
+        allow update: if isClubMember(clubId)
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.uid == resource.data.uid
+          && validWorkout(request.resource.data);
+        allow delete: if isClubMember(clubId)
+          && (resource.data.uid == request.auth.uid || hasClubRole(clubId, ["owner", "admin", "coach"]));
+      }
+
+      match /workoutWeeks/{weekId} {
+        allow read: if isClubMember(clubId);
+        allow write: if false; // onWorkoutWrite (Admin SDK) only
+      }
+
       // ── Surveys (end-of-season questionnaires, race debriefs, polls) ───────
       // Staff build them; members answer once while they're open.
       //
