@@ -331,7 +331,14 @@ export async function createClubPost(
   clubId: string,
   uid: string,
   displayName: string,
-  opts: { type: PostType; content: string; pinnedUntil?: string },
+  opts: {
+    type: PostType;
+    content: string;
+    pinnedUntil?: string;
+    pollOptions?: { text: string }[];
+    pollMultipleChoice?: boolean;
+    pollEndsAt?: string;
+  },
 ): Promise<void> {
   const now = new Date().toISOString();
   await addDoc(collection(db, "clubs", clubId, "posts"), {
@@ -339,8 +346,43 @@ export async function createClubPost(
     authorId: uid, authorName: displayName,
     pinnedUntil: opts.pinnedUntil ?? null,
     likeCount: 0, commentCount: 0,
+    // Same poll shape as the app's createPost.
+    ...(opts.type === "poll" && opts.pollOptions
+      ? {
+          pollOptions: opts.pollOptions,
+          pollVotes: {},
+          pollMultipleChoice: opts.pollMultipleChoice ?? false,
+          ...(opts.pollEndsAt ? { pollEndsAt: opts.pollEndsAt } : {}),
+        }
+      : {}),
     createdAt: now, updatedAt: now,
   });
+}
+
+/**
+ * Vote (or un-vote) in a feed poll — the app's votePoll. Touches only
+ * pollVotes, which is the rules' carve-out for members. Single-choice polls
+ * move your vote off any other option.
+ */
+export async function votePoll(
+  clubId: string,
+  postId: string,
+  uid: string,
+  optionIndex: number,
+  currentVotes: Record<string, string[]>,
+  multipleChoice: boolean,
+): Promise<void> {
+  const ref = doc(db, "clubs", clubId, "posts", postId);
+  const key = String(optionIndex);
+  const already = (currentVotes[key] ?? []).includes(uid);
+  const updates: Record<string, ReturnType<typeof arrayUnion>> = {};
+  if (!multipleChoice) {
+    for (const k of Object.keys(currentVotes)) {
+      if (k !== key && (currentVotes[k] ?? []).includes(uid)) updates[`pollVotes.${k}`] = arrayRemove(uid);
+    }
+  }
+  updates[`pollVotes.${key}`] = already ? arrayRemove(uid) : arrayUnion(uid);
+  await updateDoc(ref, updates);
 }
 
 export async function deleteClubPost(clubId: string, postId: string): Promise<void> {
