@@ -77,6 +77,7 @@ export default function ClubDashboard() {
         <NavCard href="/dashboard/club/events" label="Events" icon="📅" desc="Calendar, RSVPs & sign-up sheets" />
         <NavCard href="/dashboard/club/surveys" label="Surveys" icon="📋" desc={isStaff ? "Ask the club, see results" : "Have your say"} />
         <NavCard href="/dashboard/club/payments" label="Dues & Store" icon="💳" desc={isStaff ? "Collect dues, sell merch" : "Pay dues, buy merch"} />
+        <NavCard href="/dashboard/club/training" label="Training" icon="💪" desc={isStaff ? "Leaderboard & team log" : "Log workouts, leaderboard"} />
         <NavCard href="/dashboard/dm" label="Messages" icon="✉️" desc="DMs & group chats" />
         <NavCard href="/dashboard/club/posts" label="News Feed" icon="📣" desc="Announcements & posts" />
         {isAdmin && <NavCard href="/dashboard/club/settings" label="Settings" icon="⚙️" desc="Edit club & billing" />}
