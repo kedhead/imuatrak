@@ -24,6 +24,110 @@ move to Pro — at which point Vercel *can* bill you and this table changes.
 
 ---
 
+## Reading the bill: what drives each cost
+
+Almost everything is Firebase on the Blaze plan, which bills per use, and each
+month includes a free allowance. At ~100 active users nearly all real usage is
+inside it, so the bill is mostly fixed costs (see "Warm functions" below).
+
+| Billing line | Free each month | What in ImuaTrak drives it | Grows with |
+|---|---|---|---|
+| **Cloud Run Functions** | 2M invocations, plus compute | Every callable and trigger (34 functions): chat pushes, uploads, DMs, payments, workouts. **Warm instances bill around the clock.** | Messages sent, photos uploaded, members |
+| **Cloud Firestore** | 50K reads/day, 20K writes/day, 1 GB | Opening feeds and chat, live listeners (each delivered doc is a read, and re-subscribing re-reads the whole initial set), leaderboards, and rule `get()`s | Members × how often they open the app |
+| **Cloud Storage** | 5 GB stored, ~1 GB/day download | Chat/DM/post photos and videos, avatars, QR codes, GPX tracks | Photos posted and viewed |
+| **Artifact Registry / Cloud Build** | small free tier | Building and storing function images on each functions deploy | Deploys, not users |
+| **Vercel** (separate) | Hobby: not billed | The website | Can throttle, can't invoice (see table above) |
+
+### The fixed part: warm functions
+
+`KEEP_WARM` in `firebase/functions/src/index.ts` keeps one instance of each
+call people sit and wait on (`createChannelUploadUrl`, `finalizeChannelMedia`,
+`openDmThread`) running at all times, so photo sends and opening a DM never hit a
+2–4 s cold start. A warm instance bills for its CPU and memory **24/7**,
+whether or not anyone uses the app.
+
+- On the 2nd-gen default (a whole vCPU) the three cost **~$0.80/day, ~$24/month**.
+  That showed up as a flat daily bar from Nov 10, 2026 (#116), the bulk of that
+  month's ~$10 partial bill.
+- Since #155 they run on `cpu: "gcf_gen1"` (a fraction of a vCPU at 256 MiB,
+  `concurrency: 1`): **~$0.13/day, ~$4/month** for all three.
+- Each extra name on that list adds roughly $1.30/month. Deleting one removes
+  its cost and brings back the cold start for that call.
+
+### Rough growth estimates
+
+Order-of-magnitude only. Chatty, photo-heavy clubs sit at the top of each range.
+
+| Active users | Clubs (approx.) | Likely monthly bill |
+|---|---|---|
+| ~100 (Nov 2026) | 2–3 | ~$4–5 (mostly warm functions) |
+| ~1,000 | ~20 | ~$10–40 |
+| ~10,000 | ~200 | ~$100–400 |
+
+Cost scales with usage, and usage scales with clubs. Pro subscriptions should
+stay well ahead of it. If the bill outgrows revenue, the fix is to find the one
+expensive piece (below), not to change hosts.
+
+---
+
+## When the bill jumps: triage
+
+Work through these in order; the first usually answers it.
+
+1. **Find the line.** Google Cloud Console → **Billing** → **Reports**. Group by
+   **Service**, then by **SKU**, over the last 30 days, daily.
+2. **Read the shape of the bars.**
+   - **Flat, same every day, starting on a date** → something always-on was
+     added: a warm instance (`minInstances`), a bigger `memory`/`cpu`, or a new
+     schedule. Check `git log` for `firebase/functions/src/index.ts` around that
+     date. *(Nov 2026: this was `KEEP_WARM`.)*
+   - **Tracks activity (weekends, regatta days)** → normal growth. Check which
+     SKU and compare with the estimates above.
+   - **Sudden spike, one or two days** → a loop or abuse. Go to step 3 now.
+3. **Find the function** (Cloud Run Functions line). Firebase Console →
+   **Functions** → **Usage**/**Health**: sort by invocations. A trigger firing
+   far more than messages are sent means a write loop (a function writing the
+   document that triggers it). `maxInstances` caps how fast that can burn money,
+   but it doesn't stop it.
+4. **Find the reads** (Firestore line). Firebase Console → **Firestore** →
+   **Usage**. Spikes in reads usually mean a listener re-subscribing in a loop
+   in the app (an effect depending on an object that changes every render), or a
+   screen that queries a whole collection. Check recent app changes first.
+5. **Find the bytes** (Storage line). Download (egress) growing faster than
+   uploads means large originals being served into small thumbnails, or a
+   public URL being hot-linked. Photos are resized on upload (`imageResize.ts`);
+   check any new upload path does the same.
+
+### Quick fixes by cause
+
+| Cause | Fix |
+|---|---|
+| Always-on instance | Drop it from `KEEP_WARM`, or keep `cpu: "gcf_gen1"` |
+| Trigger loop | Make the function skip writes that don't change anything, and redeploy |
+| Listener churn | Key effects on ids (`user.uid`, `clubId`), not objects; see Part 2 |
+| Big media | Resize before upload; lower the size limit in the callable and `storage.rules` |
+| Abuse | App Check monitor mode first (Part 3), then rule changes |
+
+---
+
+## Hosting: why not move to a VPS
+
+Considered in Nov 2026 and rejected for now.
+
+- **It wouldn't replace much.** Auth, Firestore (including live listeners), push
+  delivery, Storage, scheduled jobs and the callable endpoints are all Firebase.
+  A VPS means rebuilding those, plus a migration with real risk to a live app.
+- **It adds operations work:** OS and security patches, backups, uptime and
+  on-call, and scaling when a big club joins.
+- **It isn't cheaper at this size.** A decent VPS is $10–40/month idle; Firebase
+  is ~$5 here.
+- **When to revisit:** when the bill passes ~$100/month, start with triage
+  above and optimize the most expensive piece. Moving one piece (say media to
+  a cheaper object store and CDN) is the next step. Wholesale migration only
+  makes sense at large, steady scale.
+
+---
+
 ## Part 1 — Console setup (manual, ~20 minutes)
 
 ### 1. Cloud Billing budget and alerts
@@ -119,6 +223,8 @@ bill" into "requests queue and eventually fail". Tighter per-function limits:
 | `onChannelMessageCreate` | 5 | Fans out across the whole club roster. |
 | `onDmMessageCreate` | 5 | Same shape. |
 | `getAppStats` / `computeAppStats` | 1 | Two concurrent project scans cost double for one answer. |
+| `onPayOrderWrite` / `onWorkoutWrite` | 5 | Per-club triggers; a burst can't outrun the cap. |
+| Warm calls (`KEEP_WARM`) | 10 (global) | `concurrency: 1` on a fractional CPU, so bursts scale out instead; see "Warm functions" above. |
 
 `region` is deliberately **not** set — changing a deployed function's region
 deletes and recreates it, breaking live clients mid-flight.

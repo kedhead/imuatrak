@@ -164,9 +164,10 @@ the count).
 ## 10. Cold starts on calls people wait on — FIXED (server, costs money)
 
 `KEEP_WARM` (`minInstances: 1`) on `openDmThread`, `createChannelUploadUrl`
-and `finalizeChannelMedia`. Each warm instance bills while idle; check the
-Cloud Run line in billing after a month and trim the list if it isn't worth
-it. Still cold: `uploadDmMedia`, `uploadPostMedia`, `uploadAvatar`,
+and `finalizeChannelMedia`. Each warm instance bills while idle. On the 2nd-gen
+default of a whole vCPU that came to ~$0.80/day for the three (~$24/month), so
+they now run on `cpu: "gcf_gen1"` (a fraction of a vCPU, ~$4/month for all
+three). See docs/cost-controls.md, "Warm functions". Still cold: `uploadDmMedia`, `uploadPostMedia`, `uploadAvatar`,
 `createGroupChat`, and the push triggers (item 6).
 
 ## Still open
