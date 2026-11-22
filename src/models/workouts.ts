@@ -98,7 +98,12 @@ export interface LeaderRow {
   rank: number;
 }
 
-/** Ranked by workouts, then minutes; ties share a rank. Empty weeks drop out. */
+/**
+ * Ranked by workouts, then minutes. Ties share a rank and the next person
+ * takes the next number (1, 2, 2, 3), not a skipped one (1, 2, 2, 4) — a
+ * skipped number read as a mistake on a friendly club board. Empty weeks
+ * drop out.
+ */
 export function leaderboard(week: WorkoutWeek | null | undefined, nameFor: (uid: string) => string | undefined): LeaderRow[] {
   const rows = Object.entries(week?.totals ?? {})
     .filter(([, t]) => t.count > 0)
@@ -107,7 +112,7 @@ export function leaderboard(week: WorkoutWeek | null | undefined, nameFor: (uid:
   let rank = 0;
   return rows.map((r, i) => {
     const prev = rows[i - 1];
-    if (!prev || prev.count !== r.count || prev.minutes !== r.minutes) rank = i + 1;
+    if (!prev || prev.count !== r.count || prev.minutes !== r.minutes) rank += 1;
     return { ...r, rank };
   });
 }

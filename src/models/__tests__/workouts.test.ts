@@ -68,6 +68,21 @@ describe("leaderboard", () => {
     ]);
   });
 
+  it("numbers the next person straight after a tie (5, 5, 6)", () => {
+    const rows = leaderboard(
+      {
+        totals: {
+          a: { name: "A", count: 3, minutes: 90 },
+          b: { name: "B", count: 1, minutes: 30 },
+          c: { name: "C", count: 1, minutes: 30 },
+          d: { name: "D", count: 1, minutes: 15 },
+        },
+      },
+      () => undefined,
+    );
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, 2, 3]);
+  });
+
   it("prefers current roster names", () => {
     expect(leaderboard(week, (u) => (u === "c" ? "Noelani" : undefined))[0]!.name).toBe("Noelani");
   });
