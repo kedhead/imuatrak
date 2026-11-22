@@ -47,10 +47,18 @@ setGlobalOptions({
 // Functions scale to zero when idle, and the first call after a quiet spell
 // waits a few seconds for a cold start. For the handful of calls a paddler is
 // actively WAITING on, that reads as the app stalling, so those keep one
-// instance warm. Each warm instance is billed while idle (a few dollars a
-// month), so this list is deliberately short: add to it only for calls that
+// instance warm. A warm instance is billed for its CPU and memory around the
+// clock, so this list is deliberately short: add to it only for calls that
 // block the screen, and delete a line to stop paying for it.
-const KEEP_WARM = { minInstances: 1 } as const;
+//
+// cpu "gcf_gen1" sizes the instance like a 1st-gen function (a fraction of a
+// vCPU at 256 MiB) instead of the 2nd-gen default of a whole vCPU. With a full
+// vCPU, three warm instances billed about $0.80 a day (~$24/month); these
+// calls are light (sign a URL, write a doc, find a thread), so the small CPU
+// keeps them instant for roughly a sixth of that. Below one vCPU an instance
+// serves one request at a time, so concurrency is 1 and bursts scale out
+// (within maxInstances) instead.
+const KEEP_WARM = { minInstances: 1, cpu: "gcf_gen1", concurrency: 1 } as const;
 
 // ---------------------------------------------------------------------------
 // Push-notification fan-out helpers.
