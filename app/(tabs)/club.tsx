@@ -20,7 +20,6 @@ import {
   type ScrollViewProps,
 } from "react-native";
 import { Image } from "expo-image";
-import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -51,6 +50,7 @@ import { NativeAdCard } from "@/ui/NativeAdCard";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ZoomableImage } from "@/ui/ZoomableImage";
+import { ModalKeyboardView } from "@/ui/ModalKeyboardView";
 
 /** Last-known feed for a club, kept on the phone (see services/localCache). */
 interface FeedCache {
@@ -754,10 +754,7 @@ function PostCard({
       )}
       <Modal visible={editing} animationType="slide" transparent onRequestClose={() => setEditing(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setEditing(false)} />
-        <KeyboardAvoidingView
-          behavior="padding"
-          style={styles.sheet}
-        >
+        <ModalKeyboardView style={styles.sheet} extra={spacing.xl}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Edit post</Text>
@@ -783,7 +780,7 @@ function PostCard({
               disabled={savingEdit || !editText.trim()}
             />
           </View>
-        </KeyboardAvoidingView>
+        </ModalKeyboardView>
       </Modal>
     </Animated.View>
   );
@@ -830,10 +827,7 @@ function CommentsSheet({
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose} />
-      <KeyboardAvoidingView
-        behavior="padding"
-        style={styles.sheet}
-      >
+      <ModalKeyboardView style={styles.sheet} extra={spacing.xl}>
         <View style={styles.sheetHandle} />
         <View style={styles.sheetHeader}>
           <Text style={styles.sheetTitle}>Comments</Text>
@@ -875,7 +869,7 @@ function CommentsSheet({
             </AnimatedPressable>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </ModalKeyboardView>
     </Modal>
   );
 }
@@ -942,7 +936,7 @@ function PollComposer({
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose} />
-      <KeyboardAvoidingView behavior="padding" style={styles.sheet}>
+      <ModalKeyboardView style={styles.sheet} extra={spacing.xl}>
         <View style={styles.sheetHandle} />
         <View style={styles.sheetHeader}>
           <Text style={styles.sheetTitle}>New Poll</Text>
@@ -1042,7 +1036,7 @@ function PollComposer({
             }
           </AnimatedPressable>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </ModalKeyboardView>
     </Modal>
   );
 }
