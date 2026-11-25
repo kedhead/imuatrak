@@ -83,6 +83,52 @@ via `expo-build-properties`' `extraProguardRules`.
 
 ---
 
+## RevenueCat 11.x, then Swift Package Manager on iOS — next native build
+
+**Status (2026-11-25): planned, not urgent.** RevenueCat emailed about
+CocoaPods being deprecated and their move to Swift Package Manager (SPM) for
+the iOS SDK (guide: revenuecat.com → SDK guides → "React Native: CocoaPods to
+SPM migration"). Nothing is broken: this only affects *new store builds*,
+never apps already on phones, and our pinned versions still build.
+
+### Where things stand
+
+- We pin `react-native-purchases` and `react-native-purchases-admob` at
+  **10.15.0** (exact pins: the admob package's peer dependency is the exact
+  same purchases version, and `check:native` enforces exact pins).
+- CocoaPods trunk is going read-only. Existing pod versions stay installable,
+  so our pins keep working; new versions will eventually stop being published
+  there. Confirm the date on the CocoaPods blog before relying on it.
+- `react-native-purchases` **11.x** (11.0.0 on 2026-10-28, 11.0.5 latest at
+  time of writing) still ships `RNPurchases.podspec`, and **adds** a
+  `Package.swift` marked "Experimental SwiftPM integration requires React
+  Native 0.88 or later". We're on RN 0.88, so we qualify. Its podspec moves
+  PurchasesHybridCommon from 19.12.0 to 20.14.0.
+- `react-native-purchases-admob` 11.0.5 peers on exactly
+  `react-native-purchases` 11.0.5 and `react-native-google-mobile-ads`
+  `>=17 <18`. We're on google-mobile-ads 17.3.1, so that fits; recheck if
+  it moves before the upgrade.
+- Expo SDK 58 builds iOS with CocoaPods (prebuild generates a Podfile). SPM
+  support in Expo is in progress but not the default, so step 2 below waits
+  on Expo.
+
+### The plan
+
+1. **Next native build (1.0.11):** bump both packages to the same 11.x
+   together, still on CocoaPods. It's a major version: read the 11.0.0
+   changelog (breaking changes), then on TestFlight and Play closed testing
+   test buy, restore, club plan sync (`syncClubPlan`), the paywall, and ad
+   tracking (banner + native ad placements). Bump the runtime: native change,
+   so no OTA to older runtimes.
+2. **When Expo supports SPM for native modules:** switch iOS dependency
+   resolution to SPM. This is a build setting change, not an app rewrite.
+   Revisit at each Expo SDK upgrade.
+3. **If a build ever fails resolving `PurchasesHybridCommon` from CocoaPods**
+   before then: that's this item coming due. Do step 1, or pin to the last
+   version that resolves.
+
+---
+
 ## Birthday push notifications — for the next full build
 
 **Status:** deferred. The in-app version shipped (2026-08); push is the follow-up.
