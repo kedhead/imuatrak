@@ -21,7 +21,6 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
-import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import { PastePhotoChip, useClipboardPhoto } from "@/ui/ClipboardPhoto";
 import { ChatKeyboardView } from "@/ui/ChatKeyboardView";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -59,6 +58,7 @@ import { formatMessageTime } from "@/ui/format";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ZoomableImage } from "@/ui/ZoomableImage";
 import { ChannelIcon } from "../channels";
+import { ModalKeyboardView } from "@/ui/ModalKeyboardView";
 
 export default function ChannelChatScreen() {
   const { channelId } = useLocalSearchParams<{ channelId: string }>();
@@ -753,10 +753,7 @@ export default function ChannelChatScreen() {
       {/* Media caption preview — pick, add a caption, then send. */}
       {pendingMedia && (
         <Modal visible transparent animationType="slide" onRequestClose={() => setPendingMedia(null)}>
-          <KeyboardAvoidingView
-            style={styles.previewFill}
-            behavior="padding"
-          >
+          <ModalKeyboardView style={styles.previewFill} fill={colors.white}>
             <Pressable style={styles.previewBackdrop} onPress={() => setPendingMedia(null)}>
               <Pressable style={styles.previewSheet} onPress={(e) => e.stopPropagation()}>
                 <ScrollView
@@ -797,17 +794,14 @@ export default function ChannelChatScreen() {
                 </View>
               </Pressable>
             </Pressable>
-          </KeyboardAvoidingView>
+          </ModalKeyboardView>
         </Modal>
       )}
 
       {/* Edit message */}
       {editTarget && (
         <Modal visible transparent animationType="slide" onRequestClose={() => setEditTarget(null)}>
-          <KeyboardAvoidingView
-            style={styles.previewFill}
-            behavior="padding"
-          >
+          <ModalKeyboardView style={styles.previewFill} fill={colors.white}>
             <Pressable style={styles.previewBackdrop} onPress={() => setEditTarget(null)}>
               <Pressable style={styles.previewSheet} onPress={(e) => e.stopPropagation()}>
                 <Text style={styles.editTitle}>Edit message</Text>
@@ -828,7 +822,7 @@ export default function ChannelChatScreen() {
                 </View>
               </Pressable>
             </Pressable>
-          </KeyboardAvoidingView>
+          </ModalKeyboardView>
         </Modal>
       )}
     </SafeAreaView>

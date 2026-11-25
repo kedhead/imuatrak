@@ -17,7 +17,6 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
-import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { currentUser } from "@/services/auth";
@@ -38,6 +37,7 @@ import { Avatar } from "@/ui/Avatar";
 import { Button } from "@/ui/Button";
 import { colors, radii, spacing, type } from "@/ui/theme";
 import { ZoomableImage } from "@/ui/ZoomableImage";
+import { ModalKeyboardView } from "@/ui/ModalKeyboardView";
 
 const SCREEN_W = Dimensions.get("window").width;
 const SCREEN_H = Dimensions.get("window").height;
@@ -620,10 +620,7 @@ function ComposeSheet({
           { paddingTop: Math.max(insetTop, spacing.sm), paddingBottom: insetBottom },
         ]}
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior="padding"
-        >
+        <ModalKeyboardView style={{ flex: 1 }} bottomInset={false} alreadyPadded={insetBottom}>
           <View style={styles.composeHeader}>
             <Pressable onPress={onCancel} hitSlop={16} style={styles.headerBtn}>
               <Ionicons name="close" size={26} color={colors.ink} />
@@ -687,7 +684,7 @@ function ComposeSheet({
               </View>
             )}
           </ScrollView>
-        </KeyboardAvoidingView>
+        </ModalKeyboardView>
       </View>
     </Modal>
   );
@@ -830,10 +827,7 @@ function PhotoViewer({
           { paddingTop: Math.max(insetTop, spacing.sm), paddingBottom: insetBottom },
         ]}
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior="padding"
-        >
+        <ModalKeyboardView style={{ flex: 1 }} bottomInset={false} alreadyPadded={insetBottom}>
           <View style={styles.viewerHeader}>
             <Pressable onPress={onClose} hitSlop={16} style={styles.headerBtn}>
               <Ionicons name="close" size={28} color={colors.white} />
@@ -955,7 +949,7 @@ function PhotoViewer({
               </View>
             )}
           </View>
-        </KeyboardAvoidingView>
+        </ModalKeyboardView>
       </GestureHandlerRootView>
     </Modal>
   );

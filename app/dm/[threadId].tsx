@@ -20,7 +20,6 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
-import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import { PastePhotoChip, useClipboardPhoto } from "@/ui/ClipboardPhoto";
 import { ChatKeyboardView } from "@/ui/ChatKeyboardView";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -42,6 +41,7 @@ import { LinkifiedText } from "@/ui/LinkifiedText";
 import { formatTime } from "@/ui/format";
 import { colors, radii, shadow, spacing, type } from "@/ui/theme";
 import { ZoomableImage } from "@/ui/ZoomableImage";
+import { ModalKeyboardView } from "@/ui/ModalKeyboardView";
 
 const SCREEN_W = Dimensions.get("window").width;
 const SCREEN_H = Dimensions.get("window").height;
@@ -493,7 +493,7 @@ export default function DmThreadScreen() {
       {/* Photo caption preview — pick, add a caption, then send. */}
       {pendingMedia && (
         <Modal visible transparent animationType="slide" onRequestClose={() => setPendingMedia(null)}>
-          <KeyboardAvoidingView style={styles.previewFill} behavior="padding">
+          <ModalKeyboardView style={styles.previewFill} fill={colors.white}>
             <Pressable style={styles.previewBackdrop} onPress={() => setPendingMedia(null)}>
               <Pressable style={styles.previewSheet} onPress={(e) => e.stopPropagation()}>
                 <ScrollView
@@ -527,7 +527,7 @@ export default function DmThreadScreen() {
                 </View>
               </Pressable>
             </Pressable>
-          </KeyboardAvoidingView>
+          </ModalKeyboardView>
         </Modal>
       )}
     </SafeAreaView>

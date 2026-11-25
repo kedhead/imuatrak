@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   SIGNUP_ITEMS_MAX,
@@ -36,6 +35,7 @@ import { AnimatedPressable } from "./AnimatedPressable";
 import { Button } from "./Button";
 import { GradientCard } from "./GradientCard";
 import { colors, radii, spacing, type } from "./theme";
+import { ModalKeyboardView } from "@/ui/ModalKeyboardView";
 
 const DETAILS_MAX = 120;
 
@@ -391,7 +391,7 @@ export function SignupSheet({
       </GradientCard>
 
       <Modal visible={sheet !== null} transparent animationType="slide" onRequestClose={close}>
-        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+        <ModalKeyboardView style={styles.flex} fill={colors.white}>
           <Pressable style={styles.overlay} onPress={close}>
             <Pressable style={styles.modal} onPress={(e) => e.stopPropagation()}>
               {sheet?.kind === "claim" && (() => {
@@ -559,7 +559,7 @@ export function SignupSheet({
               )}
             </Pressable>
           </Pressable>
-        </KeyboardAvoidingView>
+        </ModalKeyboardView>
       </Modal>
     </>
   );

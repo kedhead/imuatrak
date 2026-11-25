@@ -15,7 +15,6 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { deleteField } from "firebase/firestore";
 import { currentUser } from "@/services/auth";
@@ -62,6 +61,7 @@ import { Pill } from "@/ui/Pill";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { SignupSheet } from "@/ui/SignupSheet";
 import { colors, radii, spacing, type } from "@/ui/theme";
+import { ModalKeyboardView } from "@/ui/ModalKeyboardView";
 
 /** One-line summary of a boat's crew, shown under the picker. */
 function describeBoat(t: BoatType): string {
@@ -706,10 +706,7 @@ function EventDetail({
         {/* The sheet is bottom-anchored and the input autofocuses, so without
             this the keyboard covers the whole sheet — you can't see what
             you're typing. Padding behavior lifts the sheet above the keyboard. */}
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior="padding"
-        >
+        <ModalKeyboardView style={styles.flex} fill={colors.white}>
           <Pressable style={styles.modalOverlay} onPress={() => setGuestModal(false)}>
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
               <Text style={styles.modalTitle}>Bring a guest</Text>
@@ -738,7 +735,7 @@ function EventDetail({
               />
             </Pressable>
           </Pressable>
-        </KeyboardAvoidingView>
+        </ModalKeyboardView>
       </Modal>
     </>
   );

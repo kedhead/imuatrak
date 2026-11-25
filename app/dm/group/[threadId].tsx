@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { KeyboardAvoidingView } from "@/ui/KeyboardAvoidingView";
 import { dmThreadTitle, type DmThread } from "@/models/club";
 import { currentUser } from "@/services/auth";
 import { leaveGroupChat, renameGroupChat, subscribeDmThread } from "@/services/dmService";
@@ -11,6 +10,7 @@ import { Button } from "@/ui/Button";
 import { GradientCard } from "@/ui/GradientCard";
 import { ScreenBackground } from "@/ui/ScreenBackground";
 import { colors, radii, spacing, type } from "@/ui/theme";
+import { ModalKeyboardView } from "@/ui/ModalKeyboardView";
 
 /** Members, rename, add people, leave. Any member can do all of it — groups
  *  are the members' own, with no admin in charge. */
@@ -144,7 +144,7 @@ export default function GroupInfoScreen() {
       </ScrollView>
 
       <Modal visible={renaming} transparent animationType="fade" onRequestClose={() => setRenaming(false)}>
-        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+        <ModalKeyboardView style={styles.flex}>
           <Pressable style={styles.overlay} onPress={() => setRenaming(false)}>
             <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
               <Text style={styles.sheetTitle}>Rename group</Text>
@@ -166,7 +166,7 @@ export default function GroupInfoScreen() {
               />
             </Pressable>
           </Pressable>
-        </KeyboardAvoidingView>
+        </ModalKeyboardView>
       </Modal>
     </ScreenBackground>
   );
